@@ -1,0 +1,55 @@
+# =============================================================================
+# Cloudflare Worker — API du Livre de recettes.
+#
+# Le front (Vite) est servi par Cloudflare Pages, le Worker sert /api/*.
+# Meme origine : aucun CORS a gerer entre le front et l'API.
+#
+# Ce fichier ne contient AUCUN secret. Les jetons (OpenFoodFacts n'en demande
+# pas, Lidl Plus si) passent par `wrangler secret put`, et par .dev.vars en
+# local — les deux sont hors du depot.
+# =============================================================================
+
+name = "livre-de-recettes-api"
+main = "worker/src/index.ts"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+workers_dev = false
+
+# --- Base de donnees ---------------------------------------------------------
+# database_id est renseigne apres `wrangler d1 create livre-de-recettes`.
+# La valeur n'est pas un secret (elle n'autorise rien sans le compte).
+[[d1_databases]]
+binding = "DB"
+database_name = "livre-de-recettes"
+database_id = "TODO_REMPLACER_APRES_wrangler_d1_create"
+migrations_dir = "migrations"
+
+# --- Stockage objet ----------------------------------------------------------
+# Photos de recettes (remplace ~/.livre-de-recettes/recipe_photos/) et PDF de
+# tickets televerses (remplace le dossier surveille).
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "livre-de-recettes-media"
+
+# --- Cache de l'etat OpenFoodFacts ------------------------------------------
+# Remplace le ping client toutes les 5 minutes du desktop.
+[[kv_namespaces]]
+binding = "CACHE"
+id = "TODO_REMPLACER_APRES_wrangler_kv_namespace_create"
+
+[vars]
+# Envoye a OpenFoodFacts. OFF limite plus severement les clients anonymes,
+# l'identification est donc dans notre interet.
+OFF_USER_AGENT = "livre-de-recettes/0.2.0 (marius.amalric45@gmail.com)"
+ENVIRONMENT = "production"
+
+# --- Rafraichissement de l'etat OFF -----------------------------------------
+[triggers]
+crons = ["*/15 * * * *"]
+
+[observability]
+enabled = true
+
+[env.dev.vars]
+ENVIRONMENT = "development"

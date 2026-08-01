@@ -1,0 +1,17 @@
+{
+  "name": "@livre/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@livre/shared": "*",
+    "decimal.js": "^10.4.3",
+    "zod": "^3.24.1"
+  }
+}
