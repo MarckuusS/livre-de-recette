@@ -5,8 +5,12 @@
 # cherche un fichier qui n'existe pas. Le 200 sert index.html en conservant
 # l'URL, et le routeur prend le relais cote client.
 #
-# /api/* est exclu : ces requetes doivent atteindre le Worker, pas index.html.
-# Sans cette premiere ligne, un appel d'API sur un chemin inconnu renverrait du
-# HTML avec un code 200, et le client planterait en essayant de le parser.
-/api/*  /api/:splat  200
+# Aucune regle pour /api/* ici, volontairement : la route du Worker
+# (livre-de-recette.pages.dev/api/*) est evaluee AVANT les regles de Pages.
+# Une regle /api/* /api/:splat 200 serait une reecriture sur elle-meme, sans
+# effet — elle retomberait sur la ligne suivante et servirait index.html.
+#
+# Consequence tant que le Worker n'est pas deploye : /api/* renvoie index.html
+# avec un code 200. Le client s'en protege en verifiant le content-type avant
+# de parser (voir web/src/lib/api.ts) plutot que de compter sur cette couche.
 /*      /index.html  200

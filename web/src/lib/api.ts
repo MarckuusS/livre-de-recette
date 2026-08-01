@@ -53,6 +53,19 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(response.status, code, message)
   }
 
+  // Une reponse 200 ne garantit pas du JSON. Le repli SPA de Cloudflare Pages
+  // sert index.html sur tout chemin inconnu, y compris /api/* tant que le
+  // Worker n'a pas de route : sans ce controle, JSON.parse echoue sur
+  // « Unexpected token '<' », message qui n'apprend rien a l'utilisateur.
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) {
+    throw new ApiError(
+      response.status,
+      'not_json',
+      "L'API ne répond pas encore sur cette adresse.",
+    )
+  }
+
   return (await response.json()) as T
 }
 
