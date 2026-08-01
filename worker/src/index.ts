@@ -5,17 +5,22 @@
  * evite toute question de CORS.
  *
  * ---------------------------------------------------------------------------
- * AUTHENTIFICATION — a lire avant de deployer avec de vraies donnees
+ * AUTHENTIFICATION
  * ---------------------------------------------------------------------------
- * Il n'y a volontairement AUCUN code d'authentification ici. La protection se
- * configure dans **Cloudflare Access**, devant le Worker et devant Pages :
- * les requetes non authentifiees sont refusees a la peripherie, avant
- * d'atteindre ce code.
+ * Toute route /api/* exige une session valide, sauf /api/login.
  *
- * C'est le bon choix pour une application mono-utilisateur : zero ligne de
- * code a maintenir, zero session a stocker, et aucun risque d'ecrire soi-meme
- * une verification de jeton bancale. Mais cela veut dire que **tant qu'Access
- * n'est pas active, l'API est publique**. Voir docs/deploiement.md.
+ * Cloudflare Access remplissait ce role au depart et le faisait mieux — il
+ * refusait la requete AVANT d'atteindre ce code. Mais sa page de connexion vit
+ * sur une autre origine, et un `fetch()` ne peut pas lire une reponse issue
+ * d'une redirection cross-origin : l'API devenait « injoignable » des que la
+ * session expirait, sans qu'on puisse le distinguer d'une panne de reseau.
+ * Inutilisable dans une PWA.
+ *
+ * Le mecanisme de remplacement est detaille en tete de auth.ts, limites
+ * comprises.
+ *
+ * Les fichiers statiques restent publics : ils ne contiennent aucune donnee,
+ * et l'ecran de connexion en fait partie.
  */
 
 import {
@@ -25,10 +30,21 @@ import {
   type ShoppingList,
 } from '@livre/shared'
 
+import {
+  checkPassword,
+  clearSessionCookie,
+  hasValidSession,
+  issueSession,
+  lockoutRemaining,
+  recordFailure,
+  resetFailures,
+} from './auth.js'
 import { Repositories } from './repositories.js'
 
 export interface Env {
   readonly DB: D1Database
+  /** Secret Cloudflare : `npx wrangler pages secret put APP_PASSWORD`. */
+  readonly APP_PASSWORD: string
   readonly OFF_USER_AGENT: string
   readonly ENVIRONMENT: string
   /**
@@ -274,26 +290,77 @@ route('PUT', '/api/shopping/:week/checked', async ({ repos, params, request }) =
 /** Semaine courante — calculee cote serveur (UTC) et cote client (heure locale). */
 route('GET', '/api/current-week', async () => json({ isoWeek: currentIsoWeek() }))
 
+// ---------------------------------------------------------------------------
+// Authentification
+// ---------------------------------------------------------------------------
+
 /**
- * Point de retour apres authentification Cloudflare Access.
- *
- * Le front y envoie l'utilisateur quand un appel d'API se fait rediriger,
- * signe d'une session absente ou expiree. Access intercepte cette requete
- * AVANT ce code, affiche sa page de connexion, puis la laisse passer — et
- * c'est seulement a ce moment que la ligne ci-dessous s'execute, pour
- * ramener l'utilisateur exactement la ou il etait.
- *
- * Ce chemin passe par /api/ a dessein : c'est le seul exclu du cache du
- * service worker, donc le seul qui atteigne reellement le reseau.
+ * Routes accessibles sans session. Tout le reste est protege par defaut.
+ * `/logout` et `/session` sont inoffensives : l'une efface un cookie, l'autre
+ * ne dit que « oui » ou « non ».
  */
-route('GET', '/api/auth-return', async ({ url }) => {
-  const next = url.searchParams.get('next') ?? '/'
-  // Une redirection ouverte permettrait d'envoyer quelqu'un sur un site
-  // tiers depuis un lien qui a l'air legitime. On n'accepte qu'un chemin
-  // interne : commence par '/', et pas '//' qui designerait un autre domaine.
-  const safe = next.startsWith('/') && !next.startsWith('//') ? next : '/'
-  return new Response(null, { status: 302, headers: { location: safe, 'cache-control': 'no-store' } })
+const PUBLIC_ROUTES = new Set(['/api/login', '/api/logout', '/api/session'])
+
+route('POST', '/api/login', async ({ env, request }) => {
+  if (!env.APP_PASSWORD) {
+    // Sans secret configure, on REFUSE tout plutot que de laisser passer.
+    // Un defaut de configuration ne doit jamais ouvrir la porte.
+    throw new HttpError(503, 'not_configured', "L'authentification n'est pas configurée sur le serveur.")
+  }
+
+  const locked = await lockoutRemaining(env.DB)
+  if (locked > 0) {
+    throw new HttpError(
+      429,
+      'locked_out',
+      `Trop de tentatives. Réessaie dans ${Math.ceil(locked / 60)} minute(s).`,
+    )
+  }
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    throw new HttpError(400, 'invalid_body', 'Corps de requête illisible.')
+  }
+
+  const password = (body as { password?: unknown })?.password
+  if (typeof password !== 'string' || password.length === 0) {
+    throw new HttpError(400, 'invalid_body', 'Mot de passe manquant.')
+  }
+
+  if (!(await checkPassword(password, env.APP_PASSWORD))) {
+    await recordFailure(env.DB)
+    // Volontairement vague : ne rien dire de plus qu'« echec ».
+    throw new HttpError(401, 'bad_password', 'Mot de passe incorrect.')
+  }
+
+  await resetFailures(env.DB)
+  return new Response(JSON.stringify({ status: 'ok' }), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'set-cookie': await issueSession(env.APP_PASSWORD),
+    },
+  })
 })
+
+route('POST', '/api/logout', async () =>
+  new Response(JSON.stringify({ status: 'ok' }), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'set-cookie': clearSessionCookie(),
+    },
+  }),
+)
+
+/** Permet au front de savoir s'il doit afficher l'ecran de connexion. */
+route('GET', '/api/session', async ({ env, request }) =>
+  json({ authenticated: await hasValidSession(request, env.APP_PASSWORD) }),
+)
 
 // ---------------------------------------------------------------------------
 // Point d'entree
@@ -308,6 +375,15 @@ export default {
     // delegation, le site entier renverrait du JSON.
     if (!url.pathname.startsWith('/api/')) {
       return env.ASSETS.fetch(request)
+    }
+
+    // Garde d'authentification, AVANT toute recherche de route.
+    //
+    // La liste des exceptions est explicite et courte : tout ce qui n'y
+    // figure pas est protege par defaut. Proteger route par route serait
+    // l'inverse — et laisserait tot ou tard passer un endpoint oublie.
+    if (!PUBLIC_ROUTES.has(url.pathname) && !(await hasValidSession(request, env.APP_PASSWORD))) {
+      return fail(401, 'unauthenticated', 'Session expirée. Reconnecte-toi.')
     }
 
     for (const r of routes) {

@@ -121,6 +121,57 @@ npm run typecheck    # TypeScript strict
 npm run db:verify    # fidélité de la migration des données
 ```
 
+## Authentification
+
+L'application est protégée par un **mot de passe unique**, vérifié par le Worker.
+
+```bash
+npx wrangler pages secret put APP_PASSWORD
+```
+
+Le secret est stocké chiffré chez Cloudflare et injecté à l'exécution. Il n'est
+ni dans le dépôt, ni dans le navigateur, ni dans la base.
+
+**Tant que ce secret n'est pas défini, `/api/login` répond 503 et toute l'API
+reste fermée.** Un défaut de configuration ne doit jamais ouvrir la porte.
+
+### Comment ça marche
+
+- `POST /api/login` compare le mot de passe en temps constant, puis pose un
+  cookie `HttpOnly; Secure; SameSite=Strict` valable 90 jours ;
+- le cookie contient une date d'expiration signée en HMAC-SHA256, dont la clé
+  est le mot de passe lui-même. Le modifier invalide donc toutes les sessions ;
+- toute route `/api/*` exige ce cookie, sauf `login`, `logout` et `session` ;
+- 10 échecs verrouillent les tentatives pendant 15 minutes.
+
+Le détail, limites comprises, est en tête de [`worker/src/auth.ts`](../worker/src/auth.ts).
+
+### Déverrouiller après trop de tentatives
+
+```bash
+npx wrangler d1 execute livre-de-recettes --remote \
+  --command "DELETE FROM app_setting WHERE key='auth.failures'"
+```
+
+### Changer le mot de passe
+
+Rejouer `wrangler pages secret put APP_PASSWORD`. Toutes les sessions ouvertes
+sont invalidées, sur tous les appareils.
+
+### Pourquoi pas Cloudflare Access
+
+Access a été utilisé en premier et protégeait mieux — il refusait la requête
+avant même d'atteindre notre code. Mais sa page de connexion vit sur une autre
+origine, et un `fetch()` ne peut pas lire une réponse issue d'une redirection
+cross-origin : l'API devenait « injoignable » dès que la session expirait, sans
+qu'on puisse le distinguer d'une panne de réseau. Inutilisable dans une PWA
+installée.
+
+Le compromis est assumé : cette vérification s'exécute *dans* le Worker, donc
+un bug ici ouvre la porte, là où Access rendait cela impossible.
+
+---
+
 ## Sécurité
 
 Le dépôt est **public**. Trois règles :

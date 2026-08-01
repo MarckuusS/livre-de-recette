@@ -766,3 +766,35 @@
 .icon-button--spacer {
   pointer-events: none;
 }
+
+/* ---------- Ecran de connexion ---------- */
+
+.login {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: var(--space-lg);
+  padding-top: calc(var(--space-lg) + var(--safe-top));
+}
+
+.login__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: 100%;
+  max-width: 360px;
+}
+
+.login__title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+.login__field {
+  margin-top: var(--space-sm);
+}
+
+.login__submit {
+  width: 100%;
+}

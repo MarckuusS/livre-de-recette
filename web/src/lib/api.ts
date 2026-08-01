@@ -3,6 +3,10 @@
  *
  * Meme origine que le front : les chemins sont toujours relatifs, jamais une
  * URL absolue. En developpement, le proxy Vite renvoie /api vers le Worker.
+ *
+ * La session vit dans un cookie `HttpOnly` : ce code ne la voit pas, ne la
+ * stocke pas et n'a rien a lui faire. Il se contente de reconnaitre un 401
+ * et de laisser l'application afficher l'ecran de connexion.
  */
 
 export interface ApiErrorBody {
@@ -23,33 +27,11 @@ export class ApiError extends Error {
   get isOffline(): boolean {
     return this.status === 0
   }
-}
 
-/**
- * Renvoie l'utilisateur vers la page de connexion de Cloudflare Access.
- *
- * Le passage par `/api/auth-return` n'est pas un detour inutile : le service
- * worker sert la coquille de l'app depuis son cache, donc un simple
- * `location.reload()` ne toucherait jamais le reseau et bouclerait. `/api/*`
- * est exclu du cache, la requete part donc reellement, Access l'intercepte,
- * affiche sa page de connexion, puis renvoie ici — et le Worker nous ramene
- * a l'ecran d'ou l'on venait.
- */
-function redirectToLogin(): never {
-  // Garde anti-boucle : si la connexion echoue malgre tout, on ne veut pas
-  // faire tourner le telephone indefiniment entre deux redirections.
-  const KEY = 'auth-redirect-at'
-  const last = Number(sessionStorage.getItem(KEY) ?? 0)
-  if (Date.now() - last < 10_000) {
-    throw new ApiError(401, 'auth_loop', 'La connexion a échoué. Recharge la page.')
+  /** Session absente ou expiree : il faut se reconnecter. */
+  get isUnauthenticated(): boolean {
+    return this.status === 401
   }
-  sessionStorage.setItem(KEY, String(Date.now()))
-
-  const next = location.pathname + location.search
-  location.href = `/api/auth-return?next=${encodeURIComponent(next)}`
-  // location.href ne suspend pas l'execution : sans ce throw, l'appelant
-  // continuerait a traiter une reponse qui n'existe pas.
-  throw new ApiError(401, 'redirecting', 'Redirection vers la connexion…')
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -57,22 +39,16 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   try {
     response = await fetch(path, {
       ...init,
-      // 'manual' est indispensable : par defaut, fetch suit la redirection
-      // d'Access vers cloudflareaccess.com, une autre origine, et echoue
-      // avec une simple erreur reseau — impossible de distinguer une session
-      // expiree d'un telephone hors couverture.
-      redirect: 'manual',
+      // Le cookie de session part avec la requete. 'same-origin' est deja le
+      // defaut, mais l'expliciter evite qu'un changement de configuration ne
+      // casse silencieusement l'authentification.
+      credentials: 'same-origin',
       headers: { Accept: 'application/json', ...init?.headers },
     })
   } catch {
     // fetch ne rejette que sur une panne reseau : le telephone est hors
     // couverture, ou le serveur est injoignable.
     throw new ApiError(0, 'network', 'Pas de connexion. Vérifie ton réseau.')
-  }
-
-  // Session Access absente ou expiree.
-  if (response.type === 'opaqueredirect' || response.status === 401) {
-    redirectToLogin()
   }
 
   if (!response.ok) {
@@ -91,16 +67,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   // Une reponse 200 ne garantit pas du JSON. Le repli SPA de Cloudflare Pages
-  // sert index.html sur tout chemin inconnu, y compris /api/* tant que le
-  // Worker n'a pas de route : sans ce controle, JSON.parse echoue sur
-  // « Unexpected token '<' », message qui n'apprend rien a l'utilisateur.
+  // sert index.html sur tout chemin inconnu : sans ce controle, JSON.parse
+  // echoue sur « Unexpected token '<' », message qui n'apprend rien.
   const contentType = response.headers.get('content-type') ?? ''
   if (!contentType.includes('application/json')) {
-    throw new ApiError(
-      response.status,
-      'not_json',
-      "L'API ne répond pas encore sur cette adresse.",
-    )
+    throw new ApiError(response.status, 'not_json', "L'API ne répond pas correctement.")
   }
 
   return (await response.json()) as T
@@ -112,3 +83,20 @@ export interface HealthResponse {
   readonly database: { readonly reachable: boolean; readonly ingredients: number | null }
   readonly time: string
 }
+
+// ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+
+export const checkSession = (): Promise<{ authenticated: boolean }> =>
+  apiFetch<{ authenticated: boolean }>('/api/session')
+
+export const login = (password: string): Promise<{ status: 'ok' }> =>
+  apiFetch<{ status: 'ok' }>('/api/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+
+export const logout = (): Promise<{ status: 'ok' }> =>
+  apiFetch<{ status: 'ok' }>('/api/logout', { method: 'POST' })
