@@ -1,0 +1,195 @@
+/*
+ * Coquille de l'application : en-tete fixe, contenu defilant, barre d'onglets
+ * fixe en bas.
+ *
+ * Le desktop empile deux SplitView maitre-detail et une grille 7 x 5 d'au
+ * moins 900 px : rien de tout cela ne tient en 360 px. La structure ici est
+ * celle d'une application mobile — une pile d'ecrans sous une barre d'onglets.
+ */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  /* 100dvh et non 100vh : sur iOS, vh compte la barre d'adresse meme quand
+     elle est retractee, ce qui fait depasser la barre d'onglets sous l'ecran. */
+  min-height: 100dvh;
+}
+
+/* ---------- En-tete ---------- */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  height: calc(var(--header-height) + var(--safe-top));
+  padding: var(--safe-top) var(--space-lg) 0;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-header__title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+.app-header__actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  font-size: var(--font-size-lg);
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-full);
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.icon-button:hover {
+  background: var(--color-surface-hover);
+}
+
+.icon-button:active {
+  background: var(--color-surface-pressed);
+}
+
+/* ---------- Contenu ---------- */
+
+.app-main {
+  flex: 1;
+  /* Reserve la place de la barre d'onglets, encoche du bas comprise. */
+  padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom));
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  margin: 0 auto;
+  /* Au-dela, les lignes deviennent trop longues a lire sur grand ecran. */
+  max-width: 720px;
+}
+
+.card {
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
+}
+
+.card__title {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.card__lead {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.card__list {
+  margin: var(--space-md) 0 0;
+  padding-left: var(--space-lg);
+  color: var(--color-text-secondary);
+}
+
+.card__list li + li {
+  margin-top: var(--space-xs);
+}
+
+/* ---------- Paires cle / valeur ---------- */
+
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-xs) var(--space-lg);
+  margin: var(--space-md) 0 0;
+}
+
+.kv dt {
+  color: var(--color-text-secondary);
+}
+
+.kv dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.status {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.status--ok {
+  color: var(--color-success);
+}
+
+.status--error {
+  color: var(--color-error);
+}
+
+/* ---------- Barre d'onglets ---------- */
+
+.tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: calc(var(--tabbar-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+.tabbar__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--easing-standard);
+}
+
+.tabbar__item--active {
+  color: var(--color-primary);
+}
+
+.tabbar__icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.tabbar__label {
+  font-size: var(--font-size-xs);
+  /* Sous 340 px, « Ingrédients » deborde sur ses voisins. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+@media (max-width: 340px) {
+  .tabbar__label {
+    display: none;
+  }
+}

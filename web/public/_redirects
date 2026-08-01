@@ -1,0 +1,12 @@
+# Cloudflare Pages — repli SPA.
+#
+# L'application utilise de vraies URL (/courses, /recettes...). Sans cette
+# regle, ouvrir directement https://.../courses renvoie un 404 : Pages y
+# cherche un fichier qui n'existe pas. Le 200 sert index.html en conservant
+# l'URL, et le routeur prend le relais cote client.
+#
+# /api/* est exclu : ces requetes doivent atteindre le Worker, pas index.html.
+# Sans cette premiere ligne, un appel d'API sur un chemin inconnu renverrait du
+# HTML avec un code 200, et le client planterait en essayant de le parser.
+/api/*  /api/:splat  200
+/*      /index.html  200

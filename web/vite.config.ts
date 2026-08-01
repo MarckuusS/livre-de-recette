@@ -1,0 +1,81 @@
+import { fileURLToPath } from 'node:url'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
+
+/**
+ * Le front est servi par Cloudflare Pages, l'API par un Worker sur /api/*.
+ * Meme origine en production : aucun CORS a gerer. En developpement, le proxy
+ * ci-dessous reproduit cette topologie pour que le code n'ait jamais a
+ * connaitre d'URL d'API absolue.
+ */
+// Cloudflare Pages expose le SHA du commit deploye. En local il n'existe pas :
+// on retombe sur 'dev', ce qui distingue immediatement les deux situations sur
+// l'ecran Diagnostic.
+const COMMIT = process.env['CF_PAGES_COMMIT_SHA']?.slice(0, 7) ?? 'dev'
+const BUILD_TIME = new Date().toISOString()
+
+export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(COMMIT),
+    __BUILD_TIME__: JSON.stringify(BUILD_TIME),
+  },
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['icons/favicon.svg', 'icons/apple-touch-icon.png'],
+      manifest: {
+        name: 'Livre de recettes',
+        // Sous l'icone d'un ecran d'accueil, on ne lit qu'une douzaine de
+        // caracteres avant la troncature.
+        short_name: 'Recettes',
+        description: 'Recettes, ingrédients, planning de la semaine et frigo.',
+        lang: 'fr',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#f8fafc',
+        theme_color: '#2563eb',
+        icons: [
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          // `maskable` laisse Android recadrer dans sa propre forme sans
+          // rogner le motif : l'icone prevoit une marge de securite.
+          { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // L'app est en ligne par choix : le cache sert au demarrage instantane
+        // et a la resistance aux reseaux mauvais, PAS a un mode hors-ligne.
+        // Les reponses de l'API ne sont jamais mises en cache par le service
+        // worker — un prix perime affiche comme frais serait pire qu'une erreur.
+        navigateFallbackDenylist: [/^\/api\//],
+        runtimeCaching: [],
+      },
+      devOptions: { enabled: false },
+    }),
+  ],
+  resolve: {
+    alias: {
+      '@livre/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8787', // `wrangler dev` du Worker
+        changeOrigin: true,
+      },
+    },
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+    target: 'es2022',
+  },
+})

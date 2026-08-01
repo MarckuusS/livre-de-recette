@@ -1,0 +1,266 @@
+/*
+ * Jetons de design — transposition fidele de app/ui/qml/Theme.qml.
+ *
+ * Le desktop derive toutes ses couleurs d'un booleen `darkMode`. Ici le meme
+ * role est tenu par `[data-theme]` sur <html>, avec trois etats :
+ *   - absent          -> on suit le systeme (prefers-color-scheme)
+ *   - data-theme=light -> force clair
+ *   - data-theme=dark  -> force sombre
+ *
+ * Deux ecarts assumes par rapport au desktop, et seulement deux :
+ *
+ *   1. La taille de base passe de 13 px a 16 px sous 768 px. 13 px est
+ *      confortable a la souris sur un ecran de bureau, illisible sur un
+ *      telephone tenu a bout de bras. Sous iOS, un champ de saisie sous 16 px
+ *      declenche en plus un zoom automatique a la mise au point.
+ *
+ *   2. La hauteur de controle passe de 36 px a 44 px en tactile, minimum
+ *      recommande pour une cible au doigt.
+ */
+
+:root {
+  /* ---------- Palette claire (Theme.qml, darkMode = false) ---------- */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-pressed: #1e40af;
+  --color-primary-disabled: #cbd5e1;
+  --color-on-primary: #ffffff;
+
+  --color-secondary: #7c3aed;
+  --color-secondary-hover: #6d28d9;
+  --color-secondary-pressed: #5b21b6;
+
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f1f5f9;
+  --color-surface-pressed: #e2e8f0;
+
+  --color-text: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-disabled: #cbd5e1;
+  --color-text-placeholder: #94a3b8;
+
+  --color-border: #e2e8f0;
+  --color-border-hover: #cbd5e1;
+  --color-border-focus: #3b82f6;
+
+  --color-accent: #0891b2;
+  --color-error: #dc2626;
+  --color-error-hover: #b91c1c;
+  --color-success: #16a34a;
+  --color-warning: #ea580c;
+
+  --color-overlay: rgb(0 0 0 / 45%);
+
+  --shadow-color: 15 23 42;
+  --shadow-subtle: 0 1px 2px rgb(var(--shadow-color) / 6%);
+  --shadow-normal: 0 2px 8px rgb(var(--shadow-color) / 12%);
+  --shadow-elevated: 0 8px 24px rgb(var(--shadow-color) / 18%);
+
+  /* ---------- Hors theme : identiques en clair et en sombre ----------
+   * Badges de source et palette nutriment. Ce sont des codes de lecture,
+   * pas des couleurs d'interface : les inverser casserait la reconnaissance.
+   */
+  --color-source-ciqual: #15803d;
+  --color-source-off: #1d4ed8;
+  --color-source-manual: #c2410c;
+  --color-source-lidl: #c2410c;
+
+  --color-nutrient-energy: #f1b40e;
+  --color-nutrient-fats: #fda406;
+  --color-nutrient-saturated: #da4a35;
+  --color-nutrient-carbs: #509938;
+  --color-nutrient-sugars: #07a0aa;
+  --color-nutrient-fiber: #7cc04c;
+  --color-nutrient-proteins: #0b6bbb;
+  --color-nutrient-salt: #7145a7;
+
+  --color-toast-bg: #1f2937;
+
+  /* ---------- Typographie ---------- */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica, Arial,
+    sans-serif;
+
+  --font-size-xs: 0.625rem;
+  --font-size-sm: 0.6875rem;
+  --font-size-md: 0.8125rem;
+  --font-size-lg: 0.9375rem;
+  --font-size-xl: 1.125rem;
+  --font-size-title: 1.375rem;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ---------- Espacements — multiples de 4, comme Theme.qml ---------- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+
+  /* ---------- Rayons ---------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-full: 9999px;
+
+  /* ---------- Animations ---------- */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --easing-standard: cubic-bezier(0.33, 1, 0.68, 1);
+  --easing-enter: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --easing-exit: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+
+  /* ---------- Hauteurs de controle ---------- */
+  --control-height-sm: 28px;
+  --control-height-md: 36px;
+  --control-height-lg: 44px;
+
+  /* ---------- Chrome de l'application ---------- */
+  --header-height: 56px;
+  --tabbar-height: 56px;
+  /* Encoche et barre d'accueil iOS. Vaut 0 hors PWA installee. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ---------- Palette sombre (Theme.qml, darkMode = true) ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-primary: #3b82f6;
+    --color-primary-hover: #60a5fa;
+    --color-primary-pressed: #2563eb;
+    --color-primary-disabled: #475569;
+
+    --color-secondary: #a78bfa;
+    --color-secondary-hover: #c4b5fd;
+    --color-secondary-pressed: #8b5cf6;
+
+    --color-background: #0f172a;
+    --color-surface: #1e293b;
+    --color-surface-hover: #334155;
+    --color-surface-pressed: #475569;
+
+    --color-text: #f1f5f9;
+    --color-text-secondary: #94a3b8;
+    --color-text-disabled: #94a3b8;
+    --color-text-placeholder: #64748b;
+
+    --color-border: #334155;
+    --color-border-hover: #475569;
+    --color-border-focus: #60a5fa;
+
+    --color-accent: #22d3ee;
+    --color-error: #f87171;
+    --color-error-hover: #fca5a5;
+    --color-success: #4ade80;
+    --color-warning: #fbbf24;
+
+    --shadow-color: 0 0 0;
+    --shadow-subtle: 0 1px 2px rgb(var(--shadow-color) / 35%);
+    --shadow-normal: 0 2px 8px rgb(var(--shadow-color) / 50%);
+    --shadow-elevated: 0 8px 24px rgb(var(--shadow-color) / 65%);
+  }
+}
+
+/* Bascule manuelle : doit l'emporter sur la preference systeme, dans les deux sens. */
+:root[data-theme='dark'] {
+  --color-primary: #3b82f6;
+  --color-primary-hover: #60a5fa;
+  --color-primary-pressed: #2563eb;
+  --color-primary-disabled: #475569;
+
+  --color-secondary: #a78bfa;
+  --color-secondary-hover: #c4b5fd;
+  --color-secondary-pressed: #8b5cf6;
+
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-hover: #334155;
+  --color-surface-pressed: #475569;
+
+  --color-text: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-disabled: #94a3b8;
+  --color-text-placeholder: #64748b;
+
+  --color-border: #334155;
+  --color-border-hover: #475569;
+  --color-border-focus: #60a5fa;
+
+  --color-accent: #22d3ee;
+  --color-error: #f87171;
+  --color-error-hover: #fca5a5;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+
+  --shadow-color: 0 0 0;
+  --shadow-subtle: 0 1px 2px rgb(var(--shadow-color) / 35%);
+  --shadow-normal: 0 2px 8px rgb(var(--shadow-color) / 50%);
+  --shadow-elevated: 0 8px 24px rgb(var(--shadow-color) / 65%);
+}
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Ecart n°1 : 16 px en tactile. Sous iOS, un champ sous 16 px provoque
+     un zoom automatique a la mise au point — comportement non desactivable. */
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 13px; /* la base du desktop, retrouvee sur grand ecran */
+  }
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  font-size: var(--font-size-lg);
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-background);
+  /* Pas de rebond elastique : en PWA plein ecran, il fait apparaitre une
+     bande vide sous la barre d'onglets. */
+  overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Le halo bleu de tap sur iOS parasite les cibles personnalisees. */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
