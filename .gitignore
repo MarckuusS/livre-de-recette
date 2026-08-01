@@ -40,6 +40,7 @@ node_modules/
 .dev.vars
 web/dist/
 worker/dist/
+shared/dist/
 *.tsbuildinfo
 
 # Secrets Cloudflare. Les jetons d'API ne vont JAMAIS dans le depot :
