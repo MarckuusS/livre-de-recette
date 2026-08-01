@@ -17,8 +17,11 @@
     "dev:web": "npm --workspace web run dev",
     "db:migrate:local": "wrangler d1 migrations apply livre-de-recettes --local",
     "db:migrate:remote": "wrangler d1 migrations apply livre-de-recettes --remote",
-    "db:seed:local": "node scripts/migrate-sqlite-to-d1.mjs --local",
-    "db:fts:check": "node scripts/check-fts5.mjs"
+    "db:check": "node scripts/check-fts5.mjs",
+    "db:export": "node scripts/migrate-sqlite-to-d1.mjs",
+    "db:verify": "node scripts/migrate-sqlite-to-d1.mjs && node scripts/verify-migration.mjs",
+    "db:load:local": "wrangler d1 execute livre-de-recettes --local --file=scripts/_dump/d1-seed.sql",
+    "db:load:remote": "wrangler d1 execute livre-de-recettes --remote --file=scripts/_dump/d1-seed.sql"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250109.0",
