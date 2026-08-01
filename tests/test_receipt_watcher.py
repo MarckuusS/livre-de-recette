@@ -262,9 +262,17 @@ def test_vm_load_next_pending_skips_missing_file(app_ctx, tmp_path: Path) -> Non
     assert vm.pendingFileCount == 0
 
 
+# Voir tests/test_receipt_parser_intermarche.py : le PDF d'exemple contient des
+# données personnelles et reste hors du dépôt. Défini LIVRE_SAMPLE_RECEIPT_PDF
+# pour activer ce test.
+_SAMPLE_PDF = Path(
+    os.environ.get("LIVRE_SAMPLE_RECEIPT_PDF", "tests/fixtures/intermarche-sample.pdf")
+)
+
+
 @pytest.mark.skipif(
-    not Path("C:/Users/Marius/Downloads/f24b2e99-3f6e-4917-98e6-6c09034a760c.pdf").exists(),
-    reason="Sample PDF Intermarché absent",
+    not _SAMPLE_PDF.exists(),
+    reason="Sample PDF Intermarché absent (définir LIVRE_SAMPLE_RECEIPT_PDF)",
 )
 def test_vm_cleanup_deletes_only_inside_dedicated_dir(
     app_ctx, tmp_path: Path, monkeypatch,
@@ -275,7 +283,7 @@ def test_vm_cleanup_deletes_only_inside_dedicated_dir(
     from app.ui.viewmodels.receipt_import_vm import ReceiptImportViewModel
 
     monkeypatch.setenv("LIVRE_RECEIPT_DIR", str(tmp_path))
-    sample = Path("C:/Users/Marius/Downloads/f24b2e99-3f6e-4917-98e6-6c09034a760c.pdf")
+    sample = _SAMPLE_PDF
 
     # Cas A : fichier hors du dossier dédié → on charge et commit, le fichier reste.
     outside = tmp_path.parent / "outside.pdf"

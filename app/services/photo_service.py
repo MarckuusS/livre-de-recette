@@ -28,7 +28,7 @@ _JPEG_QUALITY = 85
 # Téléchargements distants : le User-Agent identifie l'app, et le timeout est
 # court pour ne pas bloquer un import URL si l'image est lente.
 _DOWNLOAD_TIMEOUT = httpx.Timeout(15.0, connect=5.0)
-_DOWNLOAD_USER_AGENT = "livre-de-recettes/0.1.0 (marius.amalric45@gmail.com)"
+_DOWNLOAD_USER_AGENT = "livre-de-recettes/0.1.0 (+https://github.com/MarckuusS/livre-de-recette)"
 # Garde-fou anti-fichier énorme — on stoppe au-delà de 20 Mo (Pillow gère
 # bien jusqu'à plusieurs centaines de Mo mais ça consommerait de la RAM
 # inutilement pour une photo de recette).

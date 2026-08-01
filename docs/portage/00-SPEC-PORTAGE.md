@@ -847,7 +847,7 @@ représente moins de 1 000 lignes et se porte mécaniquement : c'est de loin le 
 - timeouts : OFF 10 s (connect 5) ; import URL 15 s (connect 5) ; photo 15 s, plafond **20 Mo**
 - polling Lidl : plancher **5 min**, défaut 60, première sync +15 s
 - debounces : recherche ingrédient 200 ms, CIQUAL 250 ms, Ctrl+K 200 ms
-- User-Agent : `livre-de-recettes/0.1.0 (marius.amalric45@gmail.com)`
+- User-Agent : `livre-de-recettes/0.1.0 (+https://github.com/MarckuusS/livre-de-recette)`
 
 ### 4.3 Le point de fidélité le plus délicat : `token_set_ratio`
 
@@ -1164,7 +1164,7 @@ problèmes indépendants :
    permission par répertoire, n'est pas disponible sur iOS Safari, et ne notifie pas en arrière-plan.
 2. **`pdfplumber` n'existe pas en JS.**
 3. **Le parseur Intermarché est fragile et non testé en CI** : son unique test est *skippé* faute
-   d'un PDF au chemin absolu `C:/Users/Marius/Downloads/…`. La détection d'enseigne repose sur
+   d'un PDF au chemin absolu `<dossier-telechargements>/…`. La détection d'enseigne repose sur
    `"FONTAINE-LES-DIJON"`, le nom du magasin de l'utilisateur.
 4. **Le tableau de revue fait 1 300 px de large** avec 7 colonnes éditables.
 

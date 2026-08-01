@@ -207,7 +207,7 @@ CIQUAL header normalization (`_norm`): the 2025 .xls headers contain `\n` charac
 
 Empty query AND no filters → return `([], 0)` without hitting the API (avoids `*:*` paging through OFF's millions of products).
 
-Both functions return Pydantic `Ingredient` models. The HTTP client sends `User-Agent: livre-de-recettes/0.1.0 (marius.amalric45@gmail.com)` — OFF rate-limits anonymous clients harder. `langs=fr,en` is always passed for French support.
+Both functions return Pydantic `Ingredient` models. The HTTP client sends `User-Agent: livre-de-recettes/0.1.0 (+https://github.com/MarckuusS/livre-de-recette)` — OFF rate-limits anonymous clients harder. `langs=fr,en` is always passed for French support.
 
 ## Testing conventions
 

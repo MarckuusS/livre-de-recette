@@ -39,9 +39,17 @@ binding = "CACHE"
 id = "TODO_REMPLACER_APRES_wrangler_kv_namespace_create"
 
 [vars]
-# Envoye a OpenFoodFacts. OFF limite plus severement les clients anonymes,
-# l'identification est donc dans notre interet.
-OFF_USER_AGENT = "livre-de-recettes/0.2.0 (marius.amalric45@gmail.com)"
+# Envoye a OpenFoodFacts, qui limite plus severement les clients anonymes :
+# s'identifier est dans notre interet.
+#
+# DEPOT PUBLIC — pas d'adresse mail ici. OFF accepte tres bien une URL de
+# projet comme moyen de contact, ce qui evite d'exposer une adresse aux
+# moissonneurs de spam.
+#
+# Si tu preferes malgre tout une adresse mail, ne la mets pas dans ce fichier :
+#     npx wrangler secret put OFF_CONTACT
+# et le Worker la concatenera au User-Agent quand elle est definie.
+OFF_USER_AGENT = "livre-de-recettes/0.2.0 (+https://github.com/MarckuusS/livre-de-recette)"
 ENVIRONMENT = "production"
 
 # --- Rafraichissement de l'etat OFF -----------------------------------------

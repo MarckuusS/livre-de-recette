@@ -7,6 +7,7 @@ au poids, promos), ajoute-les comme fixtures et étends les tests.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -16,7 +17,14 @@ import pytest
 from app.services.receipt_parser.intermarche_parser import parse_intermarche_pdf
 
 
-SAMPLE_PDF = Path("C:/Users/Marius/Downloads/f24b2e99-3f6e-4917-98e6-6c09034a760c.pdf")
+# Un vrai ticket Intermarché contient des données personnelles (magasin, date,
+# achats) : il n'a pas sa place dans un dépôt public. Le test s'active en
+# pointant LIVRE_SAMPLE_RECEIPT_PDF vers un PDF local, sinon il est ignoré.
+#
+# Les valeurs attendues plus bas décrivent le sample d'origine : 5 articles,
+# 43,13 € TTC, ticket du 02/05/2026. Un autre PDF fera échouer les assertions
+# — c'est voulu, elles documentent un cas précis.
+SAMPLE_PDF = Path(os.environ.get("LIVRE_SAMPLE_RECEIPT_PDF", "tests/fixtures/intermarche-sample.pdf"))
 
 
 @pytest.mark.skipif(

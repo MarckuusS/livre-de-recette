@@ -2,7 +2,7 @@
 
 > Spécification de portage, établie **par lecture du code réel** (pas de CLAUDE.md / architecture.md,
 > qui sont périmés sur toute cette partie). Chemins absolus donnés depuis la racine du projet
-> `C:/Users/Marius/OneDrive/Documents/DevCode/_projets/Python + PySide6 + QML/2026.04.29_Livre de recettes/`.
+> `<racine-du-depot>/`.
 >
 > Cible du portage : front TypeScript (PWA mobile) + Cloudflare Worker + D1.
 
@@ -204,7 +204,7 @@ _TOTAL_RE = re.compile(
 
 - **Bonne** sur le format échantillon (test `tests/test_receipt_parser_intermarche.py`, mais **skippé**
   si le PDF échantillon n'est pas présent sur le disque — chemin en dur
-  `C:/Users/Marius/Downloads/f24b2e99-3f6e-4917-98e6-6c09034a760c.pdf`). Il n'existe donc
+  `<ticket-intermarche-local>.pdf`). Il n'existe donc
   **aucun test qui tourne en CI** sur ce parser.
 - Limites explicitement documentées dans le code, **non vérifiées** : multi-quantité
   (`YAOURT NATURE 3x1,25 = 3,75`), vrac au poids (`TOMATES 0,420 kg x 4,50 = 1,89`),
@@ -717,13 +717,13 @@ sans EAN → `Source.MANUAL` + création d'alias).
 
 **Constantes**
 ```python
-_USER_AGENT = "livre-de-recettes/0.1.0 (marius.amalric45@gmail.com)"
+_USER_AGENT = "livre-de-recettes/0.1.0 (+https://github.com/MarckuusS/livre-de-recette)"
 _TIMEOUT    = httpx.Timeout(15.0, connect=5.0)     # 15 s total, 5 s connexion
 ```
 
 **Client HTTP** (`_make_client`) : `follow_redirects=True` et en-têtes
 ```
-User-Agent: livre-de-recettes/0.1.0 (marius.amalric45@gmail.com)
+User-Agent: livre-de-recettes/0.1.0 (+https://github.com/MarckuusS/livre-de-recette)
 Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
 Accept-Language: fr-FR,fr;q=0.9,en;q=0.8
 ```
@@ -1080,7 +1080,7 @@ def default_photo_dir() -> Path:
 _MAX_DIMENSION = 1024          # px, côté le plus long
 _JPEG_QUALITY  = 85
 _DOWNLOAD_TIMEOUT    = httpx.Timeout(15.0, connect=5.0)
-_DOWNLOAD_USER_AGENT = "livre-de-recettes/0.1.0 (marius.amalric45@gmail.com)"
+_DOWNLOAD_USER_AGENT = "livre-de-recettes/0.1.0 (+https://github.com/MarckuusS/livre-de-recette)"
 _MAX_DOWNLOAD_BYTES  = 20 * 1024 * 1024      # 20 Mo
 ```
 
@@ -1200,7 +1200,7 @@ avalé → `False`. Idempotent.
 2. **Carrefour** : mentionné partout (slug, TBD, message d'erreur) mais **aucun parser**.
 3. **Détection d'enseigne** basée sur `"FONTAINE-LES-DIJON"` — dépendante du magasin de l'utilisateur.
 4. **Le seul test du parser Intermarché est skippé** en l'absence d'un PDF au chemin absolu
-   `C:/Users/Marius/Downloads/f24b2e99-….pdf`. Aucune couverture CI.
+   `<dossier-telechargements>/f24b2e99-….pdf`. Aucune couverture CI.
 5. **Format JSON Lidl non confirmé** pour la France ; l'adapter est écrit sur une observation de la
    lib côté DE/AT/UK. `store`, `currency`, `discounts`, `isWeight`, `originalUnitPrice` ignorés.
 6. **Vrac Lidl** : `_to_int_qty("0.420")` → `1` (documenté comme « à enrichir Phase 5+ »).
