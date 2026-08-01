@@ -1,0 +1,12 @@
+# Normalise les fins de ligne : LF dans le depot, natif dans la copie de travail.
+* text=auto eol=lf
+
+# Fichiers Windows qui doivent garder des CRLF pour rester executables.
+*.bat text eol=crlf
+
+# Binaires — jamais de conversion.
+*.png  binary
+*.jpg  binary
+*.xls  binary
+*.xlsx binary
+*.db   binary

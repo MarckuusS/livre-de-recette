@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Tests / coverage
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# DB locale (donnees utilisateur)
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Build / packaging
+build/
+dist/
+# `*.spec` files are versioned — they're our PyInstaller config, not generated
+# leftovers. `build.bat` regenerates `dist/`.
+
+# ---------------------------------------------------------------
+# Webapp (portage Cloudflare) — voir docs/portage/00-SPEC-PORTAGE.md
+# ---------------------------------------------------------------
+node_modules/
+.wrangler/
+.dev.vars
+web/dist/
+worker/dist/
+*.tsbuildinfo
+
+# Secrets Cloudflare. Les jetons d'API ne vont JAMAIS dans le depot :
+# `wrangler secret put` cote Cloudflare, `.dev.vars` en local (ignore ci-dessus).
+.env.local
+.env.*.local
+
+# Dumps intermediaires de la migration SQLite -> D1 (contiennent les donnees perso)
+scripts/_dump/

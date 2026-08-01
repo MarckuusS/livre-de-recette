@@ -1,0 +1,82 @@
+[project]
+name = "livre-de-recettes"
+version = "0.1.0"
+description = "Livre de recettes numerique - bibliotheque ingredients/recettes + planificateur hebdomadaire"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.6",
+    "SQLAlchemy>=2.0",
+    "pydantic>=2.5",
+    "httpx>=0.27",
+    # CIQUAL ANSES is published as .xls (binary OLE2). xlrd 2.x dropped .xls support.
+    "xlrd<2.0",
+    # Recipe photo resize/recompress (F6). Without it, photos are copied as-is
+    # — 10 MB+ files clog the DB folder and lag QML rendering.
+    "Pillow>=10.0",
+    # Receipt import pipeline (Plan v3) :
+    # - pdfplumber : extraction texte natif des PDFs Intermarché
+    # - rapidfuzz  : fuzzy match nom-tronqué → ingrédient existant
+    # - watchdog   : watcher du sous-dossier ~/Downloads/Tickets de caisse/
+    "pdfplumber>=0.11",
+    "rapidfuzz>=3.5",
+    "watchdog>=4.0",
+    # Import de recette par URL :
+    # - recipe-scrapers : ~400 sites supportés en natif (Marmiton, 750g,
+    #                     Hervé Cuisine, Cuisine AZ, etc.) + parse Schema.org.
+    # - beautifulsoup4 + lxml : fallback hand-roll JSON-LD pour les sites
+    #                           inconnus de recipe-scrapers mais qui exposent
+    #                           un <script type="application/ld+json">.
+    "recipe-scrapers>=14.55",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-qt>=4.4",
+    "ruff>=0.5",
+]
+build = [
+    # Pour `build.bat` — packaging .exe Windows portable.
+    "pyinstaller>=6.0",
+]
+# Plan v3 Phase 5 — auto-fetch des tickets Lidl Plus via l'API privée.
+# OPT-IN car (a) la lib est testée principalement DE/AT/UK et le support FR
+# n'est pas garanti ; (b) elle ajoute ~5 MB au bundle PyInstaller. À installer
+# via `pip install -e ".[lidl]"` quand l'utilisateur veut activer la feature.
+# - lidl-plus : client communautaire de l'API Lidl Plus (PyPI)
+# - keyring   : stockage du refresh_token dans le Windows Credential Manager
+#               (Keychain sous macOS, libsecret/kwallet sous Linux). Pas de
+#               token en clair dans la DB ni le filesystem.
+lidl = [
+    # Lib communautaire — version max actuelle : 0.3.5. À surveiller : si
+    # Lidl change son API, c'est cette lib qu'il faut mettre à jour.
+    "lidl-plus>=0.3",
+    "keyring>=24",
+]
+
+[project.scripts]
+livre-de-recettes = "app.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+"app.data.seeds" = ["*.csv"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
