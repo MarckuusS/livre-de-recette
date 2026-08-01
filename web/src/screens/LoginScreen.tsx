@@ -1,28 +1,28 @@
 import { useState, type FormEvent } from 'react'
 
-import { ApiError, login } from '../lib/api.js'
+import { ApiError, login, type SessionUser } from '../lib/api.js'
 
 /**
  * Ecran de connexion.
  *
- * Volontairement nu : un champ, un bouton. Il remplace la page de Cloudflare
- * Access, qui vivait sur une autre origine et sortait de l'application
- * installee — c'etait tout l'interet de la bascule.
+ * Deux champs : chacun son identifiant, pour que le journal d'activite puisse
+ * dire qui a fait quoi. Les donnees, elles, restent communes.
  */
-export function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
+export function LoginScreen({ onSuccess }: { onSuccess: (user: SessionUser) => void }) {
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (busy || password.length === 0) return
+    if (busy || !username || !password) return
     setBusy(true)
     setError(null)
     try {
-      await login(password)
+      const { user } = await login(username, password)
       setPassword('')
-      onSuccess()
+      onSuccess(user)
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : 'Connexion impossible. Réessaie dans un instant.',
@@ -39,16 +39,28 @@ export function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
         <p className="card__lead">Cette application est privée.</p>
 
         <input
-          type="password"
+          type="text"
           className="search-field login__field"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Identifiant"
+          // `username` permet au trousseau iOS d'associer les deux champs et
+          // de proposer le bon couple a la connexion suivante.
+          autoComplete="username"
+          autoCapitalize="off"
+          autoCorrect="off"
+          autoFocus
+          disabled={busy}
+          aria-label="Identifiant"
+        />
+
+        <input
+          type="password"
+          className="search-field"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Mot de passe"
-          // `current-password` laisse le trousseau iOS proposer puis
-          // enregistrer le mot de passe — sinon il faut le retaper a chaque
-          // expiration de session.
           autoComplete="current-password"
-          autoFocus
           enterKeyHint="go"
           disabled={busy}
           aria-label="Mot de passe"
@@ -61,7 +73,11 @@ export function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
           </p>
         )}
 
-        <button type="submit" className="button button--primary login__submit" disabled={busy || !password}>
+        <button
+          type="submit"
+          className="button button--primary login__submit"
+          disabled={busy || !username || !password}
+        >
           {busy ? 'Connexion…' : 'Entrer'}
         </button>
       </form>

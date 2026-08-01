@@ -5,6 +5,7 @@ import { DiagnosticScreen } from './screens/DiagnosticScreen.js'
 import { IngredientDetailScreen, IngredientsScreen } from './screens/IngredientsScreen.js'
 import { PantryScreen } from './screens/PantryScreen.js'
 import { RecipeDetailScreen, RecipesScreen } from './screens/RecipesScreen.js'
+import { ActivityScreen } from './screens/ActivityScreen.js'
 import { ShoppingScreen } from './screens/ShoppingScreen.js'
 import { WeekScreen } from './screens/WeekScreen.js'
 
@@ -30,6 +31,7 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/courses$/, 'Liste de courses'],
   [/^\/frigo$/, 'Frigo & cellier'],
   [/^\/diagnostic$/, 'Diagnostic'],
+  [/^\/activite$/, 'Compte & activité'],
 ]
 
 export function App() {
@@ -40,7 +42,10 @@ export function App() {
   const title = TITLES.find(([re]) => re.test(pathname))?.[1] ?? 'Livre de recettes'
   // Les vues de detail sont empilees sur leur liste : elles ont besoin d'un
   // retour visible, la barre d'onglets ramenant a la racine de l'onglet.
-  const isDetail = /^\/(ingredients|recettes)\/\d+$/.test(pathname) || pathname === '/diagnostic'
+  const isDetail =
+    /^\/(ingredients|recettes)\/\d+$/.test(pathname) ||
+    pathname === '/diagnostic' ||
+    pathname === '/activite'
 
   return (
     <div className="app">
@@ -64,7 +69,7 @@ export function App() {
           >
             {isDark ? '☀️' : '🌙'}
           </button>
-          <NavLink to="/diagnostic" className="icon-button" aria-label="Diagnostic">
+          <NavLink to="/activite" className="icon-button" aria-label="Compte et activité">
             ⋯
           </NavLink>
         </div>
@@ -81,6 +86,7 @@ export function App() {
           <Route path="/courses" element={<ShoppingScreen />} />
           <Route path="/frigo" element={<PantryScreen />} />
           <Route path="/diagnostic" element={<DiagnosticScreen />} />
+          <Route path="/activite" element={<ActivityScreen />} />
           <Route
             path="*"
             element={

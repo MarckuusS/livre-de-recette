@@ -31,20 +31,21 @@ import {
 } from '@livre/shared'
 
 import {
-  checkPassword,
+  authenticate,
   clearSessionCookie,
-  hasValidSession,
+  currentUser,
+  hasAnyUser,
   issueSession,
   lockoutRemaining,
   recordFailure,
   resetFailures,
+  type SessionUser,
 } from './auth.js'
+import { listActivity, logActivity } from './activity.js'
 import { Repositories } from './repositories.js'
 
 export interface Env {
   readonly DB: D1Database
-  /** Secret Cloudflare : `npx wrangler pages secret put APP_PASSWORD`. */
-  readonly APP_PASSWORD: string
   readonly OFF_USER_AGENT: string
   readonly ENVIRONMENT: string
   /**
@@ -102,6 +103,8 @@ type Handler = (ctx: {
   readonly url: URL
   readonly params: Record<string, string>
   readonly request: Request
+  /** `null` uniquement sur les routes publiques. */
+  readonly user: SessionUser | null
 }) => Promise<Response>
 
 interface Route {
@@ -267,7 +270,7 @@ route('GET', '/api/shopping/:week', async ({ repos, params }) => {
  * Cases cochees. Volatiles dans le desktop : un rafraichissement en plein
  * magasin effacait tout le travail. Elles sont desormais persistees.
  */
-route('PUT', '/api/shopping/:week/checked', async ({ repos, params, request }) => {
+route('PUT', '/api/shopping/:week/checked', async ({ repos, params, request, env, user }) => {
   const week = params['week'] ?? ''
   if (!isValidIsoWeek(week)) throw badWeek(week)
 
@@ -283,7 +286,21 @@ route('PUT', '/api/shopping/:week/checked', async ({ repos, params, request }) =
     throw new HttpError(400, 'invalid_body', 'ingredientIds doit être une liste d’entiers.')
   }
 
+  const previous = await repos.getCheckedItems(week)
   await repos.setCheckedItems(week, ids as number[])
+
+  // On ne journalise que le sens du changement, pas chaque case : cocher au
+  // fil des rayons produirait vingt lignes illisibles pour une seule course.
+  const added = (ids as number[]).length - previous.length
+  if (added !== 0) {
+    await logActivity(env.DB, user, {
+      action: 'update',
+      entity: 'shopping_checked',
+      label: `Liste de courses ${week}`,
+      details: { added: Math.max(added, 0), removed: Math.max(-added, 0), total: (ids as number[]).length },
+    })
+  }
+
   return json({ isoWeek: week, checkedIngredientIds: ids })
 })
 
@@ -302,19 +319,15 @@ route('GET', '/api/current-week', async () => json({ isoWeek: currentIsoWeek() }
 const PUBLIC_ROUTES = new Set(['/api/login', '/api/logout', '/api/session'])
 
 route('POST', '/api/login', async ({ env, request }) => {
-  if (!env.APP_PASSWORD) {
-    // Sans secret configure, on REFUSE tout plutot que de laisser passer.
-    // Un defaut de configuration ne doit jamais ouvrir la porte.
-    throw new HttpError(503, 'not_configured', "L'authentification n'est pas configurée sur le serveur.")
+  if (!(await hasAnyUser(env.DB))) {
+    // Aucun compte en base : on REFUSE plutot que d'ouvrir. Un defaut de
+    // configuration ne doit jamais laisser entrer.
+    throw new HttpError(503, 'no_users', "Aucun compte n'est configuré sur ce serveur.")
   }
 
   const locked = await lockoutRemaining(env.DB)
   if (locked > 0) {
-    throw new HttpError(
-      429,
-      'locked_out',
-      `Trop de tentatives. Réessaie dans ${Math.ceil(locked / 60)} minute(s).`,
-    )
+    throw new HttpError(429, 'locked_out', `Trop de tentatives. Réessaie dans ${Math.ceil(locked / 60)} minute(s).`)
   }
 
   let body: unknown
@@ -324,24 +337,26 @@ route('POST', '/api/login', async ({ env, request }) => {
     throw new HttpError(400, 'invalid_body', 'Corps de requête illisible.')
   }
 
-  const password = (body as { password?: unknown })?.password
-  if (typeof password !== 'string' || password.length === 0) {
-    throw new HttpError(400, 'invalid_body', 'Mot de passe manquant.')
+  const { username, password } = (body ?? {}) as { username?: unknown; password?: unknown }
+  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
+    throw new HttpError(400, 'invalid_body', 'Identifiant et mot de passe requis.')
   }
 
-  if (!(await checkPassword(password, env.APP_PASSWORD))) {
+  const user = await authenticate(env.DB, username, password)
+  if (!user) {
     await recordFailure(env.DB)
-    // Volontairement vague : ne rien dire de plus qu'« echec ».
-    throw new HttpError(401, 'bad_password', 'Mot de passe incorrect.')
+    // Volontairement vague : ne pas reveler si c'est l'identifiant ou le mot
+    // de passe qui est faux, cela permettrait d'enumerer les comptes.
+    throw new HttpError(401, 'bad_credentials', 'Identifiant ou mot de passe incorrect.')
   }
 
   await resetFailures(env.DB)
-  return new Response(JSON.stringify({ status: 'ok' }), {
+  return new Response(JSON.stringify({ user }), {
     status: 200,
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store',
-      'set-cookie': await issueSession(env.APP_PASSWORD),
+      'set-cookie': await issueSession(env.DB, user.id),
     },
   })
 })
@@ -357,9 +372,18 @@ route('POST', '/api/logout', async () =>
   }),
 )
 
-/** Permet au front de savoir s'il doit afficher l'ecran de connexion. */
-route('GET', '/api/session', async ({ env, request }) =>
-  json({ authenticated: await hasValidSession(request, env.APP_PASSWORD) }),
+/** Permet au front de savoir s'il doit afficher l'ecran de connexion, et qui est la. */
+route('GET', '/api/session', async ({ env, request }) => {
+  const user = await currentUser(request, env.DB)
+  return json({ authenticated: user !== null, user })
+})
+
+// ---------------------------------------------------------------------------
+// Journal d'activite
+// ---------------------------------------------------------------------------
+
+route('GET', '/api/activity', async ({ env, url }) =>
+  json({ items: await listActivity(env.DB, Number(url.searchParams.get('limit') ?? 50)) }),
 )
 
 // ---------------------------------------------------------------------------
@@ -382,7 +406,8 @@ export default {
     // La liste des exceptions est explicite et courte : tout ce qui n'y
     // figure pas est protege par defaut. Proteger route par route serait
     // l'inverse — et laisserait tot ou tard passer un endpoint oublie.
-    if (!PUBLIC_ROUTES.has(url.pathname) && !(await hasValidSession(request, env.APP_PASSWORD))) {
+    const user = await currentUser(request, env.DB)
+    if (!PUBLIC_ROUTES.has(url.pathname) && user === null) {
       return fail(401, 'unauthenticated', 'Session expirée. Reconnecte-toi.')
     }
 
@@ -399,7 +424,7 @@ export default {
       })
 
       try {
-        return await r.handler({ repos: new Repositories(env.DB), env, url, params, request })
+        return await r.handler({ repos: new Repositories(env.DB), env, url, params, request, user })
       } catch (error) {
         if (error instanceof HttpError) return fail(error.status, error.code, error.message)
         // Le detail part dans les logs Cloudflare, jamais dans la reponse :

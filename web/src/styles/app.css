@@ -798,3 +798,19 @@
 .login__submit {
   width: 100%;
 }
+
+/* ---------- Journal d'activite ---------- */
+
+.activity-dot--create { background: var(--color-success); }
+.activity-dot--update { background: var(--color-primary); }
+.activity-dot--delete { background: var(--color-error); }
+
+.row__title strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Une ligne d'activite se lit sur plusieurs lignes : pas de troncature. */
+.row--static .row__title {
+  overflow: visible;
+  white-space: normal;
+}

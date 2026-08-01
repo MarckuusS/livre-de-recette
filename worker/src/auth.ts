@@ -1,85 +1,105 @@
 /**
- * Authentification par mot de passe unique.
+ * Authentification multi-identifiants, donnees communes.
  *
- * Remplace Cloudflare Access, qui protegeait correctement mais cassait la PWA :
- * sa page de connexion vit sur une autre origine, et un `fetch()` ne peut pas
- * lire une reponse issue d'une redirection cross-origin. L'API devenait donc
- * « injoignable » des que la session expirait, sans moyen de le distinguer
- * d'une panne de reseau.
- *
- * ---------------------------------------------------------------------------
- * Ce qui rend ce code defendable
- * ---------------------------------------------------------------------------
- *
- * Aucune cryptographie n'est ecrite ici. Tout passe par `crypto.subtle`,
- * l'implementation native de la plateforme :
- *
- *   - la signature du cookie est un HMAC-SHA256. Sans le secret, on ne peut
- *     pas en fabriquer un valide, ni prolonger une date d'expiration ;
- *   - `crypto.subtle.verify` compare en TEMPS CONSTANT. Une comparaison avec
- *     `===` fuirait de l'information par le temps de reponse et permettrait de
- *     reconstituer la signature octet par octet ;
- *   - le mot de passe lui-meme est compare apres hachage, octet a octet, sans
- *     court-circuit — meme raison.
- *
- * Le cookie est `HttpOnly` (invisible au JavaScript, donc non volable par une
- * faille XSS), `Secure` (jamais en clair) et `SameSite=Strict` (inutilisable
- * depuis un autre site).
- *
- * La cle de signature EST le mot de passe : le changer invalide donc toutes
- * les sessions ouvertes. Pour un usage mono-utilisateur, c'est exactement le
- * comportement voulu — un seul secret a gerer, et une revocation immediate.
+ * Chacun son compte et son mot de passe, revocable independamment — mais une
+ * seule cuisine. Aucun filtrage par proprietaire : voir la note en tete de
+ * migrations/0004_users_and_activity.sql pour pourquoi c'est un choix de
+ * surete et pas une facilite.
  *
  * ---------------------------------------------------------------------------
- * Ce que ce dispositif ne fait PAS
+ * Deux primitives, deux usages a ne pas confondre
  * ---------------------------------------------------------------------------
+ *   - Stocker un mot de passe -> PBKDF2, LENT et sale (shared/password.ts).
+ *   - Signer un cookie        -> HMAC-SHA256, rapide. C'est ce fichier.
  *
- * Pas de second facteur, pas de comptes multiples, pas de journal d'acces.
- * Et surtout : il s'execute DANS ce Worker, la ou Access refusait la requete
- * en amont. Un bug ici ouvre la porte ; avec Access, c'etait impossible.
- * Compromis accepte en connaissance de cause pour une application
- * personnelle a un seul utilisateur.
+ * Le cookie porte `userId.expiration.signature`. Sans le secret de session on
+ * ne peut ni en forger un, ni prolonger celui qu'on a, ni changer d'identite —
+ * la signature couvre les deux champs.
+ *
+ * Il est `HttpOnly` (invisible au JavaScript, donc hors de portee d'une XSS),
+ * `Secure` et `SameSite=Strict`.
+ *
+ * ---------------------------------------------------------------------------
+ * Le secret de session
+ * ---------------------------------------------------------------------------
+ * Genere aleatoirement a la premiere utilisation et range dans `app_setting`,
+ * plutot que d'etre un secret Cloudflare de plus a configurer a la main.
+ *
+ * Ce n'est pas un affaiblissement : qui sait lire cette table sait deja lire
+ * les recettes, les prix et le frigo. Le mettre ailleurs ne protegerait rien
+ * de plus, et ajouterait une etape ou se tromper.
+ *
+ * Le supprimer deconnecte tout le monde — c'est le bouton d'urgence.
  */
+
+import { verifyPassword, type PasswordRecord } from '@livre/shared'
 
 const COOKIE_NAME = 'lr_session'
 const SESSION_DAYS = 90
 const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000
 
-/** Au-dela, toute tentative est refusee pendant `LOCKOUT_MS`. */
 const MAX_FAILURES = 10
 const LOCKOUT_MS = 15 * 60 * 1000
+
+const SESSION_SECRET_KEY = 'auth.session_secret'
 
 const encoder = new TextEncoder()
 
 const toHex = (buffer: ArrayBuffer): string =>
   [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
 
-async function hmacKey(secret: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
-    'sign',
-    'verify',
-  ])
+export interface SessionUser {
+  readonly id: number
+  readonly username: string
+  readonly displayName: string
+}
+
+// ---------------------------------------------------------------------------
+// Secret de session
+// ---------------------------------------------------------------------------
+
+async function sessionSecret(db: D1Database): Promise<string> {
+  const row = await db
+    .prepare('SELECT value_json FROM app_setting WHERE key = ?')
+    .bind(SESSION_SECRET_KEY)
+    .first<{ value_json: string }>()
+
+  if (row) {
+    try {
+      const parsed = JSON.parse(row.value_json) as { secret?: string }
+      if (typeof parsed.secret === 'string' && parsed.secret.length >= 32) return parsed.secret
+    } catch {
+      /* valeur corrompue : on en regenere une, ce qui deconnecte tout le monde */
+    }
+  }
+
+  const secret = toHex(crypto.getRandomValues(new Uint8Array(32)).buffer)
+  await db
+    .prepare(
+      `INSERT INTO app_setting (key, value_json, updated_at)
+       VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+       ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
+    )
+    .bind(SESSION_SECRET_KEY, JSON.stringify({ secret }))
+    .run()
+  return secret
 }
 
 async function sign(payload: string, secret: string): Promise<string> {
-  return toHex(await crypto.subtle.sign('HMAC', await hmacKey(secret), encoder.encode(payload)))
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  return toHex(await crypto.subtle.sign('HMAC', key, encoder.encode(payload)))
 }
 
-/**
- * Comparaison en temps constant.
- *
- * Les deux entrees sont d'abord hachees : la duree ne depend donc plus de la
- * longueur du mot de passe saisi, et la boucle parcourt toujours 32 octets.
- */
-async function equalsConstantTime(a: string, b: string): Promise<boolean> {
-  const [ha, hb] = await Promise.all([
-    crypto.subtle.digest('SHA-256', encoder.encode(a)),
-    crypto.subtle.digest('SHA-256', encoder.encode(b)),
-  ])
-  const va = new Uint8Array(ha)
-  const vb = new Uint8Array(hb)
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
   let diff = 0
-  for (let i = 0; i < va.length; i++) diff |= (va[i] ?? 0) ^ (vb[i] ?? 0)
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
   return diff === 0
 }
 
@@ -97,42 +117,98 @@ function readCookie(request: Request, name: string): string | null {
   return null
 }
 
-export function buildSessionCookie(value: string, maxAgeSeconds: number): string {
-  return [
+const buildCookie = (value: string, maxAgeSeconds: number): string =>
+  [
     `${COOKIE_NAME}=${value}`,
     'Path=/',
     `Max-Age=${maxAgeSeconds}`,
-    'HttpOnly', // invisible au JavaScript : une XSS ne peut pas le voler
-    'Secure', // jamais transmis en clair
-    'SameSite=Strict', // inutilisable depuis un autre site (CSRF)
+    'HttpOnly',
+    'Secure',
+    'SameSite=Strict',
   ].join('; ')
+
+export async function issueSession(db: D1Database, userId: number): Promise<string> {
+  const payload = `${userId}.${Date.now() + SESSION_MS}`
+  const signature = await sign(payload, await sessionSecret(db))
+  return buildCookie(`${payload}.${signature}`, Math.floor(SESSION_MS / 1000))
 }
 
-export async function issueSession(secret: string): Promise<string> {
-  const expiresAt = String(Date.now() + SESSION_MS)
-  const signature = await sign(expiresAt, secret)
-  return buildSessionCookie(`${expiresAt}.${signature}`, Math.floor(SESSION_MS / 1000))
-}
+export const clearSessionCookie = (): string => buildCookie('', 0)
 
-export const clearSessionCookie = (): string => buildSessionCookie('', 0)
-
-/** Vrai si la requete porte une session valide et non expiree. */
-export async function hasValidSession(request: Request, secret: string): Promise<boolean> {
+/**
+ * Rend l'utilisateur de la requete, ou `null`.
+ *
+ * Le compte est relu en base a chaque appel : desactiver quelqu'un le coupe
+ * immediatement, sans attendre l'expiration de son cookie.
+ */
+export async function currentUser(request: Request, db: D1Database): Promise<SessionUser | null> {
   const raw = readCookie(request, COOKIE_NAME)
-  if (!raw) return false
+  if (!raw) return null
 
-  const separator = raw.lastIndexOf('.')
-  if (separator <= 0) return false
-  const payload = raw.slice(0, separator)
-  const signature = raw.slice(separator + 1)
+  const parts = raw.split('.')
+  if (parts.length !== 3) return null
+  const [userIdRaw, expiresRaw, signature] = parts as [string, string, string]
 
-  const expiresAt = Number(payload)
-  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return false
+  const expiresAt = Number(expiresRaw)
+  const userId = Number(userIdRaw)
+  if (!Number.isInteger(userId) || !Number.isFinite(expiresAt) || expiresAt < Date.now()) return null
 
-  // Reconstruire la signature attendue et la comparer via verify(), qui est
-  // constant-time. Une date d'expiration modifiee invalide la signature.
-  const expected = await sign(payload, secret)
-  return equalsConstantTime(signature, expected)
+  const expected = await sign(`${userIdRaw}.${expiresRaw}`, await sessionSecret(db))
+  if (!timingSafeEqual(signature, expected)) return null
+
+  const row = await db
+    .prepare('SELECT id, username, display_name FROM user WHERE id = ? AND is_active = 1')
+    .bind(userId)
+    .first<{ id: number; username: string; display_name: string }>()
+
+  return row ? { id: row.id, username: row.username, displayName: row.display_name } : null
+}
+
+// ---------------------------------------------------------------------------
+// Connexion
+// ---------------------------------------------------------------------------
+
+export async function authenticate(
+  db: D1Database,
+  username: string,
+  password: string,
+): Promise<SessionUser | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, username, display_name, password_hash, password_salt, iterations
+       FROM user WHERE username = ? AND is_active = 1`,
+    )
+    .bind(username.trim().toLowerCase())
+    .first<{
+      id: number
+      username: string
+      display_name: string
+      password_hash: string
+      password_salt: string
+      iterations: number
+    }>()
+
+  // Meme sur un utilisateur inconnu, on derive quand meme un hash : sans cela,
+  // la reponse serait bien plus rapide et permettrait d'enumerer les comptes
+  // existants au chronometre.
+  const record: PasswordRecord = row
+    ? { hash: row.password_hash, salt: row.password_salt, iterations: row.iterations }
+    : { hash: '00'.repeat(32), salt: '00'.repeat(16), iterations: 210_000 }
+
+  const ok = await verifyPassword(password, record)
+  if (!row || !ok) return null
+
+  await db
+    .prepare("UPDATE user SET last_login_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?")
+    .bind(row.id)
+    .run()
+
+  return { id: row.id, username: row.username, displayName: row.display_name }
+}
+
+export async function hasAnyUser(db: D1Database): Promise<boolean> {
+  const row = await db.prepare('SELECT COUNT(*) AS c FROM user WHERE is_active = 1').first<{ c: number }>()
+  return (row?.c ?? 0) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +247,7 @@ async function writeFailures(db: D1Database, state: FailureState): Promise<void>
     .run()
 }
 
-/** Secondes restantes avant de pouvoir reessayer, ou 0 si l'on peut essayer. */
+/** Secondes restantes avant de pouvoir reessayer, ou 0. */
 export async function lockoutRemaining(db: D1Database): Promise<number> {
   const { lockedUntil } = await readFailures(db)
   return lockedUntil > Date.now() ? Math.ceil((lockedUntil - Date.now()) / 1000) : 0
@@ -180,17 +256,8 @@ export async function lockoutRemaining(db: D1Database): Promise<number> {
 export async function recordFailure(db: D1Database): Promise<void> {
   const state = await readFailures(db)
   const count = state.count + 1
-  await writeFailures(db, {
-    count,
-    lockedUntil: count >= MAX_FAILURES ? Date.now() + LOCKOUT_MS : 0,
-  })
+  await writeFailures(db, { count, lockedUntil: count >= MAX_FAILURES ? Date.now() + LOCKOUT_MS : 0 })
 }
 
 export const resetFailures = (db: D1Database): Promise<void> =>
   writeFailures(db, { count: 0, lockedUntil: 0 })
-
-// ---------------------------------------------------------------------------
-
-export async function checkPassword(submitted: string, secret: string): Promise<boolean> {
-  return equalsConstantTime(submitted, secret)
-}

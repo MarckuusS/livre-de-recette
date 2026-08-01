@@ -43,51 +43,55 @@ le client planterait en essayant de parser du HTML comme du JSON.
 
 ---
 
-## 2. L'API (Worker + D1 + R2)
+## 2. L'API — une Pages Function, pas un Worker séparé
 
-Nécessite une authentification locale, à faire par le propriétaire du compte :
+L'API n'est **pas** déployée à part. Le build produit `web/dist/_worker.js`, que
+Pages exécute devant chaque requête : il traite `/api/*` et délègue le reste aux
+fichiers statiques.
+
+Ce n'est pas un détail d'implémentation, c'est une contrainte : une route Worker
+du type `livre-de-recette.pages.dev/api/*` est **impossible**, car les routes
+Worker exigent un domaine qu'on possède — et `pages.dev` appartient à
+Cloudflare. Sans domaine personnalisé, l'API doit être livrée *avec* le site.
+
+Conséquence pratique : `wrangler deploy` n'est jamais utilisé. Un `git push`
+suffit.
+
+### Créer la base, une seule fois
 
 ```bash
 npx wrangler login
-```
-
-Puis, une seule fois, créer les ressources :
-
-```bash
 npx wrangler d1 create livre-de-recettes
-npx wrangler r2 bucket create livre-de-recettes-media
-npx wrangler kv namespace create CACHE
 ```
 
-Chaque commande affiche un identifiant à reporter dans `wrangler.toml`
-(`database_id`, `id` du namespace KV). Ces identifiants ne sont **pas** des
-secrets : ils n'autorisent rien sans le compte. Ils peuvent donc être versionnés.
+La commande affiche un `database_id` à reporter dans `wrangler.toml`. Ce n'est
+**pas** un secret : il n'autorise rien sans les identifiants du compte, et peut
+donc vivre dans un dépôt public. Les liaisons déclarées dans `wrangler.toml`
+sont lues par Pages au déploiement — rien à saisir dans le tableau de bord.
 
-Appliquer ensuite le schéma et charger les données :
+### Charger le schéma et les données
 
 ```bash
-npm run db:migrate:remote     # crée les tables, l'index FTS5 et les tags
+npm run db:migrate:remote     # tables, index FTS5, tags, comptes
 npm run db:export             # relit le SQLite local -> scripts/_dump/d1-seed.sql
 npm run db:load:remote        # charge les données dans D1
 ```
 
-Et la photo de recette :
+Le dump est émis en `INSERT` multi-lignes par lots de 100. Une instruction par
+ligne dépassait les limites de taille de requête de `wrangler`.
+
+### R2 — pas encore fait
+
+Le bucket des photos de recettes reste à créer :
 
 ```bash
-npx wrangler r2 object put livre-de-recettes-media/recipes/6.jpg \
-  --file="$HOME/.livre-de-recettes/recipe_photos/6.jpg"
+npx wrangler r2 bucket create livre-de-recettes-media
+npx wrangler r2 object put livre-de-recettes-media/recipes/6.jpg   --file="$HOME/.livre-de-recettes/recipe_photos/6.jpg"
 ```
 
-Enfin, déployer le Worker :
-
-```bash
-npx wrangler deploy
-```
-
-### Router `/api/*` vers le Worker
-
-Dans le tableau de bord du Worker → *Settings* → *Domains & Routes*, ajouter la
-route `livre-de-recette.pages.dev/api/*`.
+⚠️ Le jeton `wrangler` actuel n'a **pas** la portée `r2`. Il faudra relancer
+`wrangler login` et l'autoriser avant que ces commandes fonctionnent. La
+liaison correspondante est commentée dans `wrangler.toml`.
 
 ---
 
@@ -123,40 +127,78 @@ npm run db:verify    # fidélité de la migration des données
 
 ## Authentification
 
-L'application est protégée par un **mot de passe unique**, vérifié par le Worker.
+Plusieurs identifiants, **une seule cuisine**. Chacun son compte et son mot de
+passe, révocable indépendamment — mais les recettes, le frigo, le planning et
+la liste de courses sont communs.
+
+Ce choix n'est pas qu'une simplification : comme aucune donnée n'appartient à
+personne en particulier, **il n'existe aucune requête où l'on puisse oublier un
+`AND user_id = ?` et fuiter les données de l'autre**. SQLite n'ayant pas de
+Row-Level Security, cette garantie ne viendrait de nulle part ailleurs.
+
+### Créer un compte
 
 ```bash
-npx wrangler pages secret put APP_PASSWORD
+node scripts/add-user.mjs marius "Marius"
 ```
 
-Le secret est stocké chiffré chez Cloudflare et injecté à l'exécution. Il n'est
-ni dans le dépôt, ni dans le navigateur, ni dans la base.
+Le script demande le mot de passe de façon interactive, calcule son empreinte
+**en local**, et affiche la commande `wrangler` à exécuter. Le mot de passe ne
+transite par aucun réseau et n'apparaît dans aucun historique de commandes.
 
-**Tant que ce secret n'est pas défini, `/api/login` répond 503 et toute l'API
-reste fermée.** Un défaut de configuration ne doit jamais ouvrir la porte.
+La même commande, rejouée sur un identifiant existant, **change son mot de
+passe**.
 
 ### Comment ça marche
 
-- `POST /api/login` compare le mot de passe en temps constant, puis pose un
-  cookie `HttpOnly; Secure; SameSite=Strict` valable 90 jours ;
-- le cookie contient une date d'expiration signée en HMAC-SHA256, dont la clé
-  est le mot de passe lui-même. Le modifier invalide donc toutes les sessions ;
-- toute route `/api/*` exige ce cookie, sauf `login`, `logout` et `session` ;
-- 10 échecs verrouillent les tentatives pendant 15 minutes.
+| | |
+|---|---|
+| Stockage du mot de passe | PBKDF2-SHA256, 210 000 itérations, sel unique par compte |
+| Cookie de session | `userId.expiration.signature` en HMAC-SHA256, valable 90 jours |
+| Attributs du cookie | `HttpOnly`, `Secure`, `SameSite=Strict` |
+| Secret de signature | généré au hasard à la première utilisation, rangé dans `app_setting` |
+| Limitation | 10 échecs → 15 minutes de blocage |
 
-Le détail, limites comprises, est en tête de [`worker/src/auth.ts`](../worker/src/auth.ts).
+PBKDF2 pour **stocker**, HMAC pour **signer** : ce ne sont pas les mêmes
+besoins. Signer doit être rapide ; stocker doit être lent, pour qu'une fuite de
+la table `user` ne se casse pas à des milliards d'essais par seconde. Le détail
+est en tête de [`shared/src/password.ts`](../shared/src/password.ts) et de
+[`worker/src/auth.ts`](../worker/src/auth.ts).
+
+### Journal d'activité
+
+Chaque ajout, modification et suppression est enregistré avec son auteur,
+consultable dans l'application via le bouton `⋯`.
+
+Une table dédiée plutôt que des colonnes `created_by` / `updated_by` : celles-ci
+disparaissent avec la ligne qu'elles décrivent, or c'est précisément la
+suppression qu'on veut pouvoir expliquer trois jours plus tard. Le libellé est
+figé au moment de l'action — « a supprimé Chili con carne » reste lisible même
+quand la recette n'existe plus.
 
 ### Déverrouiller après trop de tentatives
 
 ```bash
-npx wrangler d1 execute livre-de-recettes --remote \
-  --command "DELETE FROM app_setting WHERE key='auth.failures'"
+npx wrangler d1 execute livre-de-recettes --remote   --command "DELETE FROM app_setting WHERE key='auth.failures'"
 ```
 
-### Changer le mot de passe
+### Déconnecter tout le monde immédiatement
 
-Rejouer `wrangler pages secret put APP_PASSWORD`. Toutes les sessions ouvertes
-sont invalidées, sur tous les appareils.
+```bash
+npx wrangler d1 execute livre-de-recettes --remote   --command "DELETE FROM app_setting WHERE key='auth.session_secret'"
+```
+
+Un nouveau secret sera généré au prochain appel : toutes les sessions ouvertes
+deviennent invalides, sur tous les appareils.
+
+### Désactiver un compte sans effacer son historique
+
+```bash
+npx wrangler d1 execute livre-de-recettes --remote   --command "UPDATE user SET is_active = 0 WHERE username = 'invite'"
+```
+
+L'effet est immédiat — le compte est relu en base à chaque requête, sans
+attendre l'expiration de son cookie. Le journal, lui, conserve ses actions.
 
 ### Pourquoi pas Cloudflare Access
 

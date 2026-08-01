@@ -88,15 +88,21 @@ export interface HealthResponse {
 // Session
 // ---------------------------------------------------------------------------
 
-export const checkSession = (): Promise<{ authenticated: boolean }> =>
-  apiFetch<{ authenticated: boolean }>('/api/session')
+export interface SessionUser {
+  readonly id: number
+  readonly username: string
+  readonly displayName: string
+}
 
-export const login = (password: string): Promise<{ status: 'ok' }> =>
-  apiFetch<{ status: 'ok' }>('/api/login', {
+export const checkSession = (): Promise<{ authenticated: boolean; user: SessionUser | null }> =>
+  apiFetch('/api/session')
+
+export const login = (username: string, password: string): Promise<{ user: SessionUser }> =>
+  apiFetch('/api/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ username, password }),
   })
 
 export const logout = (): Promise<{ status: 'ok' }> =>
-  apiFetch<{ status: 'ok' }>('/api/logout', { method: 'POST' })
+  apiFetch('/api/logout', { method: 'POST' })

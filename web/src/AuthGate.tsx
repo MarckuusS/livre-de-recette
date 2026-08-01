@@ -1,8 +1,18 @@
+import { createContext, useContext } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { App } from './App.js'
-import { ApiError, checkSession } from './lib/api.js'
+import { ApiError, checkSession, type SessionUser } from './lib/api.js'
 import { LoginScreen } from './screens/LoginScreen.js'
+
+const UserContext = createContext<SessionUser | null>(null)
+
+/** L'utilisateur connecte. Ne peut etre `null` a l'interieur de <App>. */
+export const useCurrentUser = (): SessionUser => {
+  const user = useContext(UserContext)
+  if (!user) throw new Error('useCurrentUser appelé hors session')
+  return user
+}
 
 /**
  * Decide, au lancement, entre l'ecran de connexion et l'application.
@@ -35,7 +45,7 @@ export function AuthGate() {
   }
 
   // Panne reseau au lancement : afficher l'ecran de connexion serait
-  // trompeur — le mot de passe est peut-etre valide, c'est le serveur qui
+  // trompeur — les identifiants sont peut-etre valides, c'est le serveur qui
   // est injoignable.
   if (session.isError && !(session.error instanceof ApiError && session.error.isUnauthenticated)) {
     return (
@@ -57,11 +67,13 @@ export function AuthGate() {
     )
   }
 
-  if (!session.data?.authenticated) {
+  const user = session.data?.authenticated ? session.data.user : null
+
+  if (!user) {
     return (
       <LoginScreen
-        onSuccess={() => {
-          client.setQueryData(['session'], { authenticated: true })
+        onSuccess={(loggedIn) => {
+          client.setQueryData(['session'], { authenticated: true, user: loggedIn })
           // Les requetes lancees avant la connexion ont echoue en 401 :
           // sans cette invalidation, les ecrans resteraient sur leur erreur.
           void client.invalidateQueries()
@@ -70,5 +82,9 @@ export function AuthGate() {
     )
   }
 
-  return <App />
+  return (
+    <UserContext.Provider value={user}>
+      <App />
+    </UserContext.Provider>
+  )
 }
