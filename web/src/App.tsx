@@ -1,9 +1,12 @@
-import { NavLink, Route, Routes, useLocation } from 'react-router'
+import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 
 import { useTheme } from './lib/theme.js'
 import { DiagnosticScreen } from './screens/DiagnosticScreen.js'
-import { PlaceholderScreen } from './screens/PlaceholderScreen.js'
+import { IngredientDetailScreen, IngredientsScreen } from './screens/IngredientsScreen.js'
+import { PantryScreen } from './screens/PantryScreen.js'
+import { RecipeDetailScreen, RecipesScreen } from './screens/RecipesScreen.js'
 import { ShoppingScreen } from './screens/ShoppingScreen.js'
+import { WeekScreen } from './screens/WeekScreen.js'
 
 /**
  * Les 5 onglets reprennent ceux du desktop, dans le meme ordre. « Calendrier »
@@ -18,24 +21,40 @@ export const TABS = [
   { to: '/frigo', icon: '🥫', label: 'Frigo' },
 ] as const
 
-const TITLES: Record<string, string> = {
-  '/ingredients': 'Ingrédients',
-  '/recettes': 'Recettes',
-  '/semaine': 'Ma semaine',
-  '/courses': 'Liste de courses',
-  '/frigo': 'Frigo & cellier',
-  '/diagnostic': 'Diagnostic',
-}
+const TITLES: Array<[RegExp, string]> = [
+  [/^\/ingredients\/\d+$/, 'Ingrédient'],
+  [/^\/ingredients$/, 'Ingrédients'],
+  [/^\/recettes\/\d+$/, 'Recette'],
+  [/^\/recettes$/, 'Recettes'],
+  [/^\/semaine$/, 'Ma semaine'],
+  [/^\/courses$/, 'Liste de courses'],
+  [/^\/frigo$/, 'Frigo & cellier'],
+  [/^\/diagnostic$/, 'Diagnostic'],
+]
 
 export function App() {
   const { isDark, toggle } = useTheme()
   const { pathname } = useLocation()
-  const title = TITLES[pathname] ?? 'Livre de recettes'
+  const navigate = useNavigate()
+
+  const title = TITLES.find(([re]) => re.test(pathname))?.[1] ?? 'Livre de recettes'
+  // Les vues de detail sont empilees sur leur liste : elles ont besoin d'un
+  // retour visible, la barre d'onglets ramenant a la racine de l'onglet.
+  const isDetail = /^\/(ingredients|recettes)\/\d+$/.test(pathname) || pathname === '/diagnostic'
 
   return (
     <div className="app">
       <header className="app-header">
+        {isDetail ? (
+          <button type="button" className="icon-button" onClick={() => void navigate(-1)} aria-label="Retour">
+            ‹
+          </button>
+        ) : (
+          <span className="icon-button icon-button--spacer" aria-hidden="true" />
+        )}
+
         <h1 className="app-header__title">{title}</h1>
+
         <div className="app-header__actions">
           <button
             type="button"
@@ -53,66 +72,24 @@ export function App() {
 
       <main className="app-main">
         <Routes>
-          <Route
-            path="/"
-            element={
-              <PlaceholderScreen
-                title="Bienvenue"
-                lead="La coquille de l'application est en place et installable sur ton téléphone."
-                items={[
-                  'Les écrans arrivent un par un, en commençant par la liste de courses.',
-                  'Le thème suit celui de ton téléphone, et se force avec le bouton en haut.',
-                  "L'onglet ⋯ affiche l'état de la base et de l'API.",
-                ]}
-              />
-            }
-          />
-          <Route
-            path="/ingredients"
-            element={
-              <PlaceholderScreen
-                title="Ingrédients"
-                lead="Ta bibliothèque personnelle, avec la recherche et les fiches détaillées."
-                items={['58 ingrédients dans ta bibliothèque', '4 177 en catalogue CIQUAL et OpenFoodFacts']}
-              />
-            }
-          />
-          <Route
-            path="/recettes"
-            element={
-              <PlaceholderScreen
-                title="Recettes"
-                lead="Tes recettes, leur composition, leur nutrition et leur coût."
-                items={['6 recettes', '56 lignes d’ingrédients']}
-              />
-            }
-          />
-          <Route
-            path="/semaine"
-            element={
-              <PlaceholderScreen
-                title="Ma semaine"
-                lead="Le planning des repas, un jour à la fois."
-                items={['5 créneaux par jour', 'Navigation par semaine ISO']}
-              />
-            }
-          />
+          <Route path="/" element={<ShoppingScreen />} />
+          <Route path="/ingredients" element={<IngredientsScreen />} />
+          <Route path="/ingredients/:id" element={<IngredientDetailScreen />} />
+          <Route path="/recettes" element={<RecipesScreen />} />
+          <Route path="/recettes/:id" element={<RecipeDetailScreen />} />
+          <Route path="/semaine" element={<WeekScreen />} />
           <Route path="/courses" element={<ShoppingScreen />} />
-          <Route
-            path="/frigo"
-            element={
-              <PlaceholderScreen
-                title="Frigo & cellier"
-                lead="Ce que tu as en stock, et ce qui périme bientôt."
-                items={['3 articles en stock']}
-              />
-            }
-          />
+          <Route path="/frigo" element={<PantryScreen />} />
           <Route path="/diagnostic" element={<DiagnosticScreen />} />
           <Route
             path="*"
             element={
-              <PlaceholderScreen title="Page introuvable" lead="Cette adresse ne correspond à rien." items={[]} />
+              <section className="screen">
+                <div className="card">
+                  <h2 className="card__title">Page introuvable</h2>
+                  <p className="card__lead">Cette adresse ne correspond à rien.</p>
+                </div>
+              </section>
             }
           />
         </Routes>

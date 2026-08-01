@@ -467,3 +467,302 @@
     opacity: 0.45;
   }
 }
+
+/* ---------- Champ de recherche ---------- */
+
+.search-field {
+  width: 100%;
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-md);
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.search-field::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.search-field:focus {
+  border-color: var(--color-border-focus);
+  outline: none;
+}
+
+.list-count {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.text-error {
+  color: var(--color-error);
+}
+
+/* ---------- Listes generiques ---------- */
+
+.row-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.row-list--flush {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.row + .row,
+.row-list > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.row__link,
+.row--static {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-lg);
+  color: inherit;
+  text-decoration: none;
+}
+
+.row__link:active {
+  background: var(--color-surface-pressed);
+}
+
+.row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.row__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.row__value {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.row__chevron {
+  flex: none;
+  font-size: var(--font-size-xl);
+  color: var(--color-text-placeholder);
+}
+
+/* ---------- Badges ---------- */
+
+.badge--source {
+  color: #fff;
+  font-weight: var(--font-weight-medium);
+}
+
+.badge--ciqual { background: var(--color-source-ciqual); }
+.badge--openfoodfacts { background: var(--color-source-off); }
+.badge--manual,
+.badge--lidl { background: var(--color-source-manual); }
+
+.badge--season {
+  color: #fff;
+  background: var(--color-success);
+}
+
+/* ---------- En-tetes de section ---------- */
+
+.section-header {
+  margin: 0;
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-hover);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.section-header__hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: var(--font-weight-regular);
+}
+
+.section-header--soon { color: var(--color-error); }
+.section-header--watch { color: var(--color-warning); }
+
+.urgency-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-placeholder);
+}
+
+.urgency-dot--soon { background: var(--color-error); }
+.urgency-dot--watch { background: var(--color-warning); }
+
+/* ---------- Cartes ---------- */
+
+.card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.card__title--padded {
+  padding: var(--space-lg) var(--space-lg) var(--space-sm);
+  margin: 0;
+}
+
+.kv__pair {
+  display: contents;
+}
+
+.note {
+  margin: var(--space-md) 0 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.instructions {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+.chip {
+  padding: 2px var(--space-sm);
+  font-size: var(--font-size-md);
+  border: 1px solid;
+  border-radius: var(--radius-full);
+}
+
+/* ---------- Tableau nutritionnel ---------- */
+
+.table-scroll {
+  /* Trois colonnes de chiffres ne tiennent pas toujours en 360 px : on fait
+     defiler le tableau seul, sans jamais faire defiler la page en largeur. */
+  overflow-x: auto;
+  margin-top: var(--space-md);
+}
+
+.nutrition-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.nutrition-table th,
+.nutrition-table td {
+  padding: var(--space-xs) var(--space-sm);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.nutrition-table thead th {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nutrition-table tbody th {
+  text-align: left;
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+.nutrition-table .unit {
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Bande des jours ---------- */
+
+.day-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-xs);
+}
+
+.day-strip__day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  padding: var(--space-sm) 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.day-strip__day--active {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.day-strip__name {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+}
+
+.day-strip__date {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-strip__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: transparent;
+}
+
+.day-strip__dot--on {
+  background: currentColor;
+}
+
+.slot-empty {
+  margin: 0;
+  padding: 0 var(--space-lg) var(--space-lg);
+  color: var(--color-text-placeholder);
+}
+
+/* ---------- En-tete : place du bouton retour ---------- */
+
+.app-header {
+  display: grid;
+  grid-template-columns: var(--control-height-lg) 1fr auto;
+}
+
+.icon-button--spacer {
+  pointer-events: none;
+}
