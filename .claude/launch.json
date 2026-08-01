@@ -2,15 +2,17 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "// web": "Front seul, avec rechargement a chaud. Proxifie /api vers le serveur 'pages' ci-dessous.",
       "name": "web",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--workspace", "@livre/web", "run", "dev"],
       "port": 5173
     },
     {
-      "name": "worker",
+      "// pages": "Site + API tels qu'en production. Necessite un build prealable (npm --workspace @livre/web run build) : ce serveur sert web/dist, il ne compile rien.",
+      "name": "pages",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["wrangler", "dev", "--port", "8787"],
+      "runtimeArgs": ["wrangler", "pages", "dev", "--port", "8787"],
       "port": 8787
     }
   ]

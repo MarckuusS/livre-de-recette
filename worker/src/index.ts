@@ -29,10 +29,17 @@ import { Repositories } from './repositories.js'
 
 export interface Env {
   readonly DB: D1Database
-  readonly MEDIA: R2Bucket
-  readonly CACHE: KVNamespace
   readonly OFF_USER_AGENT: string
   readonly ENVIRONMENT: string
+  /**
+   * Fichiers statiques du site, fournis par Pages en mode avance.
+   *
+   * Des lors qu'un `_worker.js` est present, Pages ne sert plus rien tout
+   * seul : ce Worker recoit CHAQUE requete et doit deleguer explicitement
+   * ce qui n'est pas de l'API. Oublier cette delegation rend le site entier
+   * inaccessible, y compris index.html.
+   */
+  readonly ASSETS: { fetch: (request: Request) => Promise<Response> }
 }
 
 const VERSION = '0.2.0'
@@ -275,8 +282,11 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
+    // Tout ce qui n'est pas de l'API repart vers les fichiers statiques.
+    // En mode avance, Pages ne sert plus rien de lui-meme : sans cette
+    // delegation, le site entier renverrait du JSON.
     if (!url.pathname.startsWith('/api/')) {
-      return fail(404, 'not_found', 'Cette adresse ne correspond à aucune API.')
+      return env.ASSETS.fetch(request)
     }
 
     for (const r of routes) {
