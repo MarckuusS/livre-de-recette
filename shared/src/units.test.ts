@@ -1,0 +1,115 @@
+/**
+ * Portage de tests/test_units.py, plus la couverture de l'unite « piece » que
+ * le desktop laissait a un composant QML (et que l'import par URL calculait
+ * faux — annexe #6 de la spec).
+ */
+
+import { describe, expect, it } from 'vitest'
+import {
+  DEFAULT_UNIT_CODE,
+  PIECE_UNIT_CODE,
+  UNITS,
+  UNIT_BY_CODE,
+  UnknownUnitError,
+  formatGrams,
+  fromGrams,
+  isKnownUnit,
+  labelFor,
+  toGrams,
+} from './units.js'
+
+describe('table des unites', () => {
+  it('a le gramme pour unite par defaut', () => {
+    expect(DEFAULT_UNIT_CODE).toBe('g')
+    expect(UNIT_BY_CODE.get('g')?.gramsPerUnit).toBe(1.0)
+  })
+
+  it("n'a pas de code en double", () => {
+    const codes = UNITS.map((u) => u.code)
+    expect(new Set(codes).size).toBe(codes.length)
+  })
+
+  it('conserve 11 unites, dans l ordre d affichage', () => {
+    expect(UNITS.map((u) => u.code)).toEqual([
+      'g', 'kg', 'mg', 'ml', 'cl', 'dl', 'L', 'c_cafe', 'c_soupe', 'tasse', 'pincee',
+    ])
+  })
+})
+
+describe('toGrams', () => {
+  it('convertit les cas de base', () => {
+    expect(toGrams(1, 'g')).toBe(1.0)
+    expect(toGrams(1, 'kg')).toBe(1000.0)
+    expect(toGrams(500, 'mg')).toBe(0.5)
+    expect(toGrams(1, 'L')).toBe(1000.0)
+    expect(toGrams(25, 'cl')).toBe(250.0)
+    expect(toGrams(1, 'c_soupe')).toBe(15.0)
+    expect(toGrams(2, 'tasse')).toBe(500.0)
+  })
+
+  it('suppose une densite de 1 g/ml', () => {
+    expect(toGrams(100, 'ml')).toBe(toGrams(100, 'g'))
+  })
+})
+
+describe('fromGrams', () => {
+  it('inverse toGrams', () => {
+    expect(fromGrams(1000, 'kg')).toBe(1.0)
+    expect(fromGrams(0.5, 'mg')).toBe(500.0)
+    expect(fromGrams(250, 'cl')).toBe(25.0)
+  })
+
+  it('fait un aller-retour fidele pour toutes les unites', () => {
+    for (const u of UNITS) {
+      for (const v of [1.0, 12.5, 0.1, 1000.0]) {
+        expect(fromGrams(toGrams(v, u.code), u.code)).toBeCloseTo(v, 9)
+      }
+    }
+  })
+})
+
+describe('unite piece', () => {
+  it('convertit via le poids unitaire de l ingredient', () => {
+    expect(toGrams(3, PIECE_UNIT_CODE, 60)).toBe(180) // 3 oeufs de 60 g
+    expect(fromGrams(180, PIECE_UNIT_CODE, 60)).toBe(3)
+  })
+
+  it('refuse de convertir sans poids unitaire', () => {
+    // Le desktop traitait ce cas comme des grammes (qty x 1.0) et sous-estimait
+    // silencieusement d'un facteur 60 sur les oeufs.
+    expect(() => toGrams(3, PIECE_UNIT_CODE)).toThrow(UnknownUnitError)
+    expect(() => toGrams(3, PIECE_UNIT_CODE, 0)).toThrow(UnknownUnitError)
+    expect(() => toGrams(3, PIECE_UNIT_CODE, null)).toThrow(UnknownUnitError)
+  })
+
+  it('affiche le poids dans son libelle', () => {
+    expect(labelFor(PIECE_UNIT_CODE, 60)).toBe('pièce (60 g)')
+    expect(labelFor(PIECE_UNIT_CODE)).toBe('pièce')
+  })
+})
+
+describe('libelles et validation', () => {
+  it('rend les libelles francais', () => {
+    expect(labelFor('g')).toBe('g')
+    expect(labelFor('c_soupe')).toBe('c. à soupe')
+    expect(labelFor('tasse')).toBe('tasse')
+  })
+
+  it('leve sur une unite inconnue', () => {
+    expect(() => toGrams(1, 'parsec')).toThrow(UnknownUnitError)
+    expect(() => fromGrams(1, 'parsec')).toThrow(UnknownUnitError)
+    expect(isKnownUnit('parsec')).toBe(false)
+    expect(isKnownUnit('c_cafe')).toBe(true)
+    expect(isKnownUnit(PIECE_UNIT_CODE)).toBe(true)
+  })
+})
+
+describe('formatGrams', () => {
+  it('bascule en kg au-dela de 1000 g et utilise la virgule', () => {
+    // Espace INSECABLE avant l'unite (U+00A0), d'ou l'echappement explicite.
+    expect(formatGrams(250)).toBe('250 g')
+    expect(formatGrams(1000)).toBe('1 kg')
+    expect(formatGrams(1500)).toBe('1,5 kg')
+    expect(formatGrams(12.5)).toBe('12,5 g')
+  })
+})
