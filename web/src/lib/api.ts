@@ -25,17 +25,54 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Renvoie l'utilisateur vers la page de connexion de Cloudflare Access.
+ *
+ * Le passage par `/api/auth-return` n'est pas un detour inutile : le service
+ * worker sert la coquille de l'app depuis son cache, donc un simple
+ * `location.reload()` ne toucherait jamais le reseau et bouclerait. `/api/*`
+ * est exclu du cache, la requete part donc reellement, Access l'intercepte,
+ * affiche sa page de connexion, puis renvoie ici — et le Worker nous ramene
+ * a l'ecran d'ou l'on venait.
+ */
+function redirectToLogin(): never {
+  // Garde anti-boucle : si la connexion echoue malgre tout, on ne veut pas
+  // faire tourner le telephone indefiniment entre deux redirections.
+  const KEY = 'auth-redirect-at'
+  const last = Number(sessionStorage.getItem(KEY) ?? 0)
+  if (Date.now() - last < 10_000) {
+    throw new ApiError(401, 'auth_loop', 'La connexion a échoué. Recharge la page.')
+  }
+  sessionStorage.setItem(KEY, String(Date.now()))
+
+  const next = location.pathname + location.search
+  location.href = `/api/auth-return?next=${encodeURIComponent(next)}`
+  // location.href ne suspend pas l'execution : sans ce throw, l'appelant
+  // continuerait a traiter une reponse qui n'existe pas.
+  throw new ApiError(401, 'redirecting', 'Redirection vers la connexion…')
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
     response = await fetch(path, {
       ...init,
+      // 'manual' est indispensable : par defaut, fetch suit la redirection
+      // d'Access vers cloudflareaccess.com, une autre origine, et echoue
+      // avec une simple erreur reseau — impossible de distinguer une session
+      // expiree d'un telephone hors couverture.
+      redirect: 'manual',
       headers: { Accept: 'application/json', ...init?.headers },
     })
   } catch {
     // fetch ne rejette que sur une panne reseau : le telephone est hors
     // couverture, ou le serveur est injoignable.
     throw new ApiError(0, 'network', 'Pas de connexion. Vérifie ton réseau.')
+  }
+
+  // Session Access absente ou expiree.
+  if (response.type === 'opaqueredirect' || response.status === 401) {
+    redirectToLogin()
   }
 
   if (!response.ok) {

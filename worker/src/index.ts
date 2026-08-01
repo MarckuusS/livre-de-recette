@@ -274,6 +274,27 @@ route('PUT', '/api/shopping/:week/checked', async ({ repos, params, request }) =
 /** Semaine courante — calculee cote serveur (UTC) et cote client (heure locale). */
 route('GET', '/api/current-week', async () => json({ isoWeek: currentIsoWeek() }))
 
+/**
+ * Point de retour apres authentification Cloudflare Access.
+ *
+ * Le front y envoie l'utilisateur quand un appel d'API se fait rediriger,
+ * signe d'une session absente ou expiree. Access intercepte cette requete
+ * AVANT ce code, affiche sa page de connexion, puis la laisse passer — et
+ * c'est seulement a ce moment que la ligne ci-dessous s'execute, pour
+ * ramener l'utilisateur exactement la ou il etait.
+ *
+ * Ce chemin passe par /api/ a dessein : c'est le seul exclu du cache du
+ * service worker, donc le seul qui atteigne reellement le reseau.
+ */
+route('GET', '/api/auth-return', async ({ url }) => {
+  const next = url.searchParams.get('next') ?? '/'
+  // Une redirection ouverte permettrait d'envoyer quelqu'un sur un site
+  // tiers depuis un lien qui a l'air legitime. On n'accepte qu'un chemin
+  // interne : commence par '/', et pas '//' qui designerait un autre domaine.
+  const safe = next.startsWith('/') && !next.startsWith('//') ? next : '/'
+  return new Response(null, { status: 302, headers: { location: safe, 'cache-control': 'no-store' } })
+})
+
 // ---------------------------------------------------------------------------
 // Point d'entree
 // ---------------------------------------------------------------------------

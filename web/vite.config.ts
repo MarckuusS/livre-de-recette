@@ -54,6 +54,15 @@ export default defineConfig({
         // worker — un prix perime affiche comme frais serait pire qu'une erreur.
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [],
+        // Sans ces deux options, un nouveau service worker attend la fermeture
+        // de TOUS les onglets avant de prendre la main. Sur un telephone, une
+        // PWA n'est jamais vraiment fermee : la version affichee restait donc
+        // bloquee plusieurs jours en arriere.
+        skipWaiting: true,
+        clientsClaim: true,
+        // Supprime les caches des versions precedentes, qui sinon
+        // s'accumulent a chaque deploiement.
+        cleanupOutdatedCaches: true,
       },
       devOptions: { enabled: false },
     }),

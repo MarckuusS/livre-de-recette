@@ -51,7 +51,8 @@ export function DiagnosticScreen() {
                 : `API injoignable — ${(health.error as Error).message}`}
             </p>
             <p className="card__lead">
-              C’est attendu tant que le Worker n’est pas déployé : le front est en ligne avant lui.
+              Si le réseau est bon, ferme puis rouvre l’application : la session d’authentification a
+              peut-être expiré.
             </p>
           </>
         )}
