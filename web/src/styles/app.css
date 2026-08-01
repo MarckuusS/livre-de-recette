@@ -193,3 +193,277 @@
     display: none;
   }
 }
+
+/* ---------- Boutons ---------- */
+
+.button {
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-lg);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard);
+}
+
+.button--primary {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+.button--primary:active {
+  background: var(--color-primary-pressed);
+}
+
+.button--secondary {
+  margin-top: var(--space-md);
+  color: var(--color-primary);
+  background: transparent;
+  border-color: var(--color-border);
+}
+
+.button--secondary:active {
+  background: var(--color-surface-pressed);
+}
+
+/* ---------- Selecteur de semaine ---------- */
+
+.week-picker {
+  display: grid;
+  grid-template-columns: var(--control-height-lg) 1fr var(--control-height-lg);
+  align-items: center;
+  padding: var(--space-xs);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.week-picker__arrow {
+  height: var(--control-height-lg);
+  font-size: var(--font-size-xl);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+}
+
+.week-picker__arrow:active {
+  background: var(--color-surface-pressed);
+}
+
+.week-picker__label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: center;
+  padding: var(--space-xs);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+}
+
+.week-picker__label:disabled {
+  /* Desactive parce que deja sur la semaine courante — mais le libelle doit
+     rester lisible : ce n'est pas une action interdite, c'est un etat. */
+  cursor: default;
+  opacity: 1;
+}
+
+.week-picker__week {
+  font-weight: var(--font-weight-semibold);
+}
+
+.week-picker__year {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Liste de courses ---------- */
+
+.screen--shopping {
+  /* Laisse passer le pied fixe (total + partage) sous le contenu. */
+  padding-bottom: calc(var(--space-lg) + 72px);
+}
+
+.shopping-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.shopping-section__header {
+  position: sticky;
+  /* Se cale sous l'en-tete, encoche comprise : en defilant, on sait toujours
+     dans quel rayon on se trouve. */
+  top: calc(var(--header-height) + var(--safe-top));
+  z-index: 5;
+  margin: 0;
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-hover);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.shopping-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shopping-row + .shopping-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.shopping-row__label {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  /* Toute la ligne est cliquable : viser une case de 24 px avec un panier au
+     bras ne marche pas. */
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-lg);
+  cursor: pointer;
+}
+
+.shopping-row__checkbox {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  accent-color: var(--color-primary);
+}
+
+.shopping-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.shopping-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shopping-row__meta {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.shopping-row__cost {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.shopping-row--checked .shopping-row__name {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.shopping-row--checked {
+  background: var(--color-surface-hover);
+}
+
+.badge {
+  padding: 1px var(--space-sm);
+  font-size: var(--font-size-xs);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.badge--pantry {
+  color: var(--color-on-primary);
+  background: var(--color-success);
+}
+
+/* ---------- Pied fixe ---------- */
+
+.shopping-footer {
+  position: fixed;
+  right: 0;
+  bottom: calc(var(--tabbar-height) + var(--safe-bottom));
+  left: 0;
+  z-index: 15;
+  display: flex;
+  gap: var(--space-lg);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-normal);
+}
+
+.shopping-footer__totals {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shopping-footer__amount {
+  font-size: var(--font-size-xl);
+  font-variant-numeric: tabular-nums;
+}
+
+.shopping-footer__detail {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+@media (min-width: 720px) {
+  .shopping-footer {
+    right: auto;
+    left: 50%;
+    width: 720px;
+    transform: translateX(-50%);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+/* ---------- Squelettes de chargement ---------- */
+
+.skeleton-row {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-sm) 0;
+}
+
+.skeleton {
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-sm);
+  animation: skeleton-pulse 1.4s var(--easing-standard) infinite;
+}
+
+.skeleton--box {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.skeleton--line {
+  height: 14px;
+  flex: 1;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}

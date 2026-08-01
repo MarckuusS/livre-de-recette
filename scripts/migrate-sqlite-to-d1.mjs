@@ -105,6 +105,23 @@ const chunks = []
 const emit = (line) => chunks.push(line)
 const section = (title) => emit(`\n-- ${'-'.repeat(72)}\n-- ${title}\n-- ${'-'.repeat(72)}`)
 
+/**
+ * Emet des INSERT multi-lignes par lots.
+ *
+ * Une instruction par ligne produisait 4 300 requetes, ce que wrangler ne
+ * digere pas en un seul appel (« Body Timeout Error » en local, limites de
+ * taille de requete en distant). Regroupees par 100, il en reste une
+ * cinquantaine — et le chargement devient nettement plus rapide, chaque
+ * instruction n'etant analysee qu'une fois.
+ */
+const CHUNK = 100
+function emitInsert(table, columns, valueTuples) {
+  for (let i = 0; i < valueTuples.length; i += CHUNK) {
+    const slice = valueTuples.slice(i, i + CHUNK)
+    emit(`INSERT INTO ${table} (${columns.join(', ')}) VALUES\n  ${slice.join(',\n  ')};`)
+  }
+}
+
 // --- lecture ---------------------------------------------------------------
 
 if (!existsSync(SOURCE_DB)) {
@@ -131,12 +148,15 @@ PRAGMA defer_foreign_keys = ON;`)
 
 // --- ingredient (avant tout le reste : presque tout y fait reference) -------
 section('ingredient')
-for (const r of record('ingredient', all('SELECT * FROM ingredient ORDER BY id'))) {
-  emit(
-    `INSERT INTO ingredient (id, name, name_normalized, source, source_ref, brand, ` +
-      `kcal_per_100g, proteins_g, carbs_g, sugars_g, fats_g, saturated_fats_g, fiber_g, salt_g, ` +
-      `price_eur, price_quantity_g, piece_weight_g, cooked_weight_per_100g_raw, ` +
-      `in_personal_library, category_l1, category_l2, season_months, created_at, updated_at) VALUES (` +
+emitInsert(
+  'ingredient',
+  ['id', 'name', 'name_normalized', 'source', 'source_ref', 'brand',
+   'kcal_per_100g', 'proteins_g', 'carbs_g', 'sugars_g', 'fats_g', 'saturated_fats_g', 'fiber_g', 'salt_g',
+   'price_eur', 'price_quantity_g', 'piece_weight_g', 'cooked_weight_per_100g_raw',
+   'in_personal_library', 'category_l1', 'category_l2', 'season_months', 'created_at', 'updated_at'],
+  record('ingredient', all('SELECT * FROM ingredient ORDER BY id')).map(
+    (r) =>
+      '(' +
       [
         sqlNumber(r.id), sqlString(r.name), sqlString(normalizeName(r.name)),
         sqlString(r.source), sqlString(r.source_ref), sqlString(r.brand),
@@ -146,9 +166,10 @@ for (const r of record('ingredient', all('SELECT * FROM ingredient ORDER BY id')
         sqlNumber(r.piece_weight_g), sqlNumber(r.cooked_weight_per_100g_raw),
         sqlBool(r.in_personal_library), sqlString(r.category_l1), sqlString(r.category_l2),
         sqlString(r.season_months), sqlString(toUtcTimestamp(r.created_at)), sqlString(toUtcTimestamp(r.updated_at)),
-      ].join(', ') + `);`,
-  )
-}
+      ].join(', ') +
+      ')',
+  ),
+)
 
 // --- tag : deja seme par 0003, on realigne ids et couleurs -----------------
 section('tag (realignement sur les ids locaux)')

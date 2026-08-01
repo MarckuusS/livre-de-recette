@@ -3,6 +3,7 @@ import { NavLink, Route, Routes, useLocation } from 'react-router'
 import { useTheme } from './lib/theme.js'
 import { DiagnosticScreen } from './screens/DiagnosticScreen.js'
 import { PlaceholderScreen } from './screens/PlaceholderScreen.js'
+import { ShoppingScreen } from './screens/ShoppingScreen.js'
 
 /**
  * Les 5 onglets reprennent ceux du desktop, dans le meme ordre. « Calendrier »
@@ -96,20 +97,7 @@ export function App() {
               />
             }
           />
-          <Route
-            path="/courses"
-            element={
-              <PlaceholderScreen
-                title="Liste de courses"
-                lead="Le premier écran à être livré pour de bon — c’est celui qui sert en magasin."
-                items={[
-                  'Regroupée par rayon',
-                  'Cases à cocher qui survivent au rafraîchissement',
-                  'Ce qui est déjà au frigo est pré-coché',
-                ]}
-              />
-            }
-          />
+          <Route path="/courses" element={<ShoppingScreen />} />
           <Route
             path="/frigo"
             element={
