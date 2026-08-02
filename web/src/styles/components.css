@@ -1,0 +1,545 @@
+/*
+ * Habillage des composants partages : champs, quantite, selection
+ * d'ingredient, feuille modale, toast.
+ *
+ * Charge par Field.tsx, Sheet.tsx, Toast.tsx et IngredientPicker.tsx —
+ * jamais par main.tsx, qui n'a pas a connaitre le detail des composants.
+ * L'import est repete parce que Sheet et Toast ne dependent pas de Field :
+ * un ecran qui n'ouvre qu'une modale doit tout de meme etre habille.
+ *
+ * Deux regles tenues partout ici :
+ *   - aucune valeur brute : couleurs, espacements, rayons et durees viennent
+ *     de theme.css ;
+ *   - toute cible tactile fait au moins 44 px, et tout champ de saisie fait
+ *     au moins 16 px de police — sous iOS, en dessous, la mise au point
+ *     declenche un zoom automatique non desactivable.
+ */
+
+/* ---------- Jetons propres aux composants ---------- */
+
+:root {
+  /* Le desktop peignait son toast en ardoise sombre quel que soit le theme.
+     En clair c'est le bon contraste ; en sombre il ferait une tache plus
+     claire que le fond, d'ou la reprise sur la surface dans les deux blocs
+     sombres ci-dessous. */
+  --color-toast-bg: #1f2937;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-toast-bg: var(--color-surface);
+  }
+}
+
+/* La bascule manuelle doit l'emporter sur la preference systeme. */
+:root[data-theme='dark'] {
+  --color-toast-bg: var(--color-surface);
+}
+
+/* ---------- Champs de formulaire ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.field__label {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.field__required {
+  padding-left: var(--space-xs);
+  color: var(--color-error);
+}
+
+.field__input,
+.field__textarea,
+.field__select {
+  width: 100%;
+  min-height: var(--control-height-lg);
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-family);
+  /* 1rem = 16 px sous 768 px (voir theme.css), donc pas de zoom iOS ;
+     13 px au-dela, ou l'on retrouve la densite du desktop. */
+  font-size: 1rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration-fast) var(--easing-standard);
+}
+
+.field__input::placeholder,
+.field__textarea::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.field__input:focus,
+.field__textarea:focus,
+.field__select:focus {
+  border-color: var(--color-border-focus);
+  outline: none;
+}
+
+.field__input:disabled,
+.field__textarea:disabled,
+.field__select:disabled {
+  color: var(--color-text-disabled);
+  background: var(--color-surface-hover);
+}
+
+.field__textarea {
+  /* Le champ grandit avec son contenu (voir TextArea) : jamais de barre de
+     defilement interne, c'est la page qui defile. */
+  overflow: hidden;
+  resize: none;
+  line-height: 1.5;
+}
+
+/* Pas d'`appearance: none` sur .field__select : le rendu natif est conserve
+   volontairement. Sous iOS c'est la roue de selection, plus rapide au pouce
+   que n'importe quel menu maison, et gratuitement accessible. */
+
+.field__input--number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Champ + cellule d'unite fixe — portage de FixedUnitField.qml. */
+.field__control {
+  display: flex;
+  align-items: stretch;
+}
+
+.field__control .field__input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.field__suffix {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 64px;
+  padding: 0 var(--space-md);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-left: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.field__hint {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.field__error {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-error);
+}
+
+.field--invalid .field__input,
+.field--invalid .field__textarea,
+.field--invalid .field__select {
+  border-color: var(--color-error);
+}
+
+/* ---------- Case a cocher ---------- */
+
+.checkbox-field {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  /* Toute la ligne est tapable, pas seulement la case de 24 px. */
+  min-height: var(--control-height-lg);
+  padding: var(--space-sm) 0;
+  cursor: pointer;
+}
+
+.checkbox-field__box {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.checkbox-field__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.checkbox-field__label {
+  color: var(--color-text);
+}
+
+.checkbox-field__hint {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Champ quantite ---------- */
+
+.quantity-field {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: stretch;
+}
+
+.quantity-field__value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.quantity-field__unit {
+  flex: 0 0 auto;
+  /* Assez large pour « c. à soupe » et « pièce (150 g) » sans troncature. */
+  width: 140px;
+}
+
+@media (max-width: 360px) {
+  .quantity-field__unit {
+    width: 118px;
+  }
+}
+
+/* ---------- Selection d'ingredient ---------- */
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.picker__listbox {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 264px;
+  overflow-y: auto;
+  /* Sans cela, arriver en bas de la liste continue de faire defiler la
+     feuille modale derriere elle. */
+  overscroll-behavior: contain;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-normal);
+}
+
+.picker__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+}
+
+.picker__option + .picker__option {
+  border-top: 1px solid var(--color-border);
+}
+
+.picker__option--active {
+  background: var(--color-surface-hover);
+}
+
+.picker__option:active {
+  background: var(--color-surface-pressed);
+}
+
+.picker__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.picker__piece {
+  color: var(--color-accent);
+}
+
+.picker__status {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.picker__status--error {
+  color: var(--color-error);
+}
+
+/* ---------- Feuille modale ---------- */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  /* Elle vient du bas : c'est la moitie de l'ecran que le pouce atteint. */
+  justify-content: flex-end;
+}
+
+.sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--color-overlay);
+  animation: sheet-fade var(--duration-fast) var(--easing-enter);
+}
+
+.sheet__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Le haut du contenu reste visible : on voit qu'il y a une page derriere,
+     et le tap pour fermer garde une cible. */
+  max-height: 92dvh;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--shadow-elevated);
+  animation: sheet-rise var(--duration-normal) var(--easing-enter);
+}
+
+.sheet__panel:focus {
+  /* Elle recoit la mise au point a l'ouverture : pas de halo pour autant,
+     ce n'est pas une cible cliquable. */
+  outline: none;
+}
+
+.sheet__header {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sheet__title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.sheet__close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+.sheet__close:active {
+  background: var(--color-surface-pressed);
+}
+
+.sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-lg);
+}
+
+.sheet__message {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.sheet__actions {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  /* Encoche du bas : sans cette reserve, le bouton principal passe sous la
+     barre d'accueil iOS et devient intapable. */
+  padding-bottom: calc(var(--space-md) + var(--safe-bottom));
+  border-top: 1px solid var(--color-border);
+}
+
+.sheet__actions .button {
+  flex: 1;
+  /* Neutralise le `margin-top` que .button--secondary porte dans app.css
+     pour son usage en pile — dans une rangee il decalerait un bouton sur deux. */
+  margin-top: 0;
+}
+
+/* Le panneau compact d'une question courte. */
+.sheet--dialog .sheet__panel {
+  max-height: 80dvh;
+}
+
+@media (min-width: 720px) {
+  .sheet {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sheet__panel {
+    width: 100%;
+    max-width: 560px;
+    max-height: 84dvh;
+    border-radius: var(--radius-xl);
+  }
+
+  .sheet--dialog .sheet__panel {
+    max-width: 420px;
+  }
+
+  .sheet__actions {
+    padding-bottom: var(--space-md);
+  }
+}
+
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-rise {
+  from {
+    transform: translateY(6%);
+    opacity: 0;
+  }
+}
+
+/* ---------- Toast ---------- */
+
+.toast {
+  position: fixed;
+  right: var(--space-lg);
+  bottom: calc(var(--above-tabbar) + var(--space-lg));
+  left: var(--space-lg);
+  z-index: 200;
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  color: var(--color-on-primary);
+  background: var(--color-toast-bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  animation: toast-rise var(--duration-normal) var(--easing-enter);
+}
+
+.toast__message {
+  min-width: 0;
+  font-size: var(--font-size-lg);
+}
+
+.toast__action {
+  flex: none;
+  /* 44 px de haut : c'est le seul moyen de revenir en arriere, il ne doit
+     jamais se rater. */
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-on-primary);
+  background: transparent;
+  border: 1px solid var(--color-border-hover);
+  border-radius: var(--radius-sm);
+}
+
+.toast__action:active {
+  background: var(--color-surface-pressed);
+}
+
+@media (min-width: 720px) {
+  .toast {
+    right: auto;
+    left: 50%;
+    width: min(560px, calc(100% - var(--space-xxl)));
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes toast-rise {
+  from {
+    transform: translateY(var(--space-lg));
+    opacity: 0;
+  }
+}
+
+@media (min-width: 720px) {
+  @keyframes toast-rise {
+    from {
+      transform: translate(-50%, var(--space-lg));
+      opacity: 0;
+    }
+  }
+}
+
+/* ---------- Boutons manquants dans app.css ---------- */
+
+.button--danger {
+  color: var(--color-on-primary);
+  background: var(--color-error);
+}
+
+.button--danger:active {
+  background: var(--color-error-hover);
+}
+
+.button--ghost {
+  color: var(--color-primary);
+  background: transparent;
+  border-color: transparent;
+}
+
+.button--ghost:active {
+  background: var(--color-surface-pressed);
+}
+
+.button--block {
+  width: 100%;
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* ---------- Mise en page d'un formulaire ---------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.form__row {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-end;
+}
+
+.form__row > * {
+  flex: 1;
+  min-width: 0;
+}

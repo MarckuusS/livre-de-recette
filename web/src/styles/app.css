@@ -10,9 +10,9 @@
 .app {
   display: flex;
   flex-direction: column;
-  /* 100dvh et non 100vh : sur iOS, vh compte la barre d'adresse meme quand
-     elle est retractee, ce qui fait depasser la barre d'onglets sous l'ecran. */
-  min-height: 100dvh;
+  /* Ni `vh` ni `dvh` en dur : le bon choix depend du contexte, et le jeton
+     tranche pour nous (voir --app-height dans theme.css). */
+  min-height: var(--app-height);
 }
 
 /* ---------- En-tete ---------- */
@@ -69,7 +69,7 @@
 .app-main {
   flex: 1;
   /* Reserve la place de la barre d'onglets, encoche du bas comprise. */
-  padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom));
+  padding-bottom: var(--above-tabbar);
 }
 
 .screen {
@@ -148,7 +148,9 @@
 .tabbar {
   position: fixed;
   right: 0;
-  bottom: 0;
+  /* Descend la barre jusqu'au bord reel de l'ecran. Vaut 0 partout sauf sur
+     iOS installe, ou le viewport annonce est plus court que l'ecran. */
+  bottom: var(--viewport-drift);
   left: 0;
   z-index: 20;
   display: grid;
@@ -157,6 +159,20 @@
   padding-bottom: var(--safe-bottom);
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
+}
+
+/* Prolonge la couleur de la barre sous elle.
+   Filet de securite : si un appareil annonce une hauteur fausse de quelques
+   pixels que le calcul ci-dessus ne rattrape pas, on voit du gris de barre et
+   non une bande de fond plus sombre. Invisible quand l'ajustement est exact. */
+.tabbar::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 120px;
+  background: var(--color-surface);
 }
 
 .tabbar__item {
@@ -291,7 +307,11 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  /* `clip` et non `hidden` : les deux rognent aux angles arrondis, mais
+     `hidden` fait du bloc un CONTENEUR DE DEFILEMENT, et un en-tete
+     `position: sticky` colle alors a son propre conteneur — donc ne bouge
+     jamais. Le nom du rayon disparaissait en haut de liste. */
+  overflow: clip;
 }
 
 .shopping-section__header {
@@ -393,7 +413,7 @@
 .shopping-footer {
   position: fixed;
   right: 0;
-  bottom: calc(var(--tabbar-height) + var(--safe-bottom));
+  bottom: var(--above-tabbar);
   left: 0;
   z-index: 15;
   display: flex;
@@ -772,7 +792,7 @@
 .login {
   display: grid;
   place-items: center;
-  min-height: 100dvh;
+  min-height: var(--app-height);
   padding: var(--space-lg);
   padding-top: calc(var(--space-lg) + var(--safe-top));
 }

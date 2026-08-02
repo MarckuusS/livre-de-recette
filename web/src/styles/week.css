@@ -1,0 +1,420 @@
+/*
+ * Habillage de l'ecran « Ma semaine ».
+ *
+ * Charge par WeekScreen et ses feuilles, jamais par main.tsx : un ecran qu'on
+ * ne visite pas n'a pas a peser sur le premier rendu.
+ *
+ * La bande des jours (.day-strip) et le tableau nutritionnel
+ * (.table-scroll / .nutrition-table) vivent deja dans app.css : on ne les
+ * redefinit pas, on ne fait qu'y ajouter le marqueur du jour courant.
+ *
+ * Deux regles tenues partout ici, comme dans components.css : aucune valeur
+ * brute — tout vient de theme.css — et toute cible tactile fait au moins
+ * 44 px de haut.
+ */
+
+/* ---------- Bande des jours ---------- */
+
+/*
+ * Aujourd'hui reste reperable meme quand un autre jour est selectionne. Le
+ * desktop ne marquait pas le jour courant du tout : sur un ecran ou l'on ne
+ * voit qu'un jour sur sept, c'est une lacune qu'on ne peut pas garder.
+ *
+ * Le selecteur porte le bloc parent pour peser plus lourd que la regle
+ * `.day-strip__day` d'app.css : ce fichier-ci est charge par un ecran, donc
+ * potentiellement AVANT app.css, et une specificite egale perdrait.
+ */
+.day-strip .day-strip__day--today {
+  border-color: var(--color-primary);
+}
+
+.day-strip .day-strip__day--today.day-strip__day--active {
+  border-color: var(--color-primary-pressed);
+}
+
+.day-strip__day {
+  /* 44 px minimum, meme quand la pastille de contenu est absente. */
+  min-height: var(--control-height-lg);
+}
+
+/* ---------- Outils de la semaine ---------- */
+
+.week-tools {
+  display: flex;
+}
+
+.week-tools .week-tools__trigger {
+  flex: 1;
+  /* Neutralise le `margin-top` que .button--secondary porte dans app.css pour
+     son usage empile : ici l'espacement vient du `gap` de .screen. Selecteur
+     double pour la meme raison que .day-strip__day--today ci-dessus. */
+  margin-top: 0;
+}
+
+.tool-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool-list > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.tool-list__item {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-xs);
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.tool-list__item:active {
+  background: var(--color-surface-pressed);
+}
+
+.tool-list__item:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.tool-list__icon {
+  flex: none;
+  font-size: var(--font-size-xl);
+}
+
+.tool-list__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tool-list__label {
+  font-weight: var(--font-weight-medium);
+}
+
+.tool-list__hint {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Le jour affiche ---------- */
+
+.day-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.day-panel__title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ---------- Un creneau ---------- */
+
+.slot {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
+  overflow: hidden;
+}
+
+.slot__header {
+  display: flex;
+  gap: var(--space-md);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg) var(--space-sm);
+}
+
+.slot__title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.slot__kcal {
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.slot__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.slot__list > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+/*
+ * « + Ajouter » est un bouton plein largeur, toujours dans son etat actif.
+ * Le desktop s'appuyait sur le survol de la cellule pour le reveler, et
+ * rendait toute la cellule cliquable — au doigt, ce dernier point ouvrait le
+ * dialogue d'ajout des qu'on visait un repas.
+ */
+.slot__add {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.slot__add:active {
+  background: var(--color-surface-pressed);
+}
+
+/* ---------- Un repas ---------- */
+
+.meal__button {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-lg);
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.meal__button:active {
+  background: var(--color-surface-pressed);
+}
+
+.meal__icon {
+  flex: none;
+  font-size: var(--font-size-xl);
+}
+
+.meal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.meal__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meal__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.meal__chevron {
+  flex: none;
+  font-size: var(--font-size-xl);
+  color: var(--color-text-placeholder);
+}
+
+/* ---------- Onglets segmentes (feuille d'ajout) ---------- */
+
+.segmented {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.segmented__tab {
+  flex: 1;
+  min-height: var(--control-height-lg);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.segmented__tab--active {
+  color: var(--color-text);
+  background: var(--color-surface);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--shadow-subtle);
+}
+
+/* ---------- Ingredient retenu ---------- */
+
+.picked {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-md);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.picked__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-medium);
+}
+
+.picked__clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+.picked__clear:active {
+  background: var(--color-surface-pressed);
+}
+
+/* ---------- Choix de la semaine source ---------- */
+
+.week-source {
+  display: grid;
+  grid-template-columns: var(--control-height-lg) 1fr var(--control-height-lg);
+  align-items: center;
+  padding: var(--space-xs);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.week-source__arrow {
+  height: var(--control-height-lg);
+  font-size: var(--font-size-xl);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+}
+
+.week-source__arrow:active {
+  background: var(--color-surface-pressed);
+}
+
+.week-source__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: center;
+  min-width: 0;
+}
+
+.week-source__week {
+  font-weight: var(--font-weight-semibold);
+}
+
+.week-source__meta {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Modeles ---------- */
+
+.template-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.template {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.template + .template {
+  border-top: 1px solid var(--color-border);
+}
+
+.template__apply {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-xs);
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.template__apply:active {
+  background: var(--color-surface-pressed);
+}
+
+.template__apply:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.template__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-medium);
+}
+
+.template__meta {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/*
+ * La suppression est ecartee de la zone qui applique le modele : 44 px de
+ * cible, et une confirmation derriere. Sur le desktop, un ✕ de 22 px collait
+ * au bouton d'application.
+ */
+.template__delete {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+.template__delete:active {
+  color: var(--color-error);
+  background: var(--color-surface-pressed);
+}

@@ -1,0 +1,409 @@
+/*
+ * Liste de courses — ce que app.css ne couvrait pas.
+ *
+ * L'habillage de base (.shopping-section, .shopping-row, .shopping-footer) vit
+ * dans app.css et n'est pas retouche : cet ecran fonctionnait deja, on
+ * l'etend. Ce fichier ajoute les elements nouveaux (repli des rayons, detail
+ * d'une ligne, chips de mode, pied a trois lignes) et surcharge le strict
+ * necessaire.
+ *
+ * Toute surcharge d'une regle d'app.css est portee par un selecteur a DEUX
+ * classes (`.screen--shopping .bloc__element`). Raison : ce fichier est
+ * importe par l'ecran, donc plus tot dans le graphe de modules que les feuilles
+ * de main.tsx — a specificite egale, app.css l'emporterait quoi qu'on ecrive
+ * ici. La specificite superieure rend le resultat independant de l'ordre.
+ *
+ * Deux regles tenues partout : aucune valeur de couleur, d'espacement, de rayon
+ * ou de duree en dur (tout vient de theme.css), et aucune cible tactile sous
+ * 44 px.
+ */
+
+/* Le pied fixe compte desormais trois lignes : libelle, montant, detail. */
+.screen.screen--shopping {
+  padding-bottom: calc(var(--space-lg) + 104px);
+}
+
+/* ---------- Bandeau de semaine ---------- */
+
+.shopping-head {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+}
+
+.shopping-head__dates {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.shopping-head__refresh {
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-md);
+  font-size: var(--font-size-md);
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+}
+
+.shopping-head__refresh:active {
+  background: var(--color-surface-pressed);
+}
+
+.shopping-head__refresh:disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+/* ---------- Chips de mode ---------- */
+
+.shopping-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.chip-toggle {
+  display: inline-flex;
+  gap: var(--space-xs);
+  align-items: center;
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+
+.chip-toggle--on {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.shopping-note {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-warning);
+}
+
+/* ---------- Proposition de pre-cochage depuis le frigo ---------- */
+
+.pantry-hint {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-lg);
+}
+
+.pantry-hint__text {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* Neutralise le margin-top que .button--secondary porte pour son usage en
+   pile : dans une rangee, il decale le bouton par rapport au texte. */
+.pantry-hint .button {
+  flex: none;
+  margin-top: 0;
+}
+
+/* ---------- Rayons repliables ---------- */
+
+/*
+ * `clip` et non `hidden`, qui est ce qu'app.css pose pour arrondir les coins.
+ *
+ * `overflow: hidden` fait du rayon un conteneur de defilement : l'en-tete
+ * `position: sticky` s'y ancre alors au lieu de s'ancrer a la page, et ne colle
+ * jamais. `overflow: clip` decoupe de la meme facon SANS creer ce conteneur.
+ * Un navigateur qui ne connait pas `clip` ignore la ligne et retrouve
+ * simplement le comportement actuel.
+ */
+.screen--shopping .shopping-section {
+  overflow: clip;
+}
+
+/* Le rembourrage passe du titre au bouton, pour que toute la bande soit
+   tapable et non seulement le texte. */
+.screen--shopping .shopping-section__header {
+  padding: 0;
+}
+
+.shopping-section__toggle {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  width: 100%;
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-lg);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.shopping-section__toggle:active {
+  background: var(--color-surface-pressed);
+}
+
+.shopping-section__chevron {
+  flex: none;
+  font-size: var(--font-size-md);
+}
+
+.shopping-section__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shopping-section__count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  /* Le compteur n'est pas un titre : il ne subit ni la capitale ni
+     l'interlettrage de l'en-tete. */
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-placeholder);
+}
+
+/* ---------- Ligne ---------- */
+
+.shopping-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.screen--shopping .shopping-row__label {
+  flex: 1;
+  min-width: 0;
+  /* Le bouton de detail apporte sa propre marge a droite. */
+  padding-right: var(--space-sm);
+}
+
+.shopping-row__detail {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-height-lg);
+  font-size: var(--font-size-xl);
+  color: var(--color-text-placeholder);
+  background: transparent;
+  border: 0;
+}
+
+.shopping-row__detail:active {
+  background: var(--color-surface-pressed);
+}
+
+.screen--shopping .shopping-row__meta {
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+.shopping-row__cost.shopping-row__cost--missing {
+  font-size: var(--font-size-md);
+  color: var(--color-warning);
+}
+
+/* Stock partiel : le frigo ne couvre pas tout le besoin. La pastille pleine
+   est reservee au cas ou l'on n'a plus rien a acheter. */
+.badge.badge--partial {
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border-hover);
+}
+
+/* ---------- Mode courses ---------- */
+
+.screen--store .shopping-row__label {
+  min-height: 72px;
+}
+
+.screen--store .shopping-row__checkbox {
+  width: 32px;
+  height: 32px;
+}
+
+.screen--store .shopping-row__name {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
+}
+
+.screen--store .shopping-row__meta,
+.screen--store .shopping-row__cost {
+  font-size: var(--font-size-lg);
+}
+
+.screen--store .shopping-row__detail {
+  width: 56px;
+}
+
+/* ---------- Pied fixe ---------- */
+
+.screen--shopping .shopping-footer {
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: stretch;
+}
+
+.shopping-footer__row {
+  display: flex;
+  gap: var(--space-lg);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shopping-footer__label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.screen--shopping .shopping-footer__amount {
+  line-height: 1.1;
+}
+
+.shopping-footer__actions {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex: none;
+}
+
+.shopping-footer__more.icon-button {
+  font-size: var(--font-size-xl);
+}
+
+.shopping-footer__error,
+.shopping-footer__flash {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.shopping-footer__error {
+  color: var(--color-error);
+}
+
+.shopping-footer__flash {
+  color: var(--color-success);
+}
+
+/* ---------- Feuille d'actions ---------- */
+
+.action-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.action-list > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.action-list__item {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-xs);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.action-list__item:active {
+  background: var(--color-surface-pressed);
+}
+
+/* ---------- Detail d'une ligne ---------- */
+
+.line-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.line-detail__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.line-detail__links {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  margin: 0;
+}
+
+.line-detail__link {
+  color: var(--color-primary);
+}
+
+.line-detail__empty {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Cout et historique ---------- */
+
+.cost-history__current {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.cost-history__amount {
+  font-size: var(--font-size-title);
+  font-variant-numeric: tabular-nums;
+}
+
+.cost-history__warning {
+  font-size: var(--font-size-md);
+  color: var(--color-warning);
+}
+
+.cost-history__done {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-success);
+}
+
+.cost-history__tag {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+/* Depenser plus n'est pas une erreur : l'ecart monte en couleur d'alerte
+   douce, pas en rouge d'echec. */
+.cost-history__up {
+  color: var(--color-warning);
+  font-variant-numeric: tabular-nums;
+}
+
+.cost-history__down {
+  color: var(--color-success);
+  font-variant-numeric: tabular-nums;
+}

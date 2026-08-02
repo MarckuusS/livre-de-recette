@@ -1,16 +1,631 @@
-/** Acces aux donnees de l'API, via TanStack Query. */
+/**
+ * Acces aux donnees de l'API, via TanStack Query.
+ *
+ * Un principe tenu partout ici : apres une ecriture, on invalide les listes
+ * qui en DEPENDENT, pas seulement celle qu'on vient de modifier. Changer une
+ * recette change la liste de courses ; vider un jour change le cout de la
+ * semaine. Le desktop avait le meme probleme et le reglait par des signaux
+ * Qt — ici c'est `invalidateQueries`.
+ *
+ * Les routes qui renvoient l'etat complet apres ecriture (calendrier, frigo)
+ * alimentent directement le cache : sur un reseau de magasin, economiser un
+ * aller-retour se voit a l'oeil nu.
+ */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import {
   currentIsoWeek,
   type Ingredient,
   type MealPlanEntry,
   type PantryStock,
+  type PantryStockWrite,
   type Recipe,
+  type RecipeWrite,
   type ShoppingList,
 } from '@livre/shared'
 
 import { apiFetch } from './api.js'
+
+// ---------------------------------------------------------------------------
+// Cles et invalidation
+// ---------------------------------------------------------------------------
+
+export const keys = {
+  ingredients: (q: string) => ['ingredients', q] as const,
+  ingredient: (id: number | null) => ['ingredient', id] as const,
+  catalog: (q: string, source: string | null, category: string | null) =>
+    ['catalog', q, source, category] as const,
+  categories: ['categories'] as const,
+  prices: (id: number) => ['prices', id] as const,
+  recipes: (q: string, tagId: number | null) => ['recipes', q, tagId] as const,
+  recipe: (id: number | null) => ['recipe', id] as const,
+  cooking: (id: number) => ['cooking', id] as const,
+  tags: ['tags'] as const,
+  calendar: (week: string) => ['calendar', week] as const,
+  templates: ['templates'] as const,
+  pantry: ['pantry'] as const,
+  shopping: (week: string) => ['shopping', week] as const,
+  shoppingHistory: ['shopping-history'] as const,
+  activity: ['activity'] as const,
+}
+
+/**
+ * Ce que touche indirectement une ecriture.
+ *
+ * La liste de courses derive du calendrier, des recettes, des ingredients ET
+ * du frigo : elle est invalidee par a peu pres tout. Le journal d'activite
+ * aussi, puisque chaque ecriture y laisse une ligne.
+ */
+function invalidateDerived(client: QueryClient): void {
+  void client.invalidateQueries({ queryKey: ['shopping'] })
+  void client.invalidateQueries({ queryKey: keys.activity })
+}
+
+const post = <T,>(path: string, body: unknown): Promise<T> =>
+  apiFetch<T>(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+const put = <T,>(path: string, body: unknown): Promise<T> =>
+  apiFetch<T>(path, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+const patch = <T,>(path: string, body: unknown): Promise<T> =>
+  apiFetch<T>(path, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+const del = <T,>(path: string): Promise<T> => apiFetch<T>(path, { method: 'DELETE' })
+
+// ---------------------------------------------------------------------------
+// Ingredients
+// ---------------------------------------------------------------------------
+
+export interface IngredientList {
+  readonly items: Ingredient[]
+  readonly totalCount: number
+}
+
+export function useIngredients(query: string) {
+  return useQuery({
+    queryKey: keys.ingredients(query),
+    queryFn: () =>
+      apiFetch<IngredientList>(`/api/ingredients${query ? `?q=${encodeURIComponent(query)}` : ''}`),
+    // Garde la liste precedente affichee pendant la frappe, au lieu de
+    // repasser par un squelette a chaque lettre.
+    placeholderData: (previous) => previous,
+  })
+}
+
+export function useIngredient(id: number | null) {
+  return useQuery({
+    queryKey: keys.ingredient(id),
+    queryFn: () => apiFetch<Ingredient>(`/api/ingredients/${id}`),
+    enabled: id !== null,
+  })
+}
+
+export function useCreateIngredient() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: Partial<Ingredient> & { name: string }) =>
+      post<Ingredient>('/api/ingredients', payload),
+    onSuccess: (created) => {
+      void client.invalidateQueries({ queryKey: ['ingredients'] })
+      void client.invalidateQueries({ queryKey: ['catalog'] })
+      client.setQueryData(keys.ingredient(created.id), created)
+      invalidateDerived(client)
+    },
+  })
+}
+
+export function useUpdateIngredient() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: Partial<Ingredient> & { id: number }) =>
+      patch<Ingredient>(`/api/ingredients/${id}`, body),
+    onSuccess: (updated) => {
+      void client.invalidateQueries({ queryKey: ['ingredients'] })
+      client.setQueryData(keys.ingredient(updated.id), updated)
+      // Les macros et le prix d'un ingredient traversent recettes, semaine et
+      // courses : tout ce qui l'affiche doit repartir de la base.
+      void client.invalidateQueries({ queryKey: ['recipe'] })
+      void client.invalidateQueries({ queryKey: ['calendar'] })
+      void client.invalidateQueries({ queryKey: keys.pantry })
+      invalidateDerived(client)
+    },
+  })
+}
+
+export interface DeleteIngredientResult {
+  readonly removed: 'library' | 'permanent'
+  readonly id?: number
+  readonly ingredient?: Ingredient
+}
+
+export function useDeleteIngredient() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => del<DeleteIngredientResult>(`/api/ingredients/${id}`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['ingredients'] })
+      void client.invalidateQueries({ queryKey: ['catalog'] })
+      invalidateDerived(client)
+    },
+  })
+}
+
+// ------------------------------------------------------------------ catalogue
+
+export interface CatalogPage extends IngredientList {
+  readonly limit: number
+  readonly offset: number
+}
+
+export function useCatalog(
+  query: string,
+  options: {
+    source?: string | null
+    category?: string | null
+    enabled?: boolean
+    limit?: number
+    offset?: number
+  } = {},
+) {
+  const { source = null, category = null, enabled = true, limit = 50, offset = 0 } = options
+  const search = new URLSearchParams()
+  if (query) search.set('q', query)
+  if (source) search.set('source', source)
+  if (category) search.set('category', category)
+  search.set('limit', String(limit))
+  search.set('offset', String(offset))
+
+  return useQuery({
+    queryKey: [...keys.catalog(query, source, category), limit, offset],
+    queryFn: () => apiFetch<CatalogPage>(`/api/catalog?${search.toString()}`),
+    // Sans requete ni filtre, le catalogue rendrait ses 4 000 premieres lignes
+    // par ordre alphabetique — inexploitable et couteux sur un telephone.
+    enabled: enabled && (query.trim().length > 0 || source !== null || category !== null),
+    placeholderData: (previous) => previous,
+  })
+}
+
+export const useCategories = () =>
+  useQuery({
+    queryKey: keys.categories,
+    queryFn: () => apiFetch<{ items: Array<{ l1: string; count: number }> }>('/api/categories'),
+  })
+
+export function useAddToLibrary() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => put<Ingredient>(`/api/ingredients/${id}/library`, {}),
+    onSuccess: (ingredient) => {
+      void client.invalidateQueries({ queryKey: ['ingredients'] })
+      void client.invalidateQueries({ queryKey: ['catalog'] })
+      client.setQueryData(keys.ingredient(ingredient.id), ingredient)
+      void client.invalidateQueries({ queryKey: keys.activity })
+    },
+  })
+}
+
+/** Recherche OpenFoodFacts, relayee par le Worker (CORS + User-Agent). */
+export function useOffSearch(query: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['off-search', query],
+    queryFn: () => apiFetch<IngredientList>(`/api/off/search?q=${encodeURIComponent(query)}`),
+    // Pas de debounce ici : OpenFoodFacts limite les clients anonymes, la
+    // recherche est declenchee par un bouton explicite.
+    enabled: enabled && query.trim().length > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+}
+
+export const lookupBarcode = (ean: string): Promise<Ingredient & { alreadyKnown?: boolean }> =>
+  apiFetch(`/api/off/barcode/${encodeURIComponent(ean)}`)
+
+// ------------------------------------------------------------------ prix
+
+export interface PriceEntry {
+  readonly id: number
+  readonly ingredientId: number
+  readonly priceEur: string
+  readonly quantityG: number
+  readonly store: string | null
+  readonly recordedAt: string
+  readonly notes: string | null
+  readonly createdAt: string
+}
+
+export function usePriceHistory(ingredientId: number | null) {
+  return useQuery({
+    queryKey: keys.prices(ingredientId ?? 0),
+    queryFn: () => apiFetch<{ items: PriceEntry[] }>(`/api/ingredients/${ingredientId}/prices`),
+    enabled: ingredientId !== null,
+  })
+}
+
+export function useAddPrice(ingredientId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (entry: Omit<PriceEntry, 'id' | 'ingredientId' | 'createdAt'>) =>
+      post<{ items: PriceEntry[]; ingredient: Ingredient }>(`/api/ingredients/${ingredientId}/prices`, entry),
+    onSuccess: (result) => {
+      client.setQueryData(keys.prices(ingredientId), { items: result.items })
+      client.setQueryData(keys.ingredient(ingredientId), result.ingredient)
+      void client.invalidateQueries({ queryKey: ['ingredients'] })
+      invalidateDerived(client)
+    },
+  })
+}
+
+/**
+ * Supprime un releve.
+ *
+ * L'identifiant de l'ingredient part en parametre pour que le serveur puisse
+ * rendre le prix RECALCULE : effacer le releve le plus recent change le prix
+ * courant de la fiche, et l'ecran doit le refleter sans relire.
+ */
+export function useDeletePrice(ingredientId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) =>
+      del<{ id: number; items?: PriceEntry[]; ingredient?: Ingredient }>(
+        `/api/prices/${id}?ingredient=${ingredientId}`,
+      ),
+    onSuccess: (result) => {
+      if (result.items) client.setQueryData(keys.prices(ingredientId), { items: result.items })
+      if (result.ingredient) client.setQueryData(keys.ingredient(ingredientId), result.ingredient)
+      void client.invalidateQueries({ queryKey: ['ingredients'] })
+      invalidateDerived(client)
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Recettes
+// ---------------------------------------------------------------------------
+
+export interface RecipeSummary {
+  readonly id: number
+  readonly name: string
+  readonly defaultPortions: number
+  readonly imageKey: string | null
+  readonly lineCount: number
+  readonly prepTimeMin: number | null
+  readonly tags: ReadonlyArray<{ id: number; name: string; colorHex: string }>
+  /** Derniere fois que la recette a ete cuisinee, `null` si jamais. */
+  readonly lastCookedAt: string | null
+  /** Nombre de cuissons sur les 30 derniers jours glissants. */
+  readonly cookCount30d: number
+}
+
+export function useRecipes(query = '', tagId: number | null = null) {
+  const search = new URLSearchParams()
+  if (query) search.set('q', query)
+  if (tagId !== null) search.set('tag', String(tagId))
+
+  return useQuery({
+    queryKey: keys.recipes(query, tagId),
+    queryFn: () =>
+      apiFetch<{ items: RecipeSummary[]; totalCount: number }>(
+        `/api/recipes${search.toString() ? `?${search.toString()}` : ''}`,
+      ),
+    placeholderData: (previous) => previous,
+  })
+}
+
+export function useRecipe(id: number | null) {
+  return useQuery({
+    queryKey: keys.recipe(id),
+    queryFn: () => apiFetch<Recipe>(`/api/recipes/${id}`),
+    enabled: id !== null,
+  })
+}
+
+/** Creation et modification partagent le meme formulaire : un seul hook. */
+export function useSaveRecipe() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: RecipeWrite & { id: number | null }) =>
+      id === null ? post<Recipe>('/api/recipes', body) : put<Recipe>(`/api/recipes/${id}`, body),
+    onSuccess: (recipe) => {
+      void client.invalidateQueries({ queryKey: ['recipes'] })
+      client.setQueryData(keys.recipe(recipe.id), recipe)
+      void client.invalidateQueries({ queryKey: ['calendar'] })
+      invalidateDerived(client)
+    },
+  })
+}
+
+export function useDeleteRecipe() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) =>
+      del<{ id: number; plannedEntriesRemoved: number }>(`/api/recipes/${id}`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['recipes'] })
+      // Les repas planifies tombent en cascade cote base.
+      void client.invalidateQueries({ queryKey: ['calendar'] })
+      invalidateDerived(client)
+    },
+  })
+}
+
+// -------------------------------------------------------- journal de cuisson
+
+export interface CookingEntry {
+  readonly id: number
+  readonly recipeId: number
+  readonly cookedAt: string
+  readonly rating: number | null
+  readonly notes: string | null
+  readonly createdAt: string
+}
+
+export function useCookingLog(recipeId: number | null) {
+  return useQuery({
+    queryKey: keys.cooking(recipeId ?? 0),
+    queryFn: () => apiFetch<{ items: CookingEntry[] }>(`/api/recipes/${recipeId}/cooking`),
+    enabled: recipeId !== null,
+  })
+}
+
+export function useAddCooking(recipeId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (entry: { cookedAt: string; rating: number | null; notes: string | null }) =>
+      post<{ items: CookingEntry[] }>(`/api/recipes/${recipeId}/cooking`, entry),
+    onSuccess: (result) => {
+      client.setQueryData(keys.cooking(recipeId), result)
+      // Le compteur « ces 30 derniers jours » vit dans la liste des recettes.
+      void client.invalidateQueries({ queryKey: ['recipes'] })
+      void client.invalidateQueries({ queryKey: keys.activity })
+    },
+  })
+}
+
+export function useDeleteCooking(recipeId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => del<{ id: number }>(`/api/cooking/${id}`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.cooking(recipeId) })
+      void client.invalidateQueries({ queryKey: ['recipes'] })
+      void client.invalidateQueries({ queryKey: keys.activity })
+    },
+  })
+}
+
+// ------------------------------------------------------------------ tags
+
+export interface TagItem {
+  readonly id: number
+  readonly name: string
+  readonly colorHex: string
+  readonly recipeCount: number
+}
+
+export const useTags = () =>
+  useQuery({ queryKey: keys.tags, queryFn: () => apiFetch<{ items: TagItem[] }>('/api/tags') })
+
+export function useCreateTag() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (tag: { name: string; colorHex: string }) => post<TagItem>('/api/tags', tag),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.tags }),
+  })
+}
+
+export function useUpdateTag() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...tag }: { id: number; name: string; colorHex: string }) =>
+      put<TagItem>(`/api/tags/${id}`, tag),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.tags })
+      void client.invalidateQueries({ queryKey: ['recipes'] })
+    },
+  })
+}
+
+export function useDeleteTag() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => del<{ id: number }>(`/api/tags/${id}`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.tags })
+      void client.invalidateQueries({ queryKey: ['recipes'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Calendrier
+// ---------------------------------------------------------------------------
+
+export interface CalendarResponse {
+  readonly isoWeek: string
+  readonly entries: readonly MealPlanEntry[]
+  /** Recettes et ingredients references, indexes par identifiant. */
+  readonly recipes: Record<string, Recipe>
+  readonly ingredients: Record<string, Ingredient>
+}
+
+export function useCalendar(isoWeek: string) {
+  return useQuery({
+    queryKey: keys.calendar(isoWeek),
+    queryFn: () => apiFetch<CalendarResponse>(`/api/calendar/${isoWeek}`),
+  })
+}
+
+/**
+ * Toutes les ecritures du calendrier rendent la semaine complete.
+ *
+ * Le cache est donc alimente directement, sans requete de relecture : sur un
+ * telephone, chaque aller-retour evite est une demi-seconde gagnee.
+ */
+function useCalendarMutation<TVars>(
+  isoWeek: string,
+  fn: (vars: TVars) => Promise<CalendarResponse>,
+) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (week) => {
+      client.setQueryData(keys.calendar(week.isoWeek), week)
+      if (week.isoWeek !== isoWeek) void client.invalidateQueries({ queryKey: keys.calendar(isoWeek) })
+      invalidateDerived(client)
+    },
+  })
+}
+
+export interface EntryDraft {
+  readonly dayOfWeek: number
+  readonly slot: string
+  readonly recipeId: number | null
+  readonly ingredientId: number | null
+  readonly quantityG: number | null
+  readonly portions: number | null
+}
+
+export const useAddEntry = (isoWeek: string) =>
+  useCalendarMutation<EntryDraft>(isoWeek, (entry) =>
+    post<CalendarResponse>(`/api/calendar/${isoWeek}/entries`, entry),
+  )
+
+export const useUpdateEntryAmount = (isoWeek: string) =>
+  useCalendarMutation<{ id: number; quantityG: number | null; portions: number | null }>(
+    isoWeek,
+    ({ id, ...body }) => patch<CalendarResponse>(`/api/calendar/entries/${id}`, body),
+  )
+
+export const useMoveEntry = (isoWeek: string) =>
+  useCalendarMutation<{ id: number; dayOfWeek: number; slot: string }>(isoWeek, ({ id, ...body }) =>
+    put<CalendarResponse>(`/api/calendar/entries/${id}/move`, body),
+  )
+
+export const useDeleteEntry = (isoWeek: string) =>
+  useCalendarMutation<number>(isoWeek, (id) => del<CalendarResponse>(`/api/calendar/entries/${id}`))
+
+export const useClearDay = (isoWeek: string) =>
+  useCalendarMutation<number>(isoWeek, (day) =>
+    del<CalendarResponse>(`/api/calendar/${isoWeek}/days/${day}`),
+  )
+
+export const useClearWeek = (isoWeek: string) =>
+  useCalendarMutation<void>(isoWeek, () => del<CalendarResponse>(`/api/calendar/${isoWeek}`))
+
+export const useCopyWeek = (isoWeek: string) =>
+  useCalendarMutation<string>(isoWeek, (from) =>
+    post<CalendarResponse>(`/api/calendar/${isoWeek}/copy-from`, { from }),
+  )
+
+// ------------------------------------------------------------- modeles
+
+export interface TemplateItem {
+  readonly id: number
+  readonly name: string
+  readonly entryCount: number
+  readonly updatedAt: string
+}
+
+export const useTemplates = () =>
+  useQuery({ queryKey: keys.templates, queryFn: () => apiFetch<{ items: TemplateItem[] }>('/api/templates') })
+
+export function useSaveTemplate() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { name: string; isoWeek: string }) =>
+      post<{ id: number; items: TemplateItem[] }>('/api/templates', vars),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.templates }),
+  })
+}
+
+export function useApplyTemplate(isoWeek: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => put<CalendarResponse>(`/api/templates/${id}/apply`, { isoWeek }),
+    onSuccess: (week) => {
+      client.setQueryData(keys.calendar(week.isoWeek), week)
+      invalidateDerived(client)
+    },
+  })
+}
+
+export function useDeleteTemplate() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => del<{ id: number }>(`/api/templates/${id}`),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.templates }),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Frigo
+// ---------------------------------------------------------------------------
+
+export interface PantryResponse {
+  readonly items: readonly PantryStock[]
+  readonly ingredients: Record<string, Ingredient>
+}
+
+export const usePantry = () =>
+  useQuery({ queryKey: keys.pantry, queryFn: () => apiFetch<PantryResponse>('/api/pantry') })
+
+function usePantryMutation<TVars, TResult extends PantryResponse = PantryResponse>(
+  fn: (vars: TVars) => Promise<TResult>,
+) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (pantry) => {
+      client.setQueryData(keys.pantry, pantry)
+      // Le frigo se retranche de la liste de courses : elle change forcement.
+      invalidateDerived(client)
+    },
+  })
+}
+
+export const useAddStock = () =>
+  usePantryMutation<PantryStockWrite>((stock) => post<PantryResponse>('/api/pantry', stock))
+
+export const useUpdateStock = () =>
+  usePantryMutation<PantryStockWrite & { id: number }>(({ id, ...body }) =>
+    put<PantryResponse>(`/api/pantry/${id}`, body),
+  )
+
+/**
+ * Consommation partielle.
+ *
+ * La reponse dit ce qu'est devenu le lot : `removed` quand la quantite le vide
+ * (la table interdit un lot a zero), sinon `remainingG`. L'ecran a besoin de
+ * cette distinction pour annoncer « lot terminé » plutot que « mis à jour ».
+ */
+export interface ConsumeResponse extends PantryResponse {
+  readonly removed: boolean
+  readonly remainingG: number | null
+}
+
+export const useConsumeStock = () =>
+  usePantryMutation<{ id: number; quantityG: number }, ConsumeResponse>(({ id, quantityG }) =>
+    post<ConsumeResponse>(`/api/pantry/${id}/consume`, { quantityG }),
+  )
+
+export const useDeleteStock = () =>
+  usePantryMutation<number>((id) => del<PantryResponse>(`/api/pantry/${id}`))
+
+// ---------------------------------------------------------------------------
+// Liste de courses
+// ---------------------------------------------------------------------------
 
 export interface ShoppingListResponse extends ShoppingList {
   /** Cases cochees, persistees cote serveur. */
@@ -19,7 +634,7 @@ export interface ShoppingListResponse extends ShoppingList {
 
 export function useShoppingList(isoWeek: string) {
   return useQuery({
-    queryKey: ['shopping', isoWeek],
+    queryKey: keys.shopping(isoWeek),
     queryFn: () => apiFetch<ShoppingListResponse>(`/api/shopping/${isoWeek}`),
   })
 }
@@ -34,15 +649,11 @@ export function useShoppingList(isoWeek: string) {
  */
 export function useToggleChecked(isoWeek: string) {
   const client = useQueryClient()
-  const key = ['shopping', isoWeek] as const
+  const key = keys.shopping(isoWeek)
 
   return useMutation({
     mutationFn: (ingredientIds: readonly number[]) =>
-      apiFetch<{ checkedIngredientIds: number[] }>(`/api/shopping/${isoWeek}/checked`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ingredientIds }),
-      }),
+      put<{ checkedIngredientIds: number[] }>(`/api/shopping/${isoWeek}/checked`, { ingredientIds }),
 
     onMutate: async (ingredientIds) => {
       // Sans cette annulation, une lecture encore en vol pourrait ecraser
@@ -61,89 +672,26 @@ export function useToggleChecked(isoWeek: string) {
   })
 }
 
-// ---------------------------------------------------------------------------
-// Ingredients
-// ---------------------------------------------------------------------------
-
-export function useIngredients(query: string) {
-  return useQuery({
-    queryKey: ['ingredients', query],
-    queryFn: () =>
-      apiFetch<{ items: Ingredient[]; totalCount: number }>(
-        `/api/ingredients${query ? `?q=${encodeURIComponent(query)}` : ''}`,
-      ),
-    // Garde la liste precedente affichee pendant la frappe, au lieu de
-    // repasser par un squelette a chaque lettre.
-    placeholderData: (previous) => previous,
-  })
-}
-
-export function useIngredient(id: number | null) {
-  return useQuery({
-    queryKey: ['ingredient', id],
-    queryFn: () => apiFetch<Ingredient>(`/api/ingredients/${id}`),
-    enabled: id !== null,
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Recettes
-// ---------------------------------------------------------------------------
-
-export interface RecipeSummary {
-  readonly id: number
-  readonly name: string
-  readonly defaultPortions: number
-  readonly imageKey: string | null
-  readonly lineCount: number
-}
-
-export function useRecipes() {
-  return useQuery({
-    queryKey: ['recipes'],
-    queryFn: () => apiFetch<{ items: RecipeSummary[]; totalCount: number }>('/api/recipes'),
-  })
-}
-
-export function useRecipe(id: number | null) {
-  return useQuery({
-    queryKey: ['recipe', id],
-    queryFn: () => apiFetch<Recipe>(`/api/recipes/${id}`),
-    enabled: id !== null,
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Calendrier
-// ---------------------------------------------------------------------------
-
-export interface CalendarResponse {
+export interface WeekCost {
   readonly isoWeek: string
-  readonly entries: readonly MealPlanEntry[]
-  /** Recettes et ingredients references, indexes par identifiant. */
-  readonly recipes: Record<string, Recipe>
-  readonly ingredients: Record<string, Ingredient>
+  readonly totalEur: string
+  readonly missingCount: number
+  readonly capturedAt: string
 }
 
-export function useCalendar(isoWeek: string) {
-  return useQuery({
-    queryKey: ['calendar', isoWeek],
-    queryFn: () => apiFetch<CalendarResponse>(`/api/calendar/${isoWeek}`),
+export function useSnapshotWeek(isoWeek: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => post<WeekCost>(`/api/shopping/${isoWeek}/snapshot`, {}),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.shoppingHistory }),
   })
 }
 
-// ---------------------------------------------------------------------------
-// Frigo
-// ---------------------------------------------------------------------------
-
-export interface PantryResponse {
-  readonly items: readonly PantryStock[]
-  readonly ingredients: Record<string, Ingredient>
-}
-
-export function usePantry() {
-  return useQuery({ queryKey: ['pantry'], queryFn: () => apiFetch<PantryResponse>('/api/pantry') })
-}
+export const useShoppingHistory = () =>
+  useQuery({
+    queryKey: keys.shoppingHistory,
+    queryFn: () => apiFetch<{ items: WeekCost[] }>('/api/shopping-history'),
+  })
 
 /** Semaine ISO courante, calculee sur l'heure LOCALE du telephone. */
 export const useCurrentWeek = () => currentIsoWeek()

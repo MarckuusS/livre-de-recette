@@ -1,0 +1,522 @@
+/*
+ * Habillage de l'ecran Recettes : liste, editeur, panneaux derives, journal
+ * de cuisson.
+ *
+ * Charge par RecipesScreen.tsx et RecipeEditor.tsx, jamais par main.tsx : un
+ * utilisateur qui ne fait que sa liste de courses ne telecharge pas ces
+ * regles.
+ *
+ * Les deux regles de la maison s'appliquent ici sans exception :
+ *   - aucune valeur brute, tout vient des jetons de theme.css ;
+ *   - toute cible tactile fait au moins 44 px.
+ *
+ * Seule entorse, et elle est assumee : les couleurs de tag arrivent en style
+ * en ligne depuis les composants. Elles sont saisies par l'utilisateur et
+ * stockees en base — aucun jeton ne peut les representer.
+ */
+
+/* ---------- Pieds fixes ---------- */
+
+.screen--recipes,
+.screen--editor {
+  /* Laisse passer le bouton fixe (liste) ou la barre d'enregistrement
+     (editeur) sous le contenu. */
+  padding-bottom: calc(var(--space-lg) + 76px);
+}
+
+.recipes-footer,
+.save-bar {
+  position: fixed;
+  right: 0;
+  bottom: var(--above-tabbar);
+  left: 0;
+  z-index: 15;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-normal);
+}
+
+@media (min-width: 720px) {
+  .recipes-footer,
+  .save-bar {
+    right: auto;
+    left: 50%;
+    width: 720px;
+    transform: translateX(-50%);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+.save-bar__row {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.save-bar__state {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-warning);
+}
+
+.save-bar__actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex: none;
+}
+
+.save-bar__error {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-md);
+  color: var(--color-error);
+}
+
+/* Le bouton secondaire porte une marge haute dans app.css, pensee pour un
+   empilement en carte. Dans une rangee d'actions elle desaligne tout.
+   (Les pieds de feuille modale sont deja traites dans components.css.) */
+.save-bar__actions .button,
+.cook-actions .button {
+  margin-top: 0;
+}
+
+/* ---------- Pastilles de tag ---------- */
+
+.recipe-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.recipe-chips--sheet {
+  margin-bottom: var(--space-xl);
+}
+
+.recipe-chip {
+  display: inline-flex;
+  gap: var(--space-xs);
+  align-items: center;
+  /* 44 px serait enorme pour une pastille ; 36 px reste confortable au pouce
+     dans une rangee qui ne comporte que des cibles de meme nature, et permet
+     d'en voir plusieurs a la fois sur 375 px. */
+  min-height: 36px;
+  padding: 0 var(--space-md);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+
+/* Sans survol, l'etat actif ne peut reposer que sur le contraste : fond plein
+   contre fond transparent, jamais sur une nuance. */
+.recipe-chip--on {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.recipe-chip--static {
+  min-height: 0;
+  padding: 1px var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.recipe-chip--add {
+  border-style: dashed;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.recipe-chip__count {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  opacity: 0.75;
+}
+
+.tag-filter {
+  /* Deborde en largeur DANS SON conteneur : la page, elle, ne defile jamais
+     horizontalement. */
+  overflow-x: auto;
+  margin: 0 calc(-1 * var(--space-lg));
+  padding: 0 var(--space-lg);
+  scrollbar-width: none;
+}
+
+.tag-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.tag-filter__scroller {
+  display: flex;
+  gap: var(--space-sm);
+  width: max-content;
+  padding: var(--space-xs) 0;
+}
+
+.badge--cooked {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+/* ---------- Palette de couleurs de tag ---------- */
+
+.tag-create {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.tag-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.tag-palette__swatch {
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  border: 2px solid transparent;
+  border-radius: var(--radius-full);
+}
+
+.tag-palette__swatch--on {
+  border-color: var(--color-text);
+}
+
+/* ---------- Lignes d'ingredients ---------- */
+
+.editor-group {
+  margin-top: var(--space-lg);
+}
+
+.editor-group .section-header {
+  /* La carte a deja son fond : l'en-tete de rayon se contente d'un filet. */
+  margin: 0 calc(-1 * var(--space-lg));
+  background: var(--color-surface-hover);
+}
+
+.editor-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.editor-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.editor-line__head {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.editor-line__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-line__actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex: none;
+}
+
+.editor-line__quantity {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.editor-line__quantity > .field {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * Le libelle du champ reste dans le DOM pour le lecteur d'ecran mais sort de
+ * l'ecran : « Quantité de courgette » juste sous « Courgette » n'apprend rien
+ * a qui voit, et coute deux lignes par ingredient sur un telephone.
+ */
+.editor-line .field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.editor-line__note-add {
+  align-self: flex-start;
+  min-height: var(--control-height-md);
+  padding: 0;
+  font-size: var(--font-size-md);
+  margin-top: 0;
+}
+
+.icon-action {
+  display: grid;
+  place-items: center;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.icon-action:active {
+  background: var(--color-surface-pressed);
+}
+
+.icon-action:disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.icon-action--danger {
+  color: var(--color-error);
+  border-color: var(--color-border);
+}
+
+/* ---------- Mise a l'echelle ---------- */
+
+.scaler {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-end;
+  margin-top: var(--space-md);
+}
+
+.scaler > .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.scaler .button {
+  margin-top: 0;
+  flex: none;
+}
+
+.scale-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  /* `color-mix` plutot qu'une couleur figee : l'orange d'avertissement change
+     entre theme clair et sombre, le fond doit suivre. */
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 45%, transparent);
+  border-radius: var(--radius-lg);
+}
+
+.scale-banner__text {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.scale-banner .button {
+  align-self: flex-start;
+  margin-top: 0;
+}
+
+.card--scaled {
+  border-color: color-mix(in srgb, var(--color-warning) 60%, var(--color-border));
+}
+
+.note--warning {
+  color: var(--color-warning);
+}
+
+/* ---------- Tableau nutritionnel ----------
+ * Tout est scope par le modificateur : `.nutrition-table` est aussi utilise
+ * par l'ecran Semaine, qui n'attend ni pastilles ni lignes en retrait.
+ */
+
+.nutrition-table--macros tbody th {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.nutrition-table--macros .nutrition-table__row--sub th {
+  padding-left: var(--space-lg);
+  font-style: italic;
+}
+
+.nutrition-table--macros .unit {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.nutrient-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+/* ---------- Donut de composition ---------- */
+
+.macros {
+  display: flex;
+  gap: var(--space-lg);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: var(--space-md);
+}
+
+.macros__chart {
+  flex: none;
+  width: 140px;
+  height: 140px;
+}
+
+.macros__track {
+  stroke: var(--color-border);
+}
+
+.macros__center {
+  fill: var(--color-text);
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
+}
+
+.macros__center-sub {
+  fill: var(--color-text-secondary);
+  font-size: 9px;
+}
+
+.macros__legend {
+  flex: 1;
+  min-width: 180px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.macros__item {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: baseline;
+  padding: var(--space-xs) 0;
+}
+
+.macros__label {
+  flex: none;
+  font-weight: var(--font-weight-medium);
+}
+
+.macros__value {
+  flex: 1;
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+/* ---------- Journal de cuisson ---------- */
+
+.cook-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-top: var(--space-md);
+}
+
+.cook-actions .button {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.cook-history__title {
+  margin-top: var(--space-xl);
+}
+
+.cook-history {
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cook-entry {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.cook-entry__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cook-entry__date {
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.cook-entry__stars {
+  font-size: var(--font-size-md);
+  color: var(--color-warning);
+  letter-spacing: 0.1em;
+}
+
+.cook-entry__notes {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.stars {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stars__button {
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  font-size: var(--font-size-xl);
+  color: var(--color-text-placeholder);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+}
+
+.stars__button--on {
+  color: var(--color-warning);
+}
+
+.stars__clear {
+  margin-top: 0;
+  margin-left: auto;
+  font-size: var(--font-size-md);
+}

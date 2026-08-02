@@ -1,0 +1,432 @@
+/**
+ * Tout ce qui se DEDUIT d'une recette : nutrition, energie, cout, poids cuit,
+ * et la mise a l'echelle temporaire des portions.
+ *
+ * Aucune formule n'est ecrite ici. `aggregateRecipe`, `energyBreakdown`,
+ * `recipeCost` et `cookedWeightG` viennent de @livre/shared, ou le Worker les
+ * lit aussi : c'est ce qui garantit que le total affiche sur le telephone et
+ * celui calcule pour la liste de courses ne peuvent pas diverger. Le desktop
+ * avait la meme regle et la meme raison.
+ *
+ * LA subtilite de cet ecran, celle que le desktop signalait par un bandeau
+ * orange : la mise a l'echelle ne touche PAS tout. Ce qui est servi a une
+ * personne ne change pas quand on cuisine pour huit au lieu de quatre.
+ *
+ *   mis a l'echelle : quantites affichees, totaux, cout total, poids cuit
+ *   invariant       : par portion (nutrition et cout), pour 100 g
+ */
+
+import { useMemo } from 'react'
+import {
+  aggregateRecipe,
+  cookedWeightG,
+  energyBreakdown,
+  formatEuros,
+  formatGrams,
+  recipeCost,
+  type NutritionTotal,
+  type RecipeCost,
+  type RecipeLine,
+} from '@livre/shared'
+
+import { NumberField } from '../../components/Field.js'
+import { formatNumber, plural, scaleLines, toRecipeLines, type RecipeDraft } from './draft.js'
+
+// ---------------------------------------------------------------------------
+// Calcul
+// ---------------------------------------------------------------------------
+
+export interface Derived {
+  /** Facteur de mise a l'echelle. Vaut 1 quand l'utilisateur n'a rien force. */
+  readonly ratio: number
+  readonly isScaled: boolean
+  /** Portions effectivement affichees — celles de la recette, sauf override. */
+  readonly displayedPortions: number
+  readonly total: NutritionTotal
+  readonly perPortion: NutritionTotal
+  readonly per100g: NutritionTotal
+  /** Masse crue totale, deja mise a l'echelle. */
+  readonly totalWeightG: number
+  readonly unknownMacroLines: number
+  readonly cost: RecipeCost
+  /** Cout total mis a l'echelle. Le cout par portion, lui, vit dans `cost`. */
+  readonly scaledCostTotal: RecipeCost['total']
+  /** Masse servie apres cuisson, deja mise a l'echelle. */
+  readonly cookedWeightTotalG: number
+  /** Vrai des qu'un ingredient renseigne son ratio de cuisson : sinon on affiche du cru. */
+  readonly hasCookingRatio: boolean
+}
+
+/**
+ * Les deux agregations sont faites sur DEUX jeux de lignes, l'un mis a
+ * l'echelle et l'autre non, plutot qu'en multipliant les totaux apres coup.
+ * C'est ce qui evite de reecrire une regle de trois par grandeur derivee — et
+ * la division par le nombre de portions reste celle de @livre/shared.
+ */
+export function useDerived(draft: RecipeDraft, displayPortions: number | null): Derived {
+  return useMemo(() => {
+    const portions = Math.max(1, Math.round(draft.defaultPortions))
+    const displayedPortions = displayPortions ?? portions
+    const ratio = displayedPortions / portions
+
+    const rawLines = toRecipeLines(draft.lines)
+    const scaled: RecipeLine[] = scaleLines(rawLines, ratio)
+
+    const base = aggregateRecipe({ lines: rawLines, defaultPortions: portions })
+    const scaledAgg =
+      ratio === 1 ? base : aggregateRecipe({ lines: scaled, defaultPortions: portions })
+
+    const cost = recipeCost({ lines: rawLines, defaultPortions: portions })
+    const scaledCost = ratio === 1 ? cost : recipeCost({ lines: scaled, defaultPortions: portions })
+
+    return {
+      ratio,
+      isScaled: ratio !== 1,
+      displayedPortions,
+      total: scaledAgg.total,
+      perPortion: base.perPortion,
+      // Invariant par construction : numerateur et denominateur sont mis a
+      // l'echelle ensemble. On prend malgre tout la version non mise a
+      // l'echelle, qui evite d'accumuler l'erreur du flottant.
+      per100g: base.per100g,
+      totalWeightG: scaledAgg.totalWeightG,
+      unknownMacroLines: base.linesWithUnknownMacros.length,
+      cost,
+      scaledCostTotal: scaledCost.total,
+      cookedWeightTotalG: scaled.reduce(
+        (sum, line) => sum + cookedWeightG(line.ingredient, line.quantityG),
+        0,
+      ),
+      hasCookingRatio: rawLines.some((line) => line.ingredient.cookedWeightPer100gRaw !== null),
+    }
+  }, [draft.lines, draft.defaultPortions, displayPortions])
+}
+
+// ---------------------------------------------------------------------------
+// Mise a l'echelle
+// ---------------------------------------------------------------------------
+
+export function PortionsScaler({
+  derived,
+  defaultPortions,
+  onChange,
+  onReset,
+}: {
+  readonly derived: Derived
+  readonly defaultPortions: number
+  readonly onChange: (portions: number | null) => void
+  readonly onReset: () => void
+}) {
+  return (
+    <div className="card">
+      <h3 className="card__title">Cuisiner pour…</h3>
+      <p className="card__lead">
+        Ajuste les quantités affichées sans toucher à la recette enregistrée.
+      </p>
+      <div className="scaler">
+        <NumberField
+          label="Portions à préparer"
+          value={derived.displayedPortions}
+          onChange={(value) => onChange(value === null ? null : Math.max(1, Math.round(value)))}
+          min={1}
+          max={99}
+          decimals={0}
+        />
+        <button
+          type="button"
+          className="button button--ghost"
+          onClick={onReset}
+          disabled={!derived.isScaled}
+        >
+          Revenir à {defaultPortions}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Le bandeau dit la regle la moins evidente de l'ecran : en mode mis a
+ * l'echelle, la quantite qu'on tape est ramenee aux portions de la recette
+ * avant d'etre stockee.
+ */
+export function ScaleBanner({
+  derived,
+  defaultPortions,
+  onReset,
+}: {
+  readonly derived: Derived
+  readonly defaultPortions: number
+  readonly onReset: () => void
+}) {
+  if (!derived.isScaled) return null
+  return (
+    <div className="scale-banner" role="status">
+      <p className="scale-banner__text">
+        Quantités affichées pour <strong>{derived.displayedPortions} portions</strong> (recette pour{' '}
+        {defaultPortions}, ×{formatNumber(derived.ratio, 2)}). Une quantité modifiée ici sera
+        enregistrée ramenée à {defaultPortions} portions.
+      </p>
+      <button type="button" className="button button--ghost" onClick={onReset}>
+        Réinitialiser
+      </button>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Tableau nutritionnel
+// ---------------------------------------------------------------------------
+
+/** Ordre et decimales du reglement UE 1169/2011, repris tel quel du desktop. */
+const NUTRIENT_ROWS: ReadonlyArray<{
+  readonly label: string
+  readonly key: keyof NutritionTotal
+  readonly unit: string
+  readonly decimals: number
+  readonly sub?: boolean
+  readonly color?: string
+}> = [
+  { label: 'Énergie', key: 'kcal', unit: 'kcal', decimals: 0, color: 'energy' },
+  { label: 'Lipides', key: 'fats', unit: 'g', decimals: 1, color: 'fats' },
+  { label: 'dont saturés', key: 'saturatedFats', unit: 'g', decimals: 1, sub: true, color: 'saturated' },
+  { label: 'Glucides', key: 'carbs', unit: 'g', decimals: 1, color: 'carbs' },
+  { label: 'dont sucres', key: 'sugars', unit: 'g', decimals: 1, sub: true, color: 'sugars' },
+  { label: 'Fibres', key: 'fiber', unit: 'g', decimals: 1, color: 'fiber' },
+  { label: 'Protéines', key: 'proteins', unit: 'g', decimals: 1, color: 'proteins' },
+  { label: 'Sel', key: 'salt', unit: 'g', decimals: 2, color: 'salt' },
+]
+
+export function NutritionCard({ derived }: { readonly derived: Derived }) {
+  const columns: ReadonlyArray<readonly [string, NutritionTotal]> = [
+    ['Pour 100 g', derived.per100g],
+    ['Par portion', derived.perPortion],
+    ['Recette entière', derived.total],
+  ]
+
+  return (
+    <div className="card">
+      <h3 className="card__title">Valeurs nutritionnelles</h3>
+
+      <div className="table-scroll">
+        <table className="nutrition-table nutrition-table--macros">
+          <thead>
+            <tr>
+              <th scope="col">Pour</th>
+              {columns.map(([label]) => (
+                <th key={label} scope="col">
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {NUTRIENT_ROWS.map((row) => (
+              <tr key={row.key} className={row.sub ? 'nutrition-table__row--sub' : undefined}>
+                <th scope="row">
+                  <span
+                    className="nutrient-dot"
+                    style={{ background: `var(--color-nutrient-${row.color ?? 'energy'})` }}
+                    aria-hidden="true"
+                  />
+                  {row.label}
+                </th>
+                {columns.map(([label, totals]) => (
+                  <td key={label}>
+                    {formatNumber(totals[row.key], row.decimals)}
+                    <span className="unit"> {row.unit}</span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <WeightNote derived={derived} />
+
+      {derived.unknownMacroLines > 0 && (
+        <p className="note">
+          {derived.unknownMacroLines} {plural(derived.unknownMacroLines, 'ingrédient')}{' '}
+          {plural(derived.unknownMacroLines, 'a', 'ont')} des valeurs manquantes : ces totaux sont
+          sous-estimés.
+        </p>
+      )}
+
+      <EnergyNote total={derived.total} />
+    </div>
+  )
+}
+
+/**
+ * Le desktop mettait cette estimation en sous-titre de colonne. En 375 px les
+ * colonnes n'ont pas la place : l'information passe sous le tableau, ou elle se
+ * lit d'ailleurs mieux.
+ */
+function WeightNote({ derived }: { readonly derived: Derived }) {
+  if (derived.totalWeightG <= 0) return null
+  const perPortion = derived.cookedWeightTotalG / Math.max(1, derived.displayedPortions)
+  return (
+    <p className="note">
+      {formatGrams(derived.totalWeightG)} d’ingrédients crus, soit{' '}
+      {derived.hasCookingRatio ? '≈ ' : ''}
+      {formatGrams(Math.round(derived.cookedWeightTotalG))}{' '}
+      {derived.hasCookingRatio ? 'une fois cuits' : 'servis'} — {formatGrams(Math.round(perPortion))}{' '}
+      par portion.
+      {!derived.hasCookingRatio &&
+        ' Aucun ingrédient ne renseigne son gain de cuisson : le poids cuit est estimé à l’identique.'}
+    </p>
+  )
+}
+
+/**
+ * Signale l'ecart entre l'energie declaree et celle recalculee par Atwater.
+ *
+ * Le desktop affichait la valeur recalculee au centre du donut et la valeur
+ * declaree dans le tableau juste a cote, sans jamais dire qu'elles different.
+ */
+function EnergyNote({ total }: { readonly total: NutritionTotal }) {
+  const breakdown = energyBreakdown(total)
+  if (breakdown.divergence < 0.1) return null
+  return (
+    <p className="note">
+      Le calcul à partir des macros donne {Math.round(breakdown.atwaterKcal)} kcal, contre{' '}
+      {Math.round(breakdown.declaredKcal)} kcal mesurées. L’écart vient des données source — les
+      valeurs affichées sont celles mesurées.
+    </p>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Donut de composition
+// ---------------------------------------------------------------------------
+
+const DONUT_RADIUS = 42
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS
+
+/**
+ * Repartition energetique pour 100 g.
+ *
+ * Le denominateur est la somme Atwater recalculee, pas l'energie declaree :
+ * c'est la seule facon que les quatre parts fassent exactement 100 %. Le
+ * desktop faisait deja ce choix.
+ *
+ * Pas de survol : il n'existe pas au doigt. Les valeurs que le desktop
+ * revelait au passage de la souris sont ici ecrites en permanence dans la
+ * legende, qui porte a elle seule toute l'information — le trace n'est plus
+ * qu'une aide a la lecture, d'ou son `aria-hidden`.
+ */
+export function MacrosDonut({ per100g }: { readonly per100g: NutritionTotal }) {
+  const breakdown = energyBreakdown(per100g)
+
+  const segments = [
+    { key: 'fats', label: 'Lipides', grams: per100g.fats, kcal: breakdown.fatsKcal },
+    { key: 'carbs', label: 'Glucides', grams: per100g.carbs, kcal: breakdown.carbsKcal },
+    { key: 'fiber', label: 'Fibres', grams: per100g.fiber, kcal: breakdown.fiberKcal },
+    { key: 'proteins', label: 'Protéines', grams: per100g.proteins, kcal: breakdown.proteinsKcal },
+  ]
+
+  const totalKcal = breakdown.atwaterKcal
+  if (totalKcal <= 0) {
+    return (
+      <div className="card">
+        <h3 className="card__title">Composition</h3>
+        <p className="card__lead">
+          Aucune donnée : les ingrédients de cette recette n’ont pas de macros renseignées.
+        </p>
+      </div>
+    )
+  }
+
+  let offset = 0
+  const arcs = segments.map((segment) => {
+    const share = segment.kcal / totalKcal
+    const arc = { ...segment, share, start: offset }
+    offset += share
+    return arc
+  })
+
+  return (
+    <div className="card">
+      <h3 className="card__title">Composition pour 100 g</h3>
+      <div className="macros">
+        <svg className="macros__chart" viewBox="0 0 120 120" aria-hidden="true">
+          <circle
+            className="macros__track"
+            cx="60"
+            cy="60"
+            r={DONUT_RADIUS}
+            fill="none"
+            strokeWidth="16"
+          />
+          {arcs.map((arc) => (
+            <circle
+              key={arc.key}
+              cx="60"
+              cy="60"
+              r={DONUT_RADIUS}
+              fill="none"
+              strokeWidth="16"
+              stroke={`var(--color-nutrient-${arc.key})`}
+              strokeDasharray={`${arc.share * DONUT_CIRCUMFERENCE} ${DONUT_CIRCUMFERENCE}`}
+              strokeDashoffset={-arc.start * DONUT_CIRCUMFERENCE}
+              // Depart a 12 h plutot qu'a 3 h, comme sur le desktop.
+              transform="rotate(-90 60 60)"
+            />
+          ))}
+          <text className="macros__center" x="60" y="57" textAnchor="middle">
+            {Math.round(per100g.kcal)}
+          </text>
+          <text className="macros__center-sub" x="60" y="72" textAnchor="middle">
+            kcal / 100 g
+          </text>
+        </svg>
+
+        <ul className="macros__legend">
+          {arcs.map((arc) => (
+            <li key={arc.key} className="macros__item">
+              <span
+                className="nutrient-dot"
+                style={{ background: `var(--color-nutrient-${arc.key})` }}
+                aria-hidden="true"
+              />
+              <span className="macros__label">{arc.label}</span>
+              <span className="macros__value">
+                {formatNumber(arc.grams, 1)} g · {Math.round(arc.kcal)} kcal ·{' '}
+                {formatNumber(arc.share * 100, 0)} %
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Cout
+// ---------------------------------------------------------------------------
+
+export function CostCard({ derived }: { readonly derived: Derived }) {
+  const missing = derived.cost.missing.length
+  return (
+    <div className={`card${derived.isScaled ? ' card--scaled' : ''}`}>
+      <h3 className="card__title">Coût</h3>
+      <dl className="kv">
+        <div className="kv__pair">
+          <dt>{derived.isScaled ? `Total pour ${derived.displayedPortions} portions` : 'Total'}</dt>
+          <dd>{formatEuros(derived.scaledCostTotal)}</dd>
+        </div>
+        <div className="kv__pair">
+          <dt>Par portion</dt>
+          <dd>{formatEuros(derived.cost.perPortion)}</dd>
+        </div>
+      </dl>
+      {missing > 0 && (
+        <p className="note note--warning">
+          ⚠ {missing} {plural(missing, 'ingrédient')} sans prix, {plural(missing, 'exclu')} du total.
+        </p>
+      )}
+    </div>
+  )
+}

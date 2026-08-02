@@ -1,0 +1,536 @@
+/**
+ * L'editeur de recette — le coeur de l'ecran Recettes.
+ *
+ * Le desktop montrait la liste et l'editeur cote a cote dans un SplitView
+ * 30/70. En 375 px il n'y a qu'une colonne : la liste est un ecran, l'editeur
+ * en est un autre, et le bouton Retour du telephone fait la navigation.
+ *
+ * Le modele d'edition est celui du desktop, volontairement : on modifie un
+ * TAMPON local, et rien ne part au serveur avant l'appui sur « Enregistrer ».
+ * Une sauvegarde automatique au fil de la frappe serait tentante, mais chaque
+ * ecriture REMPLACE integralement les lignes de la recette — la moindre
+ * requete perdue en 4G effacerait une ligne qu'on vient d'ajouter. Un
+ * enregistrement explicite, atomique, est ce qui protege le mieux les donnees
+ * sur un mauvais reseau.
+ *
+ * En contrepartie, l'etat non enregistre doit etre visible en permanence :
+ * c'est le role de la barre fixe en bas d'ecran.
+ */
+
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
+import type { Ingredient, Recipe } from '@livre/shared'
+
+import { NumberField, TextArea, TextField } from '../../components/Field.js'
+import { IngredientPicker } from '../../components/IngredientPicker.js'
+import { QuantityField } from '../../components/QuantityField.js'
+import { ConfirmDialog } from '../../components/Sheet.js'
+import { useToast } from '../../components/Toast.js'
+import { useDeleteRecipe, useSaveRecipe } from '../../lib/queries.js'
+import { CookingLogCard } from './CookingLog.js'
+import {
+  CostCard,
+  MacrosDonut,
+  NutritionCard,
+  PortionsScaler,
+  ScaleBanner,
+  useDerived,
+} from './RecipeDerived.js'
+import { TagRow, TagSheet } from './RecipeTags.js'
+import {
+  draftProblem,
+  draftSignature,
+  moveLine,
+  newLine,
+  plural,
+  rayonLabel,
+  sortedByRayon,
+  toDraft,
+  toPayload,
+  type DraftLine,
+  type RecipeDraft,
+} from './draft.js'
+import '../../styles/recipes.css'
+
+export function RecipeEditor({
+  recipe,
+  onDelete,
+}: {
+  readonly recipe: Recipe
+  readonly onDelete: () => void
+}) {
+  const toast = useToast()
+  const save = useSaveRecipe()
+
+  const [draft, setDraft] = useState<RecipeDraft>(() => toDraft(recipe))
+  // Deuxieme appel a `toDraft` volontaire : la signature ignore les cles de
+  // ligne, les deux tampons produisent donc exactement la meme empreinte.
+  const [baseline, setBaseline] = useState<string>(() => draftSignature(toDraft(recipe)))
+  const [displayPortions, setDisplayPortions] = useState<number | null>(null)
+  const [showProblem, setShowProblem] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
+  const dirty = useMemo(() => draftSignature(draft) !== baseline, [draft, baseline])
+  const problem = draftProblem(draft)
+  const derived = useDerived(draft, displayPortions)
+
+  // Le cache est rafraichi apres chaque ecriture, et TanStack Query relit au
+  // retour sur l'onglet : la prop `recipe` peut donc changer pendant l'edition.
+  // On l'ignore sciemment — ecraser le tampon effacerait ce que l'utilisateur
+  // est en train de taper.
+
+  const patch = (changes: Partial<RecipeDraft>) => setDraft((current) => ({ ...current, ...changes }))
+
+  const patchLine = (key: string, changes: Partial<DraftLine>) =>
+    setDraft((current) => ({
+      ...current,
+      lines: current.lines.map((line) => (line.key === key ? { ...line, ...changes } : line)),
+    }))
+
+  const addIngredient = (ingredient: Ingredient) =>
+    setDraft((current) => ({
+      ...current,
+      lines: [
+        ...current.lines,
+        newLine(ingredient, current.lines.reduce((max, l) => Math.max(max, l.ordinal + 1), 0)),
+      ],
+    }))
+
+  const submit = () => {
+    if (problem !== null) {
+      setShowProblem(true)
+      return
+    }
+    // L'empreinte est celle du tampon AU MOMENT DE L'ENVOI : si l'utilisateur
+    // continue de taper pendant la requete, la recette reste a juste titre
+    // marquee comme modifiee.
+    const sent = draft
+    save.mutate(
+      { id: recipe.id, ...toPayload(sent) },
+      {
+        onSuccess: () => {
+          setBaseline(draftSignature(sent))
+          setShowProblem(false)
+          toast.show({ message: 'Recette enregistrée.' })
+        },
+      },
+    )
+  }
+
+  // Ctrl+S, comme sur le desktop. Inutile au doigt, precieux au bureau — et
+  // c'est le seul raccourci que l'application ne peut pas se permettre de
+  // perdre, puisque le reflexe existe deja chez l'utilisateur.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        submit()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // Seul garde-fou possible contre la fermeture de l'onglet. La navigation
+  // interne, elle, n'est pas interceptable : voir le rapport.
+  useEffect(() => {
+    if (!dirty) return
+    const onLeave = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener('beforeunload', onLeave)
+    return () => window.removeEventListener('beforeunload', onLeave)
+  }, [dirty])
+
+  const groups = useMemo(() => groupByRayon(draft.lines), [draft.lines])
+
+  return (
+    <section className="screen screen--editor">
+      <div className="card">
+        <div className="form">
+          <TextField
+            label="Nom"
+            value={draft.name}
+            onChange={(name) => patch({ name })}
+            placeholder="Gratin de courgettes"
+            required
+            error={showProblem && draft.name.trim() === '' ? problem : null}
+          />
+
+          <div className="form__row">
+            <NumberField
+              label="Portions"
+              value={draft.defaultPortions}
+              onChange={(value) => {
+                // Changer les portions de reference annule la mise a l'echelle :
+                // garder l'ancien facteur donnerait un ratio implicite que plus
+                // personne ne sait expliquer. Regle reprise du desktop.
+                setDisplayPortions(null)
+                patch({ defaultPortions: Math.max(1, Math.round(value ?? 1)) })
+              }}
+              min={1}
+              max={50}
+              decimals={0}
+              required
+            />
+            <NumberField
+              label="Préparation"
+              value={draft.prepTimeMin}
+              onChange={(prepTimeMin) => patch({ prepTimeMin })}
+              min={0}
+              max={1440}
+              decimals={0}
+              emptyOnZero
+              suffix="min"
+            />
+          </div>
+
+          <TagRow
+            tagIds={draft.tagIds}
+            onOpen={() => setTagsOpen(true)}
+            onToggle={(id) =>
+              patch({
+                tagIds: draft.tagIds.includes(id)
+                  ? draft.tagIds.filter((t) => t !== id)
+                  : [...draft.tagIds, id],
+              })
+            }
+          />
+
+          <TextArea
+            label="Instructions"
+            value={draft.instructions}
+            onChange={(instructions) => patch({ instructions })}
+            placeholder="Étapes de préparation…"
+            minRows={4}
+          />
+        </div>
+      </div>
+
+      <ScaleBanner
+        derived={derived}
+        defaultPortions={draft.defaultPortions}
+        onReset={() => setDisplayPortions(null)}
+      />
+
+      <div className="card">
+        <h3 className="card__title">
+          Ingrédients ({draft.lines.length})
+        </h3>
+
+        <IngredientPicker
+          onPick={addIngredient}
+          label="Ajouter un ingrédient"
+          hint="Seule ta bibliothèque personnelle est proposée."
+        />
+
+        {draft.lines.length === 0 && (
+          <p className="card__lead">
+            Aucun ingrédient pour l’instant. Cherche-en un ci-dessus pour composer la recette.
+          </p>
+        )}
+
+        {groups.map((group) => (
+          <div key={group.rayon} className="editor-group">
+            <h4 className="section-header">{group.rayon}</h4>
+            <ul className="editor-lines">
+              {group.lines.map((line, index) => (
+                <LineEditor
+                  key={line.key}
+                  line={line}
+                  ratio={derived.ratio}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < group.lines.length - 1}
+                  onChange={(changes) => patchLine(line.key, changes)}
+                  onMove={(delta) =>
+                    setDraft((current) => ({
+                      ...current,
+                      lines: moveLine(current.lines, line.key, delta),
+                    }))
+                  }
+                  onRemove={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      lines: current.lines.filter((l) => l.key !== line.key),
+                    }))
+                  }
+                />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <PortionsScaler
+        derived={derived}
+        defaultPortions={draft.defaultPortions}
+        onChange={setDisplayPortions}
+        onReset={() => setDisplayPortions(null)}
+      />
+
+      <NutritionCard derived={derived} />
+      <MacrosDonut per100g={derived.per100g} />
+      <CostCard derived={derived} />
+
+      {recipe.id !== null && <CookingLogCard recipeId={recipe.id} />}
+
+      {recipe.sourceUrl && (
+        <p className="note">
+          Importée depuis{' '}
+          <a href={recipe.sourceUrl} target="_blank" rel="noreferrer noopener">
+            {recipe.sourceUrl}
+          </a>
+        </p>
+      )}
+
+      <div className="card">
+        <h3 className="card__title">Supprimer</h3>
+        <p className="card__lead">
+          La recette et son journal de cuisson disparaissent, et les repas déjà planifiés qui
+          l’utilisent sont retirés du calendrier.
+        </p>
+        <button
+          type="button"
+          className="button button--danger button--block"
+          onClick={() => setDeleteOpen(true)}
+        >
+          Supprimer cette recette
+        </button>
+      </div>
+
+      <SaveBar
+        dirty={dirty}
+        busy={save.isPending}
+        error={save.isError ? save.error.message : showProblem ? problem : null}
+        onSave={submit}
+        onDiscard={() => {
+          setDraft(toDraft(recipe))
+          setBaseline(draftSignature(toDraft(recipe)))
+          setDisplayPortions(null)
+          setShowProblem(false)
+        }}
+      />
+
+      <TagSheet
+        open={tagsOpen}
+        onClose={() => setTagsOpen(false)}
+        tagIds={draft.tagIds}
+        onToggle={(id) =>
+          patch({
+            tagIds: draft.tagIds.includes(id)
+              ? draft.tagIds.filter((t) => t !== id)
+              : [...draft.tagIds, id],
+          })
+        }
+      />
+
+      <DeleteRecipeDialog
+        open={deleteOpen}
+        recipe={recipe}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={onDelete}
+      />
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Lignes d'ingredients
+// ---------------------------------------------------------------------------
+
+interface RayonGroup {
+  readonly rayon: string
+  readonly lines: DraftLine[]
+}
+
+/**
+ * Coupe la liste triee en sections. On ne regroupe pas par cle de rayon dans
+ * une Map : l'ordre des sections doit rester celui du tri, pas celui des
+ * insertions.
+ */
+function groupByRayon(lines: readonly DraftLine[]): RayonGroup[] {
+  const groups: RayonGroup[] = []
+  for (const line of sortedByRayon(lines)) {
+    const rayon = rayonLabel(line.ingredient.categoryL1)
+    const last = groups[groups.length - 1]
+    if (last && last.rayon === rayon) last.lines.push(line)
+    else groups.push({ rayon, lines: [line] })
+  }
+  return groups
+}
+
+function LineEditor({
+  line,
+  ratio,
+  canMoveUp,
+  canMoveDown,
+  onChange,
+  onMove,
+  onRemove,
+}: {
+  readonly line: DraftLine
+  readonly ratio: number
+  readonly canMoveUp: boolean
+  readonly canMoveDown: boolean
+  readonly onChange: (changes: Partial<DraftLine>) => void
+  readonly onMove: (delta: number) => void
+  readonly onRemove: () => void
+}) {
+  const [noteOpen, setNoteOpen] = useState(false)
+  const showNote = noteOpen || (line.notes !== null && line.notes !== '')
+
+  // La quantite AFFICHEE suit la mise a l'echelle ; ce qui est stocke n'en
+  // depend pas. Diviser au retour est ce que le bandeau orange annonce.
+  const displayed = line.quantityG === null ? null : line.quantityG * ratio
+
+  return (
+    <li className="editor-line">
+      <div className="editor-line__head">
+        {line.ingredient.id === null ? (
+          <span className="editor-line__name">{line.ingredient.name}</span>
+        ) : (
+          <Link className="editor-line__name" to={`/ingredients/${line.ingredient.id}`}>
+            {line.ingredient.name}
+          </Link>
+        )}
+        <div className="editor-line__actions">
+          <button
+            type="button"
+            className="icon-action"
+            onClick={() => onMove(-1)}
+            disabled={!canMoveUp}
+            aria-label={`Monter ${line.ingredient.name}`}
+          >
+            <span aria-hidden="true">↑</span>
+          </button>
+          <button
+            type="button"
+            className="icon-action"
+            onClick={() => onMove(1)}
+            disabled={!canMoveDown}
+            aria-label={`Descendre ${line.ingredient.name}`}
+          >
+            <span aria-hidden="true">↓</span>
+          </button>
+          <button
+            type="button"
+            className="icon-action icon-action--danger"
+            onClick={onRemove}
+            aria-label={`Retirer ${line.ingredient.name}`}
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Pas de rappel du poids en grammes a cote du champ : la liste
+          deroulante affiche deja « pièce (60 g) », et une colonne de plus
+          reduirait le champ de saisie a une soixantaine de pixels en 375 px. */}
+      <div className="editor-line__quantity">
+        <QuantityField
+          label={`Quantité de ${line.ingredient.name}`}
+          value={displayed}
+          onChange={(grams) => onChange({ quantityG: grams === null ? null : grams / ratio })}
+          pieceWeightG={line.ingredient.pieceWeightG}
+          unit={line.unit}
+          onUnitChange={(unit) => onChange({ unit })}
+        />
+      </div>
+
+      {showNote ? (
+        <TextField
+          label={`Note pour ${line.ingredient.name}`}
+          value={line.notes ?? ''}
+          onChange={(notes) => onChange({ notes: notes.trim() === '' ? null : notes })}
+          placeholder="égoutter, écraser, à température…"
+        />
+      ) : (
+        <button type="button" className="button button--ghost editor-line__note-add" onClick={() => setNoteOpen(true)}>
+          + Ajouter une note
+        </button>
+      )}
+    </li>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Barre d'enregistrement et suppression
+// ---------------------------------------------------------------------------
+
+function SaveBar({
+  dirty,
+  busy,
+  error,
+  onSave,
+  onDiscard,
+}: {
+  readonly dirty: boolean
+  readonly busy: boolean
+  readonly error: string | null
+  readonly onSave: () => void
+  readonly onDiscard: () => void
+}) {
+  if (!dirty && error === null) return null
+  return (
+    <div className="save-bar">
+      {error !== null && (
+        <p className="save-bar__error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="save-bar__row">
+        <span className="save-bar__state">Modifications non enregistrées</span>
+        <div className="save-bar__actions">
+          <button type="button" className="button button--ghost" onClick={onDiscard} disabled={busy}>
+            Abandonner
+          </button>
+          <button type="button" className="button button--primary" onClick={onSave} disabled={busy}>
+            {busy ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DeleteRecipeDialog({
+  open,
+  recipe,
+  onClose,
+  onDeleted,
+}: {
+  readonly open: boolean
+  readonly recipe: Recipe
+  readonly onClose: () => void
+  readonly onDeleted: () => void
+}) {
+  const toast = useToast()
+  const remove = useDeleteRecipe()
+
+  return (
+    <ConfirmDialog
+      open={open}
+      title={`Supprimer « ${recipe.name} » ?`}
+      message="La recette, ses ingrédients et son journal de cuisson sont supprimés définitivement. Les repas déjà planifiés qui l’utilisent disparaissent du calendrier."
+      confirmLabel="Supprimer"
+      danger
+      busy={remove.isPending}
+      error={remove.error?.message}
+      onClose={onClose}
+      onConfirm={() => {
+        if (recipe.id === null) return
+        remove.mutate(recipe.id, {
+          onSuccess: (result) => {
+            toast.show({
+              message:
+                result.plannedEntriesRemoved > 0
+                  ? `Recette supprimée, ainsi que ${result.plannedEntriesRemoved} ${plural(result.plannedEntriesRemoved, 'repas', 'repas')} planifié${result.plannedEntriesRemoved > 1 ? 's' : ''}.`
+                  : 'Recette supprimée.',
+            })
+            onDeleted()
+          },
+        })
+      }}
+    />
+  )
+}
+

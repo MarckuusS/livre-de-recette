@@ -1,0 +1,607 @@
+/*
+ * Habillage de l'ecran Ingredients : barre d'outils, puces de filtre, sections
+ * collantes, formulaire de fiche, import et historique de prix.
+ *
+ * Charge par IngredientsScreen.tsx et par les composants de screens/ingredients/.
+ * Rien ici n'est reutilisable ailleurs : ce qui l'est vit dans app.css ou
+ * components.css.
+ *
+ * Deux regles tenues sur tout le fichier :
+ *   - aucune valeur brute, tout vient des jetons de theme.css ;
+ *   - toute cible tactile fait au moins 44 px — y compris les douze boutons de
+ *     mois, qui font 28 px sur le desktop et sont intapables a cette taille.
+ */
+
+/* ---------- Barre d'outils ---------- */
+
+.ing-toolbar {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.ing-toolbar__action {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  text-decoration: none;
+  /* Neutralise le `margin-top` que .button--secondary porte dans app.css pour
+     son usage en pile : dans une rangee il decalerait un bouton sur deux. */
+  margin-top: 0;
+}
+
+/* ---------- Puces de filtre ---------- */
+
+.ing-chips {
+  display: flex;
+  gap: var(--space-xs);
+  /* Defilement horizontal plutot que retour a la ligne : la rangee reste sur
+     une seule ligne et ne repousse pas la liste hors de l'ecran. */
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding-bottom: var(--space-xs);
+  margin: 0;
+  list-style: none;
+}
+
+.ing-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.ing-chip {
+  flex: none;
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-md);
+  font-size: var(--font-size-md);
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+
+.ing-chip--on {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* ---------- Sections de la liste ---------- */
+
+.ing-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.ing-section__header {
+  position: sticky;
+  /* Se cale sous l'en-tete, encoche comprise : en defilant, on sait toujours
+     dans quel groupe on se trouve. */
+  top: calc(var(--header-height) + var(--safe-top));
+  z-index: 5;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+/* ---------- Macros d'une ligne ---------- */
+
+.ing-macro {
+  font-variant-numeric: tabular-nums;
+}
+
+.ing-macro--proteins { color: var(--color-nutrient-proteins); }
+.ing-macro--carbs { color: var(--color-nutrient-carbs); }
+.ing-macro--fats { color: var(--color-nutrient-fats); }
+
+.ing-piece {
+  color: var(--color-accent);
+}
+
+/* ---------- Feuilles de tri et de filtres ---------- */
+
+.ing-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ing-choices__legend {
+  width: 100%;
+  padding: 0 0 var(--space-xs);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.ing-choices .field__hint {
+  width: 100%;
+  margin-top: var(--space-xs);
+}
+
+.ing-choice {
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-lg);
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+
+.ing-choice--on {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* ---------- Bandeau d'annulation ---------- */
+
+.ing-undo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  color: var(--color-on-primary);
+  background: var(--color-toast-bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-normal);
+}
+
+.ing-undo__message {
+  margin: 0;
+  min-width: 0;
+}
+
+.ing-undo__action {
+  flex: none;
+  /* Seul moyen de revenir en arriere : la cible ne doit jamais se rater. */
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-on-primary);
+  background: transparent;
+  border: 1px solid var(--color-border-hover);
+  border-radius: var(--radius-sm);
+}
+
+.ing-undo__error {
+  width: 100%;
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-error);
+}
+
+/* ---------- Formulaire de fiche ---------- */
+
+.screen--ingredient {
+  /* Laisse passer la barre d'action collante sous le contenu. */
+  padding-bottom: calc(var(--space-lg) + 76px);
+}
+
+.ing-form__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  margin: 0;
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.ing-form__legend {
+  padding: 0 var(--space-xs);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* « dont saturés », « dont sucres » : sous-lignes du tableau reglementaire. */
+.ing-form__sub {
+  padding-left: var(--space-lg);
+  border-left: 2px solid var(--color-border);
+}
+
+.ing-form__sub .field__label {
+  font-style: italic;
+}
+
+.ing-form__danger {
+  display: flex;
+}
+
+.ing-form__danger .button {
+  flex: 1;
+  margin-top: 0;
+}
+
+/* ---------- Barre d'action collante ---------- */
+
+.ing-actions {
+  position: fixed;
+  right: 0;
+  bottom: var(--above-tabbar);
+  left: 0;
+  z-index: 15;
+  display: flex;
+  gap: var(--space-lg);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-normal);
+}
+
+.ing-actions__state {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.ing-actions .button {
+  flex: none;
+  margin-top: 0;
+}
+
+/* Confirmation d'enregistrement — 1,5 s, comme le desktop. */
+.button--saved {
+  color: var(--color-on-primary);
+  background: var(--color-success);
+}
+
+@media (min-width: 720px) {
+  .ing-actions {
+    right: auto;
+    left: 50%;
+    width: 720px;
+    transform: translateX(-50%);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+/* ---------- Cellules en lecture seule ---------- */
+
+.ing-readonly {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.ing-readonly__value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.ing-readonly__link {
+  color: var(--color-primary);
+}
+
+/* ---------- Prix de reference ---------- */
+
+.ing-price {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: baseline;
+  min-height: var(--control-height-lg);
+  padding: var(--space-md) var(--space-lg);
+  text-align: left;
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.ing-price:active {
+  background: var(--color-surface-pressed);
+}
+
+.ing-price__amount {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.ing-price__for {
+  color: var(--color-text-secondary);
+}
+
+.ing-price__cta {
+  margin-left: auto;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+/* ---------- Mois de saison ---------- */
+
+.ing-months {
+  display: grid;
+  /* Deux rangees de six : douze colonnes sur 375 px donneraient 28 px de
+     large, sous le minimum tactile. */
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-xs);
+}
+
+.ing-month {
+  min-height: var(--control-height-lg);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+
+.ing-month--on {
+  color: var(--color-on-primary);
+  background: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.ing-months__shortcuts {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.ing-months__shortcuts .button {
+  flex: 1;
+  margin-top: 0;
+}
+
+/* ---------- Feuille d'import ---------- */
+
+.ing-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.ing-tabs__tab {
+  flex: 1;
+  min-height: var(--control-height-lg);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.ing-tabs__tab--active {
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-subtle);
+}
+
+.ing-off-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ing-off-search .button {
+  margin-top: 0;
+}
+
+.ing-import__report {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-md);
+  color: var(--color-success);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+/* ---------- Selection multiple ---------- */
+
+.ing-selection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.ing-selection__count {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.ing-selection .button {
+  margin-top: 0;
+}
+
+.ing-selection__failures {
+  width: 100%;
+  margin: 0;
+  padding-left: var(--space-lg);
+  font-size: var(--font-size-md);
+  color: var(--color-error);
+}
+
+/* ---------- Resultats du catalogue ---------- */
+
+.ing-results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ing-result {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-md);
+}
+
+.ing-result + .ing-result {
+  border-top: 1px solid var(--color-border);
+}
+
+.ing-result__check {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  accent-color: var(--color-primary);
+}
+
+/* Reserve la place de la case sur les lignes deja importees, pour que les
+   noms restent alignes d'une ligne a l'autre. */
+.ing-result__slot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.ing-result__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ing-result__name {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ing-result__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  margin: 2px 0 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.ing-result__add {
+  flex: none;
+  padding: 0 var(--space-md);
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+/* ---------- Historique de prix ---------- */
+
+.ing-store-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ing-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ing-history__summary {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.ing-history__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ing-observation {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding: var(--space-md);
+}
+
+.ing-observation + .ing-observation {
+  border-top: 1px solid var(--color-border);
+}
+
+.ing-observation__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ing-observation__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  margin: 0;
+}
+
+/* La seule colonne qui permette de comparer deux enseignes : elle est mise en
+   avant, tout le reste est du contexte. */
+.ing-observation__per100 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary);
+}
+
+.ing-observation__meta {
+  margin: 2px 0 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.ing-observation__notes {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-size-md);
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+
+.ing-observation__remove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+.ing-observation__remove:active {
+  color: var(--color-error);
+  background: var(--color-surface-pressed);
+}

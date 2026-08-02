@@ -1,105 +1,121 @@
-import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
 import {
-  formatShoppingQuantity,
+  datesOfIsoWeek,
   formatAsText,
+  formatEuros,
+  formatGrams,
+  formatShoppingQuantity,
   groupByCategory,
-  isValidIsoWeek,
-  nextIsoWeek,
-  previousIsoWeek,
   type ShoppingItem,
 } from '@livre/shared'
 
-import { ApiError } from '../lib/api.js'
-import { useCurrentWeek, useShoppingList, useToggleChecked, type ShoppingListResponse } from '../lib/queries.js'
+import { Sheet } from '../components/Sheet.js'
+import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
+import { WeekPicker } from '../components/WeekPicker.js'
+import { useShoppingList, useToggleChecked, type ShoppingListResponse } from '../lib/queries.js'
+import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
+import { CostHistorySheet } from './courses/CostHistorySheet.js'
+import { LineDetailSheet } from './courses/LineDetailSheet.js'
+import { useStoreMode, type StoreMode } from './courses/useStoreMode.js'
+import '../styles/shopping.css'
 
 /**
- * Liste de courses — le premier ecran livre pour de bon.
+ * Liste de courses — l'ecran utilise DEBOUT, EN MAGASIN, A UNE MAIN.
  *
  * C'est l'usage numero un de l'application sur telephone, et le seul qui soit
  * strictement meilleur en mobile qu'en desktop : on l'a dans la main, dans les
- * rayons. Tout le reste de l'ergonomie decoule de la : cibles larges, sections
- * collantes, total toujours visible, cases qui survivent a un rafraichissement.
+ * rayons. Toute l'ergonomie en decoule — grandes cibles, sections collantes,
+ * total toujours visible, cases qui survivent a un rafraichissement, aucune
+ * action qui demande de la precision.
+ *
+ * Ce que le desktop ne savait pas faire et qui est ajoute ici :
+ *   - les cases cochees sont persistees (le desktop les effacait a chaque
+ *     recalcul, ce qui rendait la liste inutilisable des qu'on changeait de
+ *     semaine) ;
+ *   - la liste se recalcule seule apres une modification du planning ou du
+ *     frigo, par invalidation de cache — le desktop demandait un clic sur
+ *     « Synchroniser avec calendrier » que personne ne devinait ;
+ *   - chaque ligne explique d'ou vient sa quantite et accepte un prix ;
+ *   - le cout de la semaine s'archive et se compare ;
+ *   - un mode courses garde l'ecran allume.
  */
 export function ShoppingScreen() {
-  const currentWeek = useCurrentWeek()
-  // La semaine vit dans l'URL : le lien est partageable, le bouton Retour du
-  // telephone revient a la semaine precedemment consultee, et un
-  // rafraichissement en magasin ne ramene pas a la semaine courante.
-  const [searchParams, setSearchParams] = useSearchParams()
-  const requested = searchParams.get('semaine')
-  const isoWeek = requested && isValidIsoWeek(requested) ? requested : currentWeek
-
-  const setIsoWeek = (week: string) => {
-    // `replace` : chaque flèche n'ajoute pas une entree d'historique, sans quoi
-    // le bouton Retour obligerait a remonter semaine par semaine.
-    setSearchParams(week === currentWeek ? {} : { semaine: week }, { replace: true })
-  }
-
-  const query = useShoppingList(isoWeek)
+  const week = useIsoWeekParam()
+  const query = useShoppingList(week.isoWeek)
+  const store = useStoreMode()
 
   return (
-    <section className="screen screen--shopping">
-      <WeekPicker
-        isoWeek={isoWeek}
-        isCurrent={isoWeek === currentWeek}
-        onChange={setIsoWeek}
-        onToday={() => setIsoWeek(currentWeek)}
-      />
+    <section className={`screen screen--shopping${store.active ? ' screen--store' : ''}`}>
+      <WeekPicker {...week} />
 
-      {query.isPending && <ListSkeleton />}
-      {query.isError && <ErrorCard error={query.error} onRetry={() => void query.refetch()} />}
-      {query.isSuccess && <ShoppingContent isoWeek={isoWeek} list={query.data} />}
+      <p className="shopping-head">
+        <span className="shopping-head__dates">{weekRangeLabel(week.isoWeek)}</span>
+        {/* Le desktop n'avait aucun rafraichissement : il fallait faire un
+            aller-retour de semaine. Ici l'invalidation de cache s'en charge,
+            mais le bouton reste — en magasin, on veut pouvoir forcer. */}
+        <button
+          type="button"
+          className="shopping-head__refresh"
+          onClick={() => void query.refetch()}
+          disabled={query.isFetching}
+        >
+          {query.isFetching ? 'Actualisation…' : 'Actualiser'}
+        </button>
+      </p>
+
+      {query.isPending && <LoadingRows rows={6} />}
+      {query.isError && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
+
+      {query.isSuccess && query.data.items.length === 0 && (
+        <EmptyState title="Rien à acheter">
+          Aucun repas n’est prévu cette semaine.{' '}
+          <Link to={planningLink(week.isoWeek, week.currentWeek)}>Planifie tes repas</Link> et la
+          liste se remplira toute seule.
+        </EmptyState>
+      )}
+
+      {query.isSuccess && query.data.items.length > 0 && (
+        <ShoppingContent isoWeek={week.isoWeek} list={query.data} store={store} />
+      )}
     </section>
   )
 }
 
 // ---------------------------------------------------------------------------
+// Contenu
+// ---------------------------------------------------------------------------
 
-function WeekPicker({
+function ShoppingContent({
   isoWeek,
-  isCurrent,
-  onChange,
-  onToday,
+  list,
+  store,
 }: {
   isoWeek: string
-  isCurrent: boolean
-  onChange: (week: string) => void
-  onToday: () => void
+  list: ShoppingListResponse
+  store: StoreMode
 }) {
-  const week = isoWeek.slice(6)
-  return (
-    <div className="week-picker">
-      <button type="button" className="week-picker__arrow" onClick={() => onChange(previousIsoWeek(isoWeek))} aria-label="Semaine précédente">
-        ‹
-      </button>
-      <button type="button" className="week-picker__label" onClick={onToday} disabled={isCurrent}>
-        <span className="week-picker__week">Semaine {week}</span>
-        <span className="week-picker__year">{isCurrent ? 'cette semaine' : isoWeek.slice(0, 4)}</span>
-      </button>
-      <button type="button" className="week-picker__arrow" onClick={() => onChange(nextIsoWeek(isoWeek))} aria-label="Semaine suivante">
-        ›
-      </button>
-    </div>
-  )
-}
-
-function ShoppingContent({ isoWeek, list }: { isoWeek: string; list: ShoppingListResponse }) {
   const toggle = useToggleChecked(isoWeek)
   const checked = useMemo(() => new Set(list.checkedIngredientIds), [list.checkedIngredientIds])
-  const sections = useMemo(() => groupByCategory(list.items), [list.items])
 
-  if (list.items.length === 0) {
-    return (
-      <div className="card">
-        <h2 className="card__title">Rien à acheter</h2>
-        <p className="card__lead">
-          Aucun repas n’est prévu cette semaine. Ajoute des recettes au calendrier et la liste se
-          remplira toute seule.
-        </p>
-      </div>
-    )
-  }
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set<string>())
+  const [onlyMissingPrice, setOnlyMissingPrice] = useState(false)
+  const [detailId, setDetailId] = useState<number | null>(null)
+  const [sheet, setSheet] = useState<'none' | 'actions' | 'cost'>('none')
+  const [flash, setFlash] = useState<string | null>(null)
+
+  // Le filtre se desarme tout seul quand il n'y a plus rien a filtrer : sinon,
+  // renseigner le dernier prix manquant laisserait une liste vide et muette.
+  const filtering = onlyMissingPrice && list.missingPriceCount > 0
+
+  const sections = useMemo(
+    () => groupByCategory(filtering ? list.items.filter((i) => i.costEur === null) : list.items),
+    [list.items, filtering],
+  )
+
+  // On repart de la ligne fraiche du cache et non d'une copie figee : ajouter
+  // un prix depuis la feuille doit mettre a jour ce qu'elle affiche.
+  const detailItem = detailId === null ? null : (list.items.find((i) => i.ingredientId === detailId) ?? null)
 
   const setChecked = (ingredientId: number, next: boolean) => {
     const ids = new Set(checked)
@@ -108,140 +124,455 @@ function ShoppingContent({ isoWeek, list }: { isoWeek: string; list: ShoppingLis
     toggle.mutate([...ids])
   }
 
-  const remaining = list.items.filter((i) => !checked.has(i.ingredientId)).length
+  const pantryCandidates = list.items.filter(
+    (i) => i.isCoveredByPantry && !checked.has(i.ingredientId),
+  )
+
+  const remaining = list.items.filter((i) => !checked.has(i.ingredientId))
+  // Somme en centimes entiers : les couts arrivent deja arrondis au centime
+  // par le serveur, et le front n'embarque pas de bibliotheque decimale.
+  const remainingCents = remaining.reduce((sum, item) => sum + cents(item.costEur), 0)
 
   return (
     <>
-      {sections.map((section) => (
-        <div key={section.category} className="shopping-section">
-          <h2 className="shopping-section__header">{section.category}</h2>
-          <ul className="shopping-list">
-            {section.items.map((item) => (
-              <ShoppingRow
-                key={item.ingredientId}
-                item={item}
-                checked={checked.has(item.ingredientId)}
-                onToggle={(next) => setChecked(item.ingredientId, next)}
-              />
-            ))}
-          </ul>
-        </div>
-      ))}
+      <div className="shopping-tools">
+        <button
+          type="button"
+          className={`chip-toggle${store.active ? ' chip-toggle--on' : ''}`}
+          aria-pressed={store.active}
+          onClick={store.toggle}
+        >
+          <span aria-hidden="true">🛒</span> Mode courses
+        </button>
 
-      <ShoppingFooter list={list} remaining={remaining} />
+        {list.missingPriceCount > 0 && (
+          <button
+            type="button"
+            className={`chip-toggle${filtering ? ' chip-toggle--on' : ''}`}
+            aria-pressed={filtering}
+            onClick={() => setOnlyMissingPrice((value) => !value)}
+          >
+            <span aria-hidden="true">⚠</span> {list.missingPriceCount} sans prix
+          </button>
+        )}
+      </div>
+
+      {store.active && store.supported && !store.screenAwake && (
+        <p className="shopping-note">
+          L’écran n’est pas maintenu allumé : le système a refusé (mode économie d’énergie ?).
+        </p>
+      )}
+
+      {/* Le desktop cochait TOUT SEUL ce que couvrait le frigo, sans rien dire.
+          Sur telephone, une case cochee qu'on n'a pas cochee soi-meme se lit
+          comme une erreur : on propose, l'utilisateur decide, et le resultat
+          est persiste comme n'importe quelle autre case. */}
+      {pantryCandidates.length > 0 && !filtering && (
+        <div className="pantry-hint">
+          <p className="pantry-hint__text">
+            {pantryCandidates.length} article{pantryCandidates.length > 1 ? 's sont' : ' est'} déjà
+            au frigo en quantité suffisante.
+          </p>
+          <button
+            type="button"
+            className="button button--secondary pantry-hint__action"
+            onClick={() => toggle.mutate([...checked, ...pantryCandidates.map((i) => i.ingredientId)])}
+          >
+            Cocher
+          </button>
+        </div>
+      )}
+
+      {sections.map((section) => {
+        const done = section.items.filter((i) => checked.has(i.ingredientId)).length
+        const isCollapsed = collapsed.has(section.category)
+        return (
+          <div className="shopping-section" key={section.category}>
+            <h2 className="shopping-section__header">
+              {/* Replier un rayon termine raccourcit la liste a mesure qu'on
+                  avance dans le magasin. Absent du desktop, ou la souris
+                  survole une liste entiere sans effort. */}
+              <button
+                type="button"
+                className="shopping-section__toggle"
+                aria-expanded={!isCollapsed}
+                onClick={() =>
+                  setCollapsed((current) => {
+                    const next = new Set(current)
+                    if (!next.delete(section.category)) next.add(section.category)
+                    return next
+                  })
+                }
+              >
+                <span className="shopping-section__chevron" aria-hidden="true">
+                  {isCollapsed ? '▸' : '▾'}
+                </span>
+                <span className="shopping-section__name">{section.category}</span>
+                <span className="shopping-section__count">
+                  {done}/{section.items.length}
+                </span>
+              </button>
+            </h2>
+
+            {!isCollapsed && (
+              <ul className="shopping-list">
+                {section.items.map((item) => (
+                  <ShoppingRow
+                    key={item.ingredientId}
+                    item={item}
+                    checked={checked.has(item.ingredientId)}
+                    onToggle={(next) => setChecked(item.ingredientId, next)}
+                    onOpenDetail={() => setDetailId(item.ingredientId)}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+        )
+      })}
+
+      <ShoppingFooter
+        list={list}
+        remainingCount={remaining.length}
+        remainingEur={(remainingCents / 100).toFixed(2)}
+        anyChecked={checked.size > 0}
+        flash={flash}
+        onFlash={setFlash}
+        error={toggle.isError ? toggle.error.message : null}
+        onOpenActions={() => setSheet('actions')}
+      />
+
+      {sheet === 'actions' && (
+        <ActionsSheet
+          list={list}
+          checkedCount={checked.size}
+          pantryCount={pantryCandidates.length}
+          onClose={() => setSheet('none')}
+          onFlash={setFlash}
+          onCheckPantry={() =>
+            toggle.mutate([...checked, ...pantryCandidates.map((i) => i.ingredientId)])
+          }
+          onUncheckAll={() => toggle.mutate([])}
+          onOpenCost={() => setSheet('cost')}
+        />
+      )}
+
+      {sheet === 'cost' && (
+        <CostHistorySheet
+          isoWeek={isoWeek}
+          totalEur={list.totalEur}
+          missingPriceCount={list.missingPriceCount}
+          onClose={() => setSheet('none')}
+        />
+      )}
+
+      {detailItem !== null && (
+        <LineDetailSheet
+          isoWeek={isoWeek}
+          item={detailItem}
+          checked={checked.has(detailItem.ingredientId)}
+          onToggle={(next) => setChecked(detailItem.ingredientId, next)}
+          onClose={() => setDetailId(null)}
+        />
+      )}
     </>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Ligne
+// ---------------------------------------------------------------------------
 
 function ShoppingRow({
   item,
   checked,
   onToggle,
+  onOpenDetail,
 }: {
   item: ShoppingItem
   checked: boolean
   onToggle: (next: boolean) => void
+  onOpenDetail: () => void
 }) {
   return (
     <li className={`shopping-row${checked ? ' shopping-row--checked' : ''}`}>
-      {/* Le <label> englobe toute la ligne : la zone de tap fait la largeur
-          de l'ecran, pas les 24 px de la case. Decisif avec un panier au bras. */}
+      {/* Le <label> englobe la quasi-totalite de la ligne : la zone de tap fait
+          la largeur de l'ecran, pas les 24 px de la case. Decisif avec un
+          panier au bras. Le detail a son propre bouton a droite, sans quoi il
+          n'y aurait aucun moyen de l'atteindre sans cocher au passage. */}
       <label className="shopping-row__label">
         <input
           type="checkbox"
           className="shopping-row__checkbox"
           checked={checked}
-          onChange={(e) => onToggle(e.target.checked)}
+          onChange={(event) => onToggle(event.target.checked)}
         />
         <span className="shopping-row__body">
           <span className="shopping-row__name">{item.name}</span>
           <span className="shopping-row__meta">
-            {formatShoppingQuantity(item)}
-            {item.isCoveredByPantry && <span className="badge badge--pantry">déjà au frigo</span>}
+            <span>{formatShoppingQuantity(item)}</span>
+            {/* Le stock est ecrit en toutes lettres, pas seulement suggere par
+                une pastille verte : le desktop cochait la ligne sans rien dire
+                et l'utilisateur croyait avoir coche par erreur. Le mot
+                « déjà » distingue la couverture complete du stock partiel —
+                la couleur seule ne suffirait pas. */}
+            {item.inPantryG > 0 && (
+              <span
+                className={`badge badge--pantry${item.isCoveredByPantry ? '' : ' badge--partial'}`}
+              >
+                {item.isCoveredByPantry ? 'déjà ' : ''}
+                {formatGrams(item.inPantryG)} au frigo
+              </span>
+            )}
           </span>
         </span>
-        <span className="shopping-row__cost">
-          {item.costEur ? `${item.costEur.replace('.', ',')} €` : '—'}
+        <span
+          className={`shopping-row__cost${item.costEur === null ? ' shopping-row__cost--missing' : ''}`}
+        >
+          {item.costEur === null ? 'sans prix' : formatEuros(item.costEur)}
         </span>
       </label>
+
+      <button
+        type="button"
+        className="shopping-row__detail"
+        onClick={onOpenDetail}
+        aria-label={`Détail de ${item.name}`}
+      >
+        <span aria-hidden="true">›</span>
+      </button>
     </li>
   )
 }
 
-function ShoppingFooter({ list, remaining }: { list: ShoppingListResponse; remaining: number }) {
-  const [shared, setShared] = useState<'idle' | 'copied'>('idle')
+// ---------------------------------------------------------------------------
+// Pied fixe
+// ---------------------------------------------------------------------------
 
-  const share = async () => {
-    const text = formatAsText(list)
-    // navigator.share ouvre la feuille de partage iOS ; sur desktop elle
-    // n'existe pas, d'ou le repli presse-papiers.
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `Liste de courses ${list.isoWeek}`, text })
-        return
-      } catch {
-        // L'utilisateur a annule le partage : on ne bascule pas sur la copie,
-        // ce serait faire quelque chose qu'il vient de refuser.
-        return
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(text)
-      setShared('copied')
-      setTimeout(() => setShared('idle'), 2000)
-    } catch {
-      /* presse-papiers refuse (contexte non securise) : on n'affiche rien */
-    }
-  }
+function ShoppingFooter({
+  list,
+  remainingCount,
+  remainingEur,
+  anyChecked,
+  flash,
+  onFlash,
+  error,
+  onOpenActions,
+}: {
+  list: ShoppingListResponse
+  remainingCount: number
+  remainingEur: string
+  anyChecked: boolean
+  flash: string | null
+  onFlash: (message: string | null) => void
+  error: string | null
+  onOpenActions: () => void
+}) {
+  useFlashTimeout(flash, onFlash)
 
   return (
     <div className="shopping-footer">
-      <div className="shopping-footer__totals">
-        <strong className="shopping-footer__amount">{list.totalEur.replace('.', ',')} €</strong>
-        <span className="shopping-footer__detail">
-          {remaining === 0 ? 'tout est coché' : `${remaining} article${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}`}
-          {list.missingPriceCount > 0 && ` · ${list.missingPriceCount} sans prix`}
-        </span>
+      {error !== null && (
+        <p className="shopping-footer__error" role="alert">
+          {error}
+        </p>
+      )}
+      {flash !== null && (
+        <p className="shopping-footer__flash" role="status">
+          {flash}
+        </p>
+      )}
+
+      <div className="shopping-footer__row">
+        <div className="shopping-footer__totals">
+          {/* Le desktop n'affichait que le total de la liste entiere, coches
+              compris. En magasin, la seule question est « combien me reste-t-il
+              a prendre ». Le total complet reste lisible juste en dessous. */}
+          <span className="shopping-footer__label">
+            {anyChecked ? 'Reste à acheter' : 'Total de la liste'}
+          </span>
+          <strong className="shopping-footer__amount">{formatEuros(remainingEur)}</strong>
+          <span className="shopping-footer__detail">
+            {remainingCount === 0
+              ? 'tout est coché'
+              : `${remainingCount} sur ${list.items.length} article${list.items.length > 1 ? 's' : ''}`}
+            {anyChecked && ` · liste ${formatEuros(list.totalEur)}`}
+            {list.missingPriceCount > 0 && ` · ${list.missingPriceCount} sans prix`}
+          </span>
+        </div>
+
+        <div className="shopping-footer__actions">
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => void shareList(list, onFlash)}
+          >
+            Partager
+          </button>
+          <button
+            type="button"
+            className="icon-button shopping-footer__more"
+            onClick={onOpenActions}
+            aria-label="Autres actions"
+          >
+            <span aria-hidden="true">⋯</span>
+          </button>
+        </div>
       </div>
-      <button type="button" className="button button--primary" onClick={() => void share()}>
-        {shared === 'copied' ? 'Copié' : 'Partager'}
-      </button>
     </div>
+  )
+}
+
+/** Le message de confirmation s'efface seul : rien a fermer d'un doigt occupe. */
+function useFlashTimeout(flash: string | null, onFlash: (message: string | null) => void): void {
+  useEffect(() => {
+    if (flash === null) return
+    const timer = setTimeout(() => onFlash(null), 3000)
+    return () => clearTimeout(timer)
+  }, [flash, onFlash])
+}
+
+// ---------------------------------------------------------------------------
+// Feuille d'actions
+// ---------------------------------------------------------------------------
+
+function ActionsSheet({
+  list,
+  checkedCount,
+  pantryCount,
+  onClose,
+  onFlash,
+  onCheckPantry,
+  onUncheckAll,
+  onOpenCost,
+}: {
+  list: ShoppingListResponse
+  checkedCount: number
+  pantryCount: number
+  onClose: () => void
+  onFlash: (message: string | null) => void
+  onCheckPantry: () => void
+  onUncheckAll: () => void
+  onOpenCost: () => void
+}) {
+  const run = (action: () => void) => () => {
+    action()
+    onClose()
+  }
+
+  return (
+    <Sheet open onClose={onClose} title="Actions" variant="dialog">
+      <ul className="action-list">
+        <li>
+          <button
+            type="button"
+            className="action-list__item"
+            onClick={() => {
+              // Pas de `run()` ici : l'appel au presse-papiers doit partir dans
+              // le geste lui-meme (voir copyList), et fermer la feuille avant
+              // demonterait le bouton au milieu du traitement.
+              void copyList(list, onFlash).then(onClose)
+            }}
+          >
+            <span aria-hidden="true">📋</span> Copier la liste
+          </button>
+        </li>
+        <li>
+          <button type="button" className="action-list__item" onClick={onOpenCost}>
+            <span aria-hidden="true">💶</span> Coût &amp; historique
+          </button>
+        </li>
+        {pantryCount > 0 && (
+          <li>
+            <button type="button" className="action-list__item" onClick={run(onCheckPantry)}>
+              <span aria-hidden="true">🥫</span> Cocher ce qui est déjà au frigo ({pantryCount})
+            </button>
+          </li>
+        )}
+        {checkedCount > 0 && (
+          <li>
+            <button type="button" className="action-list__item" onClick={run(onUncheckAll)}>
+              <span aria-hidden="true">↺</span> Tout décocher ({checkedCount})
+            </button>
+          </li>
+        )}
+      </ul>
+    </Sheet>
   )
 }
 
 // ---------------------------------------------------------------------------
+// Partage
+// ---------------------------------------------------------------------------
 
-function ListSkeleton() {
-  // Le desktop n'avait aucun etat de chargement : tout etait synchrone sur du
-  // SQLite local. Ici chaque lecture est un aller-retour reseau.
-  return (
-    <div className="card" aria-busy="true">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="skeleton-row">
-          <span className="skeleton skeleton--box" />
-          <span className="skeleton skeleton--line" />
-        </div>
-      ))}
-    </div>
-  )
+/**
+ * Partage natif, repli sur le presse-papiers.
+ *
+ * Le desktop copiait un texte aligne sur 40 colonnes a chasse fixe, illisible
+ * dans Messages ou Notes. `formatAsText` rend desormais un texte a puces, et le
+ * chemin normal sur telephone est la feuille de partage : envoyer la liste a
+ * quelqu'un vaut mieux que la coller quelque part.
+ *
+ * Deux contraintes iOS respectees ici : l'appel doit partir d'un geste
+ * utilisateur direct, et rien ne doit etre attendu avant lui — d'ou l'absence
+ * de `await` en amont de `share` comme de `writeText`.
+ */
+async function shareList(
+  list: ShoppingListResponse,
+  onFlash: (message: string) => void,
+): Promise<void> {
+  const text = formatAsText(list)
+
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title: `Liste de courses ${list.isoWeek}`, text })
+      return
+    } catch {
+      // Partage annule : on ne bascule pas sur la copie, ce serait faire
+      // quelque chose que l'utilisateur vient de refuser.
+      return
+    }
+  }
+
+  await copyList(list, onFlash)
 }
 
-function ErrorCard({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  const offline = error instanceof ApiError && error.isOffline
-  return (
-    <div className="card">
-      <h2 className="card__title">{offline ? 'Pas de connexion' : 'Liste indisponible'}</h2>
-      <p className="card__lead">
-        {offline
-          ? 'Le réseau est mauvais ici. Réessaie dans un instant.'
-          : error instanceof Error
-            ? error.message
-            : 'Erreur inconnue.'}
-      </p>
-      <button type="button" className="button button--secondary" onClick={onRetry}>
-        Réessayer
-      </button>
-    </div>
-  )
+async function copyList(
+  list: ShoppingListResponse,
+  onFlash: (message: string) => void,
+): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(formatAsText(list))
+    onFlash('Liste copiée.')
+  } catch {
+    // Presse-papiers refuse : contexte non securise, ou permission niee.
+    onFlash('Copie impossible depuis ce navigateur.')
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Formatage
+// ---------------------------------------------------------------------------
+
+/** « 27 avr. → 3 mai » — la cle ISO brute du desktop ne dit rien a personne. */
+function weekRangeLabel(isoWeek: string): string {
+  const days = datesOfIsoWeek(isoWeek)
+  const monday = days[0]
+  const sunday = days[6]
+  if (!monday || !sunday) return ''
+  // Fuseau UTC impose : les dates sont construites a midi UTC, les lire en
+  // heure locale ferait basculer d'un jour aux antipodes.
+  const format = (date: Date) =>
+    date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+  return `${format(monday)} → ${format(sunday)}`
+}
+
+/** Lien vers le planning de la meme semaine, sans parametre inutile si c'est celle en cours. */
+function planningLink(isoWeek: string, currentWeek: string): string {
+  return isoWeek === currentWeek ? '/semaine' : `/semaine?semaine=${isoWeek}`
+}
+
+/** Montant en centimes entiers. `null` (prix inconnu) ne compte pas pour zero euro par hasard : il ne compte pas du tout. */
+function cents(amount: string | null): number {
+  return amount === null ? 0 : Math.round(Number(amount) * 100)
 }

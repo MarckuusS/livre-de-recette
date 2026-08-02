@@ -10,7 +10,8 @@
  */
 
 export interface ApiErrorBody {
-  readonly error: { readonly code: string; readonly message: string }
+  /** Le serveur peut joindre des cles supplementaires, ex. `existingId` sur un 409. */
+  readonly error: { readonly code: string; readonly message: string } & Record<string, unknown>
 }
 
 export class ApiError extends Error {
@@ -18,6 +19,14 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /**
+     * Ce que le serveur a joint au-dela du message.
+     *
+     * Sert a rendre l'erreur actionnable : un 409 `duplicate_name` porte
+     * `existingId`, ce qui permet a l'ecran d'ouvrir la fiche en double au lieu
+     * de laisser l'utilisateur la chercher.
+     */
+    readonly extra: Record<string, unknown> = {},
   ) {
     super(message)
     this.name = 'ApiError'
@@ -54,16 +63,19 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (!response.ok) {
     let code = 'unknown'
     let message = `Erreur ${response.status}.`
+    let extra: Record<string, unknown> = {}
     try {
       const body = (await response.json()) as Partial<ApiErrorBody>
       if (body.error) {
-        code = body.error.code ?? code
-        message = body.error.message ?? message
+        const { code: bodyCode, message: bodyMessage, ...rest } = body.error
+        code = bodyCode ?? code
+        message = bodyMessage ?? message
+        extra = rest
       }
     } catch {
       /* le corps n'est pas du JSON : on garde le message par defaut */
     }
-    throw new ApiError(response.status, code, message)
+    throw new ApiError(response.status, code, message, extra)
   }
 
   // Une reponse 200 ne garantit pas du JSON. Le repli SPA de Cloudflare Pages

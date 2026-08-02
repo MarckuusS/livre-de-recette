@@ -1,50 +1,356 @@
-import { Link, useParams } from 'react-router'
-import {
-  aggregateRecipe,
-  energyBreakdown,
-  formatEuros,
-  formatGrams,
-  recipeCost,
-  type NutritionTotal,
-  type Recipe,
-} from '@livre/shared'
+/**
+ * Ecran Recettes : la liste, puis l'editeur.
+ *
+ * Le desktop tenait les deux dans un SplitView 30/70 redimensionnable. En
+ * 375 px il n'y a qu'une colonne : la liste est un ecran, chaque recette en est
+ * un autre (/recettes/:id), et le bouton Retour du telephone fait la
+ * navigation. La poignee de separation n'a pas d'equivalent tactile et
+ * disparait sans regret.
+ *
+ * La liste est ici RICHE : le desktop n'affichait que le nom et deux
+ * compteurs, alors que ce qui aide a choisir un dimanche soir, c'est de voir
+ * les tags, le temps de preparation et la derniere fois qu'on l'a cuisinee.
+ * Ces informations sont deja calculees par l'API (`cookCount30d`,
+ * `lastCookedAt`), il aurait ete dommage de les laisser dans le tuyau.
+ *
+ * Ce qui n'est PAS porte, faute de socle : les photos de recette. `imageKey`
+ * est lu et transmis tel quel a chaque enregistrement pour ne pas l'effacer,
+ * mais le bucket R2 n'est pas configure et aucune URL n'est servie — donc pas
+ * de vignette, pas d'envoi, pas de depot d'image.
+ */
 
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import type { Recipe } from '@livre/shared'
+
+import { NumberField, TextField } from '../components/Field.js'
+import { Sheet } from '../components/Sheet.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
-import { useRecipe, useRecipes } from '../lib/queries.js'
+import { useRecipe, useRecipes, useSaveRecipe, useTags, type RecipeSummary } from '../lib/queries.js'
+import { RecipeEditor } from './recettes/RecipeEditor.js'
+import { formatDay, plural } from './recettes/draft.js'
+import '../styles/recipes.css'
 
 export function RecipesScreen() {
-  const query = useRecipes()
+  // Le filtre vit dans l'URL : revenir d'une recette a la liste retrouve la
+  // selection, et le lien se partage. C'est la meme regle que `?semaine=` sur
+  // la liste de courses.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tagParam = searchParams.get('tag')
+  const tagId = tagParam !== null && /^\d+$/.test(tagParam) ? Number(tagParam) : null
+
+  const [text, setText] = useState(() => searchParams.get('q') ?? '')
+  const [debounced, setDebounced] = useState(() => searchParams.get('q') ?? '')
+  const [newOpen, setNewOpen] = useState(false)
+
+  // 200 ms, comme le picker du desktop : sans ce delai, chaque lettre part en
+  // requete reseau.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(text.trim()), 200)
+    return () => clearTimeout(timer)
+  }, [text])
+
+  useEffect(() => {
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous)
+        if (debounced) next.set('q', debounced)
+        else next.delete('q')
+        return next
+      },
+      // `replace` : sans cela, chaque lettre tapee ajouterait une entree
+      // d'historique et le bouton Retour deviendrait inutilisable.
+      { replace: true },
+    )
+  }, [debounced, setSearchParams])
+
+  const setTag = (next: number | null) =>
+    setSearchParams(
+      (previous) => {
+        const params = new URLSearchParams(previous)
+        if (next === null) params.delete('tag')
+        else params.set('tag', String(next))
+        return params
+      },
+      { replace: true },
+    )
+
+  const list = useRecipes(debounced, tagId)
+  const filtered = debounced !== '' || tagId !== null
 
   return (
-    <section className="screen">
-      {query.isPending && <LoadingRows />}
-      {query.isError && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
+    <section className="screen screen--recipes">
+      <input
+        type="search"
+        className="search-field"
+        placeholder="Rechercher une recette…"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        enterKeyHint="search"
+        autoCorrect="off"
+        autoCapitalize="off"
+        aria-label="Rechercher une recette"
+      />
 
-      {query.isSuccess && query.data.items.length === 0 && (
-        <EmptyState title="Aucune recette">Ta bibliothèque de recettes est vide.</EmptyState>
+      <TagFilter selected={tagId} onSelect={setTag} />
+
+      {list.isPending && <LoadingRows />}
+      {list.isError && <ErrorState error={list.error} onRetry={() => void list.refetch()} />}
+
+      {list.isSuccess && list.data.items.length === 0 && (
+        <EmptyState title={filtered ? 'Aucun résultat' : 'Aucune recette'}>
+          {filtered ? (
+            <>
+              Rien ne correspond à ce filtre.{' '}
+              <button
+                type="button"
+                className="button button--ghost"
+                onClick={() => {
+                  setText('')
+                  setTag(null)
+                }}
+              >
+                Tout afficher
+              </button>
+            </>
+          ) : (
+            'Ta bibliothèque de recettes est vide. Crée la première avec le bouton ci-dessous.'
+          )}
+        </EmptyState>
       )}
 
-      {query.isSuccess && query.data.items.length > 0 && (
-        <ul className="row-list">
-          {query.data.items.map((recipe) => (
-            <li key={recipe.id} className="row">
-              <Link to={`/recettes/${recipe.id}`} className="row__link">
-                <span className="row__body">
-                  <span className="row__title">{recipe.name}</span>
-                  <span className="row__meta">
-                    {recipe.defaultPortions} portion{recipe.defaultPortions > 1 ? 's' : ''} ·{' '}
-                    {recipe.lineCount} ingrédient{recipe.lineCount > 1 ? 's' : ''}
-                  </span>
-                </span>
-                <span className="row__chevron" aria-hidden="true">
-                  ›
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+      {list.isSuccess && list.data.items.length > 0 && (
+        <>
+          <p className="list-count">
+            {list.data.items.length} {plural(list.data.items.length, 'recette')}
+          </p>
+          <ul className="row-list">
+            {list.data.items.map((recipe) => (
+              <RecipeRow key={recipe.id} recipe={recipe} />
+            ))}
+          </ul>
+        </>
       )}
+
+      {/* Bouton fixe plutot que flottant : il ne recouvre jamais la derniere
+          ligne de la liste, ce qu'un bouton rond en surimpression fait
+          systematiquement sur les listes longues. */}
+      <div className="recipes-footer">
+        <button
+          type="button"
+          className="button button--primary button--block"
+          onClick={() => setNewOpen(true)}
+        >
+          Nouvelle recette
+        </button>
+      </div>
+
+      <NewRecipeSheet open={newOpen} onClose={() => setNewOpen(false)} />
     </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
+function TagFilter({
+  selected,
+  onSelect,
+}: {
+  readonly selected: number | null
+  readonly onSelect: (id: number | null) => void
+}) {
+  const tags = useTags()
+  const items = tags.data?.items ?? []
+  if (items.length === 0) return null
+
+  return (
+    <div className="tag-filter" role="group" aria-label="Filtrer par tag">
+      <div className="tag-filter__scroller">
+        <button
+          type="button"
+          className={`recipe-chip${selected === null ? ' recipe-chip--on' : ''}`}
+          aria-pressed={selected === null}
+          onClick={() => onSelect(null)}
+        >
+          Tous
+        </button>
+        {items.map((tag) => {
+          const on = tag.id === selected
+          return (
+            <button
+              key={tag.id}
+              type="button"
+              className={`recipe-chip${on ? ' recipe-chip--on' : ''}`}
+              // Couleur choisie par l'utilisateur et stockee en base : elle ne
+              // peut pas venir des jetons du theme.
+              style={
+                on
+                  ? { background: tag.colorHex, borderColor: tag.colorHex }
+                  : { borderColor: tag.colorHex, color: tag.colorHex }
+              }
+              aria-pressed={on}
+              // Un seul tag a la fois : `GET /api/recipes?tag=` n'en accepte
+              // qu'un. Le desktop cumulait les filtres en OU logique.
+              onClick={() => onSelect(on ? null : tag.id)}
+            >
+              {tag.name}
+              <span className="recipe-chip__count">{tag.recipeCount}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function RecipeRow({ recipe }: { readonly recipe: RecipeSummary }) {
+  return (
+    <li className="row">
+      <Link to={`/recettes/${recipe.id}`} className="row__link">
+        <span className="row__body">
+          <span className="row__title">{recipe.name}</span>
+          <span className="row__meta">
+            <span>
+              {recipe.defaultPortions} {plural(recipe.defaultPortions, 'portion')}
+            </span>
+            <span>
+              {recipe.lineCount} {plural(recipe.lineCount, 'ingrédient')}
+            </span>
+            {recipe.prepTimeMin !== null && <span>{recipe.prepTimeMin} min</span>}
+            {recipe.cookCount30d > 0 && (
+              <span className="badge badge--cooked">
+                {recipe.cookCount30d}× ces 30 j
+              </span>
+            )}
+          </span>
+          {(recipe.tags.length > 0 || recipe.lastCookedAt !== null) && (
+            <span className="row__meta">
+              {recipe.tags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="recipe-chip recipe-chip--static"
+                  style={{ borderColor: tag.colorHex, color: tag.colorHex }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+              {recipe.lastCookedAt !== null && (
+                <span>dernière fois le {formatDay(recipe.lastCookedAt)}</span>
+              )}
+            </span>
+          )}
+        </span>
+        <span className="row__chevron" aria-hidden="true">
+          ›
+        </span>
+      </Link>
+    </li>
+  )
+}
+
+/**
+ * Creation en deux temps : un nom et des portions ici, tout le reste dans
+ * l'editeur.
+ *
+ * Le desktop ouvrait un formulaire vide et ne creait la ligne qu'a
+ * l'enregistrement. Impossible a reproduire tel quel : le journal de cuisson et
+ * les futures photos ont besoin d'un identifiant stable. On cree donc tout de
+ * suite, avec le strict minimum que le schema exige, puis on bascule sur
+ * l'editeur de la recette reelle.
+ */
+function NewRecipeSheet({
+  open,
+  onClose,
+}: {
+  readonly open: boolean
+  readonly onClose: () => void
+}) {
+  const navigate = useNavigate()
+  const save = useSaveRecipe()
+  const [name, setName] = useState('')
+  const [portions, setPortions] = useState<number | null>(2)
+  const [touched, setTouched] = useState(false)
+
+  const problem = name.trim() === '' ? 'Le nom de la recette ne peut pas être vide.' : null
+
+  const submit = () => {
+    setTouched(true)
+    if (problem !== null) return
+    save.mutate(
+      {
+        id: null,
+        name: name.trim(),
+        instructions: '',
+        defaultPortions: Math.max(1, Math.round(portions ?? 1)),
+        imageKey: null,
+        sourceUrl: null,
+        prepTimeMin: null,
+        lines: [],
+        tagIds: [],
+      },
+      {
+        onSuccess: (recipe) => {
+          setName('')
+          setTouched(false)
+          onClose()
+          void navigate(`/recettes/${recipe.id}`)
+        },
+      },
+    )
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Nouvelle recette"
+      dismissible={!save.isPending}
+      actions={
+        <>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={onClose}
+            disabled={save.isPending}
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={submit}
+            disabled={save.isPending}
+          >
+            {save.isPending ? 'Création…' : 'Créer'}
+          </button>
+        </>
+      }
+    >
+      <div className="form">
+        <TextField
+          label="Nom"
+          value={name}
+          onChange={setName}
+          placeholder="Gratin de courgettes"
+          required
+          autoFocus
+          error={touched ? problem : null}
+        />
+        <NumberField
+          label="Portions"
+          value={portions}
+          onChange={setPortions}
+          min={1}
+          max={50}
+          decimals={0}
+        />
+        {save.isError && (
+          <p className="text-error" role="alert">
+            {save.error.message}
+          </p>
+        )}
+      </div>
+    </Sheet>
   )
 }
 
@@ -52,190 +358,50 @@ export function RecipesScreen() {
 
 export function RecipeDetailScreen() {
   const params = useParams()
-  const id = Number(params['id'])
-  const query = useRecipe(Number.isInteger(id) ? id : null)
+  const navigate = useNavigate()
+  const raw = params['id']
+  const id = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : null
 
-  if (query.isPending) return <section className="screen"><LoadingRows rows={6} /></section>
-  if (query.isError)
+  const query = useRecipe(id)
+
+  if (id === null) {
+    return (
+      <section className="screen">
+        <EmptyState title="Recette introuvable">Cette adresse ne correspond à rien.</EmptyState>
+      </section>
+    )
+  }
+
+  if (query.isPending) {
+    return (
+      <section className="screen">
+        <LoadingRows rows={6} />
+      </section>
+    )
+  }
+
+  if (query.isError) {
     return (
       <section className="screen">
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       </section>
     )
+  }
 
-  const recipe = query.data
-  // Nutrition et cout sont calcules COTE CLIENT, a partir du meme code que
-  // celui du serveur (shared/). Rien a recalculer ni a synchroniser.
-  const nutrition = aggregateRecipe(recipe)
-  const cost = recipeCost(recipe)
-
-  return (
-    <section className="screen">
-      <div className="card">
-        <h2 className="card__title">{recipe.name}</h2>
-        <p className="row__meta">
-          {recipe.defaultPortions} portion{recipe.defaultPortions > 1 ? 's' : ''}
-          {nutrition.totalWeightG > 0 && <span>{formatGrams(nutrition.totalWeightG)} au total</span>}
-        </p>
-        {recipe.tags.length > 0 && (
-          <div className="chips">
-            {recipe.tags.map((tag) => (
-              <span key={tag.id} className="chip" style={{ borderColor: tag.colorHex, color: tag.colorHex }}>
-                {tag.name}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <IngredientLines recipe={recipe} />
-
-      <div className="card">
-        <h3 className="card__title">Nutrition</h3>
-        <NutritionTable
-          columns={[
-            ['Pour 100 g', nutrition.per100g],
-            ['Par portion', nutrition.perPortion],
-            ['Total', nutrition.total],
-          ]}
-        />
-        {nutrition.linesWithUnknownMacros.length > 0 && (
-          <p className="note">
-            {nutrition.linesWithUnknownMacros.length} ingrédient
-            {nutrition.linesWithUnknownMacros.length > 1 ? 's ont' : ' a'} des valeurs manquantes : ces
-            totaux sont sous-estimés.
-          </p>
-        )}
-        <EnergyNote total={nutrition.total} />
-      </div>
-
-      <div className="card">
-        <h3 className="card__title">Coût</h3>
-        <dl className="kv">
-          <div className="kv__pair">
-            <dt>Total</dt>
-            <dd>{formatEuros(cost.total)}</dd>
-          </div>
-          <div className="kv__pair">
-            <dt>Par portion</dt>
-            <dd>{formatEuros(cost.perPortion)}</dd>
-          </div>
-        </dl>
-        {cost.missing.length > 0 && (
-          <p className="note">
-            {cost.missing.length} ingrédient{cost.missing.length > 1 ? 's' : ''} sans prix, exclu
-            {cost.missing.length > 1 ? 's' : ''} du total.
-          </p>
-        )}
-      </div>
-
-      {recipe.instructions.trim() && (
-        <div className="card">
-          <h3 className="card__title">Préparation</h3>
-          <p className="instructions">{recipe.instructions}</p>
-        </div>
-      )}
-    </section>
-  )
-}
-
-/** Lignes groupees par rayon, comme le desktop depuis B5. */
-function IngredientLines({ recipe }: { recipe: Recipe }) {
-  const sorted = [...recipe.lines].sort((a, b) => {
-    const ca = a.ingredient.categoryL1 ?? '￿'
-    const cb = b.ingredient.categoryL1 ?? '￿'
-    return ca === cb ? a.ordinal - b.ordinal : ca.localeCompare(cb, 'fr')
-  })
-
-  let lastCategory: string | null = null
-
-  return (
-    <div className="card card--flush">
-      <h3 className="card__title card__title--padded">Ingrédients</h3>
-      <ul className="row-list row-list--flush">
-        {sorted.map((line, i) => {
-          const category = line.ingredient.categoryL1 ?? 'Sans rayon'
-          const header = category !== lastCategory ? category : null
-          lastCategory = category
-          return (
-            <li key={`${line.ingredient.id}-${i}`}>
-              {header && <h4 className="section-header">{header}</h4>}
-              <div className="row row--static">
-                <span className="row__body">
-                  <span className="row__title">{line.ingredient.name}</span>
-                  {line.notes && <span className="row__meta">{line.notes}</span>}
-                </span>
-                <span className="row__value">{formatGrams(line.quantityG)}</span>
-              </div>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
-}
-
-function NutritionTable({ columns }: { columns: Array<[string, NutritionTotal]> }) {
-  const rows: Array<[string, keyof NutritionTotal, string, number]> = [
-    ['Énergie', 'kcal', 'kcal', 0],
-    ['Protéines', 'proteins', 'g', 1],
-    ['Glucides', 'carbs', 'g', 1],
-    ['dont sucres', 'sugars', 'g', 1],
-    ['Lipides', 'fats', 'g', 1],
-    ['dont saturés', 'saturatedFats', 'g', 1],
-    ['Fibres', 'fiber', 'g', 1],
-    ['Sel', 'salt', 'g', 2],
-  ]
-  return (
-    <div className="table-scroll">
-      <table className="nutrition-table">
-        <thead>
-          <tr>
-            <th scope="col" />
-            {columns.map(([label]) => (
-              <th key={label} scope="col">
-                {label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(([label, key, unit, digits]) => (
-            <tr key={label}>
-              <th scope="row">{label}</th>
-              {columns.map(([colLabel, totals]) => (
-                <td key={colLabel}>
-                  {totals[key].toLocaleString('fr-FR', {
-                    minimumFractionDigits: digits,
-                    maximumFractionDigits: digits,
-                  })}
-                  <span className="unit"> {unit}</span>
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+  return <RecipeEditorHost recipe={query.data} onDeleted={() => void navigate('/recettes')} />
 }
 
 /**
- * Signale l'ecart entre l'energie declaree et celle recalculee par Atwater.
- *
- * Le desktop affichait la valeur recalculee au centre du donut et la valeur
- * declaree dans le tableau juste a cote, sans jamais mentionner qu'elles
- * different. Ici on affiche la declaree, et on ne mentionne l'ecart que
- * lorsqu'il devient significatif.
+ * `key` sur l'identifiant : passer d'une recette a l'autre doit repartir d'un
+ * tampon neuf. Sans cela, l'editeur garderait l'etat de saisie de la
+ * precedente — et le drapeau « modifie » avec.
  */
-function EnergyNote({ total }: { total: NutritionTotal }) {
-  const breakdown = energyBreakdown(total)
-  if (breakdown.divergence < 0.1) return null
-  return (
-    <p className="note">
-      Le calcul à partir des macros donne {Math.round(breakdown.atwaterKcal)} kcal, contre{' '}
-      {Math.round(breakdown.declaredKcal)} kcal mesurées. L’écart vient des données source — les
-      valeurs affichées sont celles mesurées.
-    </p>
-  )
+function RecipeEditorHost({
+  recipe,
+  onDeleted,
+}: {
+  readonly recipe: Recipe
+  readonly onDeleted: () => void
+}) {
+  return <RecipeEditor key={recipe.id ?? 'nouvelle'} recipe={recipe} onDelete={onDeleted} />
 }

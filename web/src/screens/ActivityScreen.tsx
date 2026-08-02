@@ -1,8 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router'
 
-import { useCurrentUser } from '../AuthGate.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
-import { apiFetch, logout } from '../lib/api.js'
+import { apiFetch } from '../lib/api.js'
 
 interface ActivityEntry {
   readonly id: number
@@ -38,38 +38,17 @@ const ENTITY_LABELS: Record<string, string> = {
  * change ou un stock qui disparait devient une devinette.
  */
 export function ActivityScreen() {
-  const me = useCurrentUser()
-  const client = useQueryClient()
-
   const activity = useQuery({
     queryKey: ['activity'],
     queryFn: () => apiFetch<{ items: ActivityEntry[] }>('/api/activity?limit=100'),
   })
 
-  const signOut = useMutation({
-    mutationFn: logout,
-    onSuccess: () => {
-      client.setQueryData(['session'], { authenticated: false, user: null })
-      client.clear()
-    },
-  })
-
   return (
     <section className="screen">
-      <div className="card">
-        <h2 className="card__title">Connecté</h2>
-        <p className="card__lead">
-          {me.displayName} <span className="row__meta">({me.username})</span>
-        </p>
-        <button
-          type="button"
-          className="button button--secondary"
-          onClick={() => signOut.mutate()}
-          disabled={signOut.isPending}
-        >
-          {signOut.isPending ? 'Déconnexion…' : 'Se déconnecter'}
-        </button>
-      </div>
+      <p className="card__lead">
+        Deux identifiants, une seule cuisine : ce journal dit qui a fait quoi. Le compte et l’état
+        de l’application sont dans les <Link to="/parametres">paramètres</Link>.
+      </p>
 
       {activity.isPending && <LoadingRows />}
       {activity.isError && (
