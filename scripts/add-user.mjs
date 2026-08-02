@@ -10,7 +10,7 @@
  * de commandes.
  *
  * Le hachage est volontairement identique a celui du Worker (PBKDF2-SHA256,
- * 210 000 iterations, sel de 16 octets). Node et les Workers exposent tous
+ * 100 000 iterations, sel de 16 octets). Node et les Workers exposent tous
  * deux WebCrypto : le meme calcul donne le meme resultat des deux cotes, sinon
  * un compte cree ici ne pourrait pas se connecter en production.
  */
@@ -24,7 +24,11 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-const ITERATIONS = 210_000
+// Plafond impose par Cloudflare Workers : au-dela de 100 000, PBKDF2 leve
+// « iteration counts above 100000 are not supported ». La limite n'est PAS
+// appliquee par le runtime local, d'ou un compte qui marche en developpement
+// et casse en production. Voir shared/src/password.ts.
+const ITERATIONS = 100_000
 const MIN_LENGTH = 10
 
 const toHex = (buffer) =>

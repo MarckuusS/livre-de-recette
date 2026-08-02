@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_ITERATIONS, hashPassword, timingSafeEqual, verifyPassword } from './password.js'
+import {
+  DEFAULT_ITERATIONS,
+  IterationLimitError,
+  MAX_PLATFORM_ITERATIONS,
+  hashPassword,
+  timingSafeEqual,
+  verifyPassword,
+} from './password.js'
 
 describe('hashPassword', () => {
   it('accepte le bon mot de passe', async () => {
@@ -26,9 +33,19 @@ describe('hashPassword', () => {
     expect(await verifyPassword('identique', b)).toBe(true)
   })
 
-  it('applique le nombre d iterations recommande par l OWASP', async () => {
-    expect(DEFAULT_ITERATIONS).toBe(210_000)
-    expect((await hashPassword('x')).iterations).toBe(210_000)
+  it('reste sous le plafond de la plateforme', async () => {
+    // Cloudflare Workers refuse PBKDF2 au-dela de 100 000 iterations. La
+    // limite n'est pas appliquee par le runtime local : sans ce test, un
+    // depassement ne se verrait qu'en production, sous la forme d'une erreur
+    // interne generique a la connexion.
+    expect(MAX_PLATFORM_ITERATIONS).toBe(100_000)
+    expect(DEFAULT_ITERATIONS).toBeLessThanOrEqual(MAX_PLATFORM_ITERATIONS)
+    expect((await hashPassword('x')).iterations).toBe(DEFAULT_ITERATIONS)
+  })
+
+  it('refuse explicitement un depassement du plafond', async () => {
+    // Message clair ici plutot qu'une erreur opaque au fond de la pile.
+    await expect(hashPassword('x', 210_000)).rejects.toThrow(IterationLimitError)
   })
 
   it('conserve le nombre d iterations avec le hash', async () => {

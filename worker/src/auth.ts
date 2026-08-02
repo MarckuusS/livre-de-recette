@@ -32,7 +32,7 @@
  * Le supprimer deconnecte tout le monde — c'est le bouton d'urgence.
  */
 
-import { verifyPassword, type PasswordRecord } from '@livre/shared'
+import { DEFAULT_ITERATIONS, verifyPassword, type PasswordRecord } from '@livre/shared'
 
 const COOKIE_NAME = 'lr_session'
 const SESSION_DAYS = 90
@@ -193,7 +193,7 @@ export async function authenticate(
   // existants au chronometre.
   const record: PasswordRecord = row
     ? { hash: row.password_hash, salt: row.password_salt, iterations: row.iterations }
-    : { hash: '00'.repeat(32), salt: '00'.repeat(16), iterations: 210_000 }
+    : { hash: '00'.repeat(32), salt: '00'.repeat(16), iterations: DEFAULT_ITERATIONS }
 
   const ok = await verifyPassword(password, record)
   if (!row || !ok) return null

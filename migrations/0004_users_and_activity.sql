@@ -30,7 +30,8 @@ CREATE TABLE user (
   -- cette table ne se casse pas a des milliards d'essais par seconde.
   password_hash TEXT    NOT NULL,
   password_salt TEXT    NOT NULL,
-  iterations    INTEGER NOT NULL DEFAULT 210000,
+  -- Plafond de Cloudflare Workers ; au-dela, PBKDF2 refuse de deriver.
+  iterations    INTEGER NOT NULL DEFAULT 100000,
 
   is_active     INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),

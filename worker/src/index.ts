@@ -342,7 +342,25 @@ route('POST', '/api/login', async ({ env, request }) => {
     throw new HttpError(400, 'invalid_body', 'Identifiant et mot de passe requis.')
   }
 
-  const user = await authenticate(env.DB, username, password)
+  let user
+  try {
+    user = await authenticate(env.DB, username, password)
+  } catch (error) {
+    // Un compte cree avant que le plafond PBKDF2 de la plateforme ne soit
+    // connu porte un nombre d'iterations que Workers refuse de deriver. Sans
+    // ce message, la connexion echoue en « erreur interne » et rien
+    // n'indique quoi faire.
+    if (error instanceof Error && error.name === 'IterationLimitError') {
+      throw new HttpError(
+        500,
+        'stale_hash',
+        'Ce compte a été créé avec des réglages que le serveur refuse désormais. ' +
+          'Recrée-le avec « node scripts/add-user.mjs ».',
+      )
+    }
+    throw error
+  }
+
   if (!user) {
     await recordFailure(env.DB)
     // Volontairement vague : ne pas reveler si c'est l'identifiant ou le mot

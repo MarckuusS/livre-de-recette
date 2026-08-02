@@ -23,13 +23,51 @@
  * rend inutilisables les tables precalculees.
  *
  * Argon2id serait un meilleur choix encore, mais n'existe pas dans WebCrypto :
- * il faudrait embarquer du WebAssembly dans le Worker. PBKDF2 est le meilleur
- * compromis disponible nativement, et l'OWASP le juge acceptable a ce nombre
- * d'iterations.
+ * il faudrait embarquer du WebAssembly dans le Worker.
  */
 
-/** Recommandation OWASP 2023 pour PBKDF2-HMAC-SHA256. */
-export const DEFAULT_ITERATIONS = 210_000
+/**
+ * PLAFOND IMPOSE PAR LA PLATEFORME.
+ *
+ * Cloudflare Workers refuse PBKDF2 au-dela de 100 000 iterations, pour se
+ * proteger d'un deni de service :
+ *
+ *     NotSupportedError: Pbkdf2 failed: iteration counts above 100000
+ *     are not supported
+ *
+ * Piege : la limite n'est PAS appliquee par le runtime local de `wrangler
+ * dev`. Un compte cree avec davantage fonctionne parfaitement en
+ * developpement puis fait echouer toute connexion en production, avec une
+ * erreur interne generique. C'est exactement ce qui s'est produit ici avec
+ * 210 000 iterations.
+ *
+ * Consequence a assumer : l'OWASP recommande aujourd'hui 600 000 iterations
+ * pour PBKDF2-HMAC-SHA256. On est six fois en dessous, sans possibilite de
+ * faire mieux avec l'API native.
+ *
+ * Ce que ca signifie concretement : si la table `user` fuitait, un mot de
+ * passe faible tomberait plus vite qu'avec un parametrage ideal. La parade
+ * est donc un mot de passe LONG — le script de creation en impose au moins
+ * dix caracteres. Et obtenir cette table suppose deja d'avoir compromis le
+ * compte Cloudflare.
+ *
+ * Pour aller au-dela, il faudrait embarquer Argon2id ou scrypt en WebAssembly.
+ * Disproportionne pour deux comptes personnels ; a reconsiderer si
+ * l'application accueillait un jour de vrais utilisateurs tiers.
+ */
+export const MAX_PLATFORM_ITERATIONS = 100_000
+
+export const DEFAULT_ITERATIONS = MAX_PLATFORM_ITERATIONS
+
+export class IterationLimitError extends Error {
+  constructor(iterations: number) {
+    super(
+      `PBKDF2 : ${iterations} itérations demandées, la plateforme en accepte ` +
+        `${MAX_PLATFORM_ITERATIONS} au maximum.`,
+    )
+    this.name = 'IterationLimitError'
+  }
+}
 
 const encoder = new TextEncoder()
 
@@ -48,6 +86,11 @@ export interface PasswordRecord {
 }
 
 async function derive(password: string, salt: Uint8Array, iterations: number): Promise<string> {
+  // Echouer ici, avec un message explicite, plutot que de laisser la
+  // plateforme lever une erreur generique au fond d'une pile d'appels — c'est
+  // ce qui avait rendu le diagnostic si penible.
+  if (iterations > MAX_PLATFORM_ITERATIONS) throw new IterationLimitError(iterations)
+
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, [
     'deriveBits',
   ])
