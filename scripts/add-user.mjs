@@ -253,15 +253,24 @@ if (password !== confirmation) {
 const { hash, salt, iterations } = await hashPassword(password)
 
 /*
- * Une nouvelle cuisine part avec une COPIE du catalogue CIQUAL/OpenFoodFacts.
+ * Une nouvelle cuisine part avec une copie du catalogue CIQUAL, et de LUI SEUL.
  *
- * Sans elle, le nouveau venu ouvre une application vide : plus aucun aliment a
- * chercher, et l'import ne servirait qu'a retelecharger ce que la base contient
- * deja. La copie repart a zero sur ce qui est intime — bibliotheque
- * personnelle, prix releves — et ne garde que les donnees de reference.
+ * Sans catalogue, le nouveau venu ouvre une application vide : plus aucun
+ * aliment a chercher, et « Importer » ne servirait a rien. CIQUAL est la table
+ * de composition de l'ANSES — une reference publique, identique pour tout le
+ * monde : la copier ne raconte rien de personne.
  *
- * Le sous-SELECT `MIN(id)` par (source, source_ref) evite de dupliquer une
- * fiche deja presente en plusieurs exemplaires, ce qui violerait l'unicite.
+ * Les lignes OpenFoodFacts sont EXCLUES, et c'est le point important. Elles
+ * n'ont rien d'une reference : ce sont les produits que le foyer d'origine a
+ * scannes en magasin. Les recopier ferait apparaitre chez le nouveau venu la
+ * marque de creme, le fromage et la moutarde exacts qu'achete quelqu'un
+ * d'autre. Aucune recette ni aucun prix ne fuiterait, mais ses courses, si.
+ *
+ * Il constituera les siennes en scannant. C'est deja le chemin le plus rapide.
+ *
+ * Le sous-SELECT `MIN(id)` par source_ref evite de dupliquer une fiche presente
+ * en plusieurs exemplaires, ce qui violerait l'unicite (household_id, source,
+ * source_ref).
  */
 const kitchenSql =
   newKitchen === null
@@ -282,7 +291,9 @@ const kitchenSql =
 ` +
       `  piece_weight_g, cooked_weight_per_100g_raw, 0, category_l1, category_l2, season_months
 ` +
-      `FROM ingredient WHERE id IN (SELECT MIN(id) FROM ingredient GROUP BY source, source_ref);
+      `FROM ingredient WHERE source = 'ciqual'
+` +
+      `  AND id IN (SELECT MIN(id) FROM ingredient WHERE source = 'ciqual' GROUP BY source_ref);
 `
 
 // `household_id` n'est PAS dans le ON CONFLICT : changer le mot de passe d'un
