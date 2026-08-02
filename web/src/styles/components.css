@@ -543,3 +543,92 @@
   flex: 1;
   min-width: 0;
 }
+
+/* ---------------------------------------------------------------------------
+ * Scanner de code-barres
+ * ------------------------------------------------------------------------- */
+
+.scanner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.scanner__stage {
+  position: relative;
+  /* Ratio fixe : sans lui, la feuille sursaute au moment ou la video recoit
+     ses dimensions reelles, et le doigt rate le bouton qu'il visait. */
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #000;
+  border-radius: var(--radius-lg);
+}
+
+.scanner__stage--message {
+  display: grid;
+  place-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  aspect-ratio: auto;
+  min-height: 140px;
+  text-align: center;
+  background: var(--color-surface-hover);
+}
+
+.scanner__video {
+  width: 100%;
+  height: 100%;
+  /* `cover` : la video remplit le cadre sans bandes noires, quitte a rogner.
+     Le code-barres est vise au centre, jamais dans un coin. */
+  object-fit: cover;
+}
+
+/* Fenetre de visee. Purement indicative, mais indispensable : sans repere on
+   cadre trop large, et le code n'occupe pas assez de pixels pour etre lu. */
+.scanner__frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 78%;
+  height: 34%;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgb(255 255 255 / 0.9);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
+}
+
+.scanner__overlay {
+  position: absolute;
+  inset: auto 0 var(--space-md);
+  margin: 0;
+  color: #fff;
+  text-align: center;
+}
+
+.scanner__hint {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-success);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.scanner__manual summary {
+  padding: var(--space-sm) 0;
+  /* Cible tactile : un `summary` fait la hauteur de son texte par defaut,
+     bien en-dessous des 44 px utilisables au pouce. */
+  min-height: var(--control-height-lg);
+  display: flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+}
+
+.scanner__manual[open] summary {
+  margin-bottom: var(--space-sm);
+}
+
+.scanner__manual .button {
+  width: 100%;
+  margin-top: var(--space-sm);
+}

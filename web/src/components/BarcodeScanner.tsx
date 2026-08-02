@@ -1,0 +1,352 @@
+/**
+ * Lecture de code-barres par la camera du telephone.
+ *
+ * C'est le geste central de l'application en magasin : viser un produit vaut
+ * mieux que taper treize chiffres, et mieux encore que chercher « creme legere
+ * uht 18% mg semi epaisse » dans un catalogue de plusieurs milliers de lignes.
+ *
+ * ---------------------------------------------------------------------------
+ * DEUX CHEMINS DE DECODAGE
+ * ---------------------------------------------------------------------------
+ * `BarcodeDetector` est natif sur Android/Chrome : rapide, gratuit, aucun
+ * telechargement. Safari ne l'implemente pas — et c'est precisement la cible.
+ * On retombe donc sur ZXing, en JavaScript pur.
+ *
+ * ZXing pese plusieurs centaines de kilooctets. Il est charge par un `import()`
+ * DYNAMIQUE, donc uniquement quand la camera s'ouvre vraiment : la page
+ * d'accueil n'en paie pas le prix, et un utilisateur qui ne scanne jamais ne le
+ * telecharge jamais.
+ *
+ * ---------------------------------------------------------------------------
+ * PIEGES iOS, tous rencontres
+ * ---------------------------------------------------------------------------
+ *   - `playsInline` est OBLIGATOIRE : sans lui, Safari ouvre la video en plein
+ *     ecran par-dessus l'application et le cadre de visee disparait.
+ *   - `getUserMedia` exige HTTPS. En developpement sur `localhost` c'est
+ *     tolere, mais pas sur une adresse IP de reseau local — d'ou le message
+ *     explicite plutot qu'un echec muet.
+ *   - Le flux DOIT etre coupe a la fermeture. Une piste video laissee ouverte
+ *     garde la diode allumee et vide la batterie, meme apres navigation.
+ *   - L'autorisation refusee n'est pas rattrapable par le code : seule
+ *     l'utilisateur peut la redonner dans les reglages du systeme. On le dit.
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { Sheet } from './Sheet.js'
+import { TextField } from './Field.js'
+import '../styles/components.css'
+
+/** Formats utiles en supermarche. Le QR n'a rien a faire sur un aliment. */
+const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] as const
+
+type Status = 'starting' | 'scanning' | 'denied' | 'unsupported' | 'insecure' | 'error'
+
+interface NativeDetector {
+  detect: (source: CanvasImageSource) => Promise<Array<{ rawValue: string }>>
+}
+
+interface DetectorCtor {
+  new (options: { formats: readonly string[] }): NativeDetector
+  getSupportedFormats?: () => Promise<string[]>
+}
+
+/**
+ * Valide un code-barres produit.
+ *
+ * On verifie la CLE DE CONTROLE, pas seulement la longueur : un decodage
+ * partiel sur une etiquette froissee rend volontiers douze chiffres justes et
+ * un faux. Sans ce controle, on interroge OpenFoodFacts pour rien et on
+ * annonce « produit introuvable » alors que le produit existe.
+ */
+export function isValidEan(raw: string): boolean {
+  const digits = raw.replace(/\D/g, '')
+  if (![8, 12, 13, 14].includes(digits.length)) return false
+
+  // Somme ponderee 3/1 en partant de la droite, cle exclue.
+  let sum = 0
+  for (let i = digits.length - 2; i >= 0; i--) {
+    const digit = Number(digits[i])
+    sum += (digits.length - i) % 2 === 0 ? digit * 3 : digit
+  }
+  const expected = (10 - (sum % 10)) % 10
+  return expected === Number(digits[digits.length - 1])
+}
+
+export interface BarcodeScannerProps {
+  readonly open: boolean
+  readonly onClose: () => void
+  /** Appele avec le code lu. La feuille ne se ferme pas d'elle-meme. */
+  readonly onDetect: (code: string) => void
+  readonly title?: string
+  /** Affiche sous le cadre — « Ajouté : Nutella » pendant une session de courses. */
+  readonly hint?: string | undefined
+  /** Laisse la camera ouverte apres une lecture, pour enchainer les produits. */
+  readonly continuous?: boolean
+}
+
+export function BarcodeScanner({
+  open,
+  onClose,
+  onDetect,
+  title = 'Scanner un code-barres',
+  hint,
+  continuous = false,
+}: BarcodeScannerProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const stopRef = useRef<(() => void) | null>(null)
+  const lastCodeRef = useRef<{ code: string; at: number }>({ code: '', at: 0 })
+
+  const [status, setStatus] = useState<Status>('starting')
+  const [detail, setDetail] = useState<string | null>(null)
+  const [manual, setManual] = useState('')
+
+  /** Coupe la camera. Idempotent : appele a la fermeture ET au demontage. */
+  const stopCamera = useCallback(() => {
+    stopRef.current?.()
+    stopRef.current = null
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    if (videoRef.current) videoRef.current.srcObject = null
+  }, [])
+
+  const handleCode = useCallback(
+    (raw: string) => {
+      const code = raw.replace(/\D/g, '')
+      if (!isValidEan(code)) return
+
+      // Anti-rebond : la camera rend 15 images par seconde et le meme code
+      // serait signale quinze fois. On ignore une relecture identique pendant
+      // deux secondes — assez pour changer de produit, pas pour doubler.
+      const now = Date.now()
+      if (lastCodeRef.current.code === code && now - lastCodeRef.current.at < 2000) return
+      lastCodeRef.current = { code, at: now }
+
+      // Retour physique : en magasin, on ne regarde pas l'ecran en scannant.
+      navigator.vibrate?.(60)
+      onDetect(code)
+      if (!continuous) stopCamera()
+    },
+    [continuous, onDetect, stopCamera],
+  )
+
+  useEffect(() => {
+    if (!open) {
+      stopCamera()
+      return
+    }
+
+    let cancelled = false
+    setStatus('starting')
+    setDetail(null)
+
+    const start = async () => {
+      // `isSecureContext` couvre HTTPS ET localhost. C'est le bon test : une
+      // adresse IP de reseau local en http echoue, et le message doit le dire.
+      if (!window.isSecureContext) {
+        setStatus('insecure')
+        return
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus('unsupported')
+        return
+      }
+
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          // `ideal` et non `exact` : sur un ordinateur portable il n'y a pas de
+          // camera arriere, et `exact` ferait echouer au lieu de prendre celle
+          // qui existe.
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
+          audio: false,
+        })
+      } catch (error) {
+        if (cancelled) return
+        const name = (error as Error).name
+        setStatus(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'error')
+        setDetail(name === 'NotFoundError' ? 'Aucune caméra détectée sur cet appareil.' : null)
+        return
+      }
+
+      if (cancelled) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
+
+      streamRef.current = stream
+      const video = videoRef.current
+      if (!video) return
+      video.srcObject = stream
+      try {
+        await video.play()
+      } catch {
+        /* Safari rejette parfois play() sur un rendu concurrent : le flux
+           demarre quand meme, inutile d'alarmer l'utilisateur. */
+      }
+      if (cancelled) return
+      setStatus('scanning')
+
+      const Detector = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector
+      if (Detector) {
+        runNative(Detector, video)
+      } else {
+        await runZxing(video)
+      }
+    }
+
+    /** Chemin natif : Android/Chrome. Une boucle sur les images de la video. */
+    const runNative = (Ctor: DetectorCtor, video: HTMLVideoElement) => {
+      const detector = new Ctor({ formats: [...FORMATS] })
+      let frame = 0
+      let running = true
+
+      const tick = async () => {
+        if (!running) return
+        try {
+          const found = await detector.detect(video)
+          const first = found[0]
+          if (first) handleCode(first.rawValue)
+        } catch {
+          /* Une image illisible n'est pas une erreur : on tente la suivante. */
+        }
+        if (running) frame = requestAnimationFrame(() => void tick())
+      }
+
+      void tick()
+      stopRef.current = () => {
+        running = false
+        cancelAnimationFrame(frame)
+      }
+    }
+
+    /** Chemin de repli : iOS. ZXing, telecharge seulement maintenant. */
+    const runZxing = async (video: HTMLVideoElement) => {
+      let reader: { decodeFromVideoElement: unknown } | null = null
+      try {
+        const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
+          import('@zxing/browser'),
+          import('@zxing/library'),
+        ])
+        if (cancelled) return
+
+        // On restreint aux formats de la grande distribution : moins de
+        // formats a essayer, c'est un decodage nettement plus rapide sur un
+        // telephone qui chauffe.
+        const hints = new Map()
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.CODE_128,
+        ])
+        hints.set(DecodeHintType.TRY_HARDER, true)
+
+        const instance = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 150 })
+        reader = instance as unknown as { decodeFromVideoElement: unknown }
+
+        const controls = await instance.decodeFromVideoElement(video, (result) => {
+          if (result) handleCode(result.getText())
+        })
+        if (cancelled) {
+          controls.stop()
+          return
+        }
+        stopRef.current = () => controls.stop()
+      } catch (error) {
+        if (cancelled) return
+        void reader
+        setStatus('error')
+        setDetail(
+          error instanceof Error && /import|fetch|network/i.test(error.message)
+            ? 'Le module de lecture n’a pas pu être téléchargé. Vérifie ta connexion.'
+            : null,
+        )
+      }
+    }
+
+    void start()
+
+    return () => {
+      cancelled = true
+      stopCamera()
+    }
+  }, [open, handleCode, stopCamera])
+
+  // Coupure de securite au demontage : une navigation pendant que la feuille
+  // est ouverte ne doit pas laisser la camera allumee.
+  useEffect(() => stopCamera, [stopCamera])
+
+  const submitManual = () => {
+    const code = manual.replace(/\D/g, '')
+    if (!isValidEan(code)) return
+    onDetect(code)
+    setManual('')
+  }
+
+  const manualValid = isValidEan(manual)
+
+  return (
+    <Sheet open={open} onClose={onClose} title={title}>
+      <div className="scanner">
+        {status === 'scanning' || status === 'starting' ? (
+          <div className="scanner__stage">
+            <video ref={videoRef} className="scanner__video" muted playsInline />
+            {/* Le cadre n'est pas decoratif : sans reperе visuel, on cadre trop
+                large et le code n'occupe pas assez de pixels pour etre lu. */}
+            <div className="scanner__frame" aria-hidden="true" />
+            {status === 'starting' && <p className="scanner__overlay">Ouverture de la caméra…</p>}
+          </div>
+        ) : (
+          <div className="scanner__stage scanner__stage--message">
+            <p className="status status--error" role="alert">
+              {status === 'denied' && 'Accès à la caméra refusé.'}
+              {status === 'insecure' && 'La caméra exige une connexion sécurisée (https).'}
+              {status === 'unsupported' && 'Ce navigateur ne donne pas accès à la caméra.'}
+              {status === 'error' && 'La caméra n’a pas pu démarrer.'}
+            </p>
+            {detail && <p className="card__lead">{detail}</p>}
+            {status === 'denied' && (
+              <p className="card__lead">
+                Autorise l’appareil photo pour ce site dans les réglages de ton téléphone, puis
+                rouvre cet écran. Le site ne peut pas redemander lui-même.
+              </p>
+            )}
+          </div>
+        )}
+
+        {hint && <p className="scanner__hint">{hint}</p>}
+
+        <p className="card__lead">
+          Vise le code-barres. Tiens le téléphone à une quinzaine de centimètres, bien à plat.
+        </p>
+
+        {/* Saisie manuelle toujours offerte : un code abime, un emballage
+            brillant ou une camera capricieuse ne doivent pas etre une impasse. */}
+        <details className="scanner__manual">
+          <summary>Saisir le code à la main</summary>
+          <TextField
+            label="Code-barres"
+            value={manual}
+            onChange={setManual}
+            inputMode="numeric"
+            placeholder="3017620422003"
+            {...(manual.length > 0 && !manualValid
+              ? { error: 'Ce code est incomplet ou mal recopié.' }
+              : {})}
+          />
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={submitManual}
+            disabled={!manualValid}
+          >
+            Chercher ce code
+          </button>
+        </details>
+      </div>
+    </Sheet>
+  )
+}

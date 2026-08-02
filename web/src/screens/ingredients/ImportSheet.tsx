@@ -20,18 +20,24 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
+import type { UseQueryResult } from '@tanstack/react-query'
 import type { Ingredient } from '@livre/shared'
 
+import { BarcodeScanner } from '../../components/BarcodeScanner.js'
 import { SelectField } from '../../components/Field.js'
 import { Sheet } from '../../components/Sheet.js'
 import { EmptyState, ErrorState, LoadingRows, SourceBadge } from '../../components/States.js'
+import { ApiError } from '../../lib/api.js'
 import {
   useAddToLibrary,
+  useBarcode,
   useCatalog,
   useCategories,
   useCreateIngredient,
   useIngredients,
   useOffSearch,
+  type BarcodeResult,
 } from '../../lib/queries.js'
 import { catalogKey } from './model.js'
 import '../../styles/ingredients.css'
@@ -41,10 +47,21 @@ type Tab = 'ciqual' | 'off'
 export interface ImportSheetProps {
   readonly open: boolean
   readonly onClose: () => void
+  /** Onglet a l'ouverture. « Scanner » arrive directement sur OpenFoodFacts. */
+  readonly initialTab?: Tab
+  /** Ouvre la camera dans la foulee, sans tap supplementaire. */
+  readonly autoScan?: boolean
 }
 
-export function ImportSheet({ open, onClose }: ImportSheetProps) {
-  const [tab, setTab] = useState<Tab>('ciqual')
+export function ImportSheet({ open, onClose, initialTab = 'ciqual', autoScan = false }: ImportSheetProps) {
+  const [tab, setTab] = useState<Tab>(initialTab)
+
+  // L'onglet suit le bouton qui a ouvert la feuille. Sans cette
+  // resynchronisation, l'etat de la derniere ouverture resterait en place et
+  // « Scanner » retomberait sur CIQUAL, ou aucun scan n'a de sens.
+  useEffect(() => {
+    if (open) setTab(initialTab)
+  }, [open, initialTab])
 
   // La selection SURVIT au changement d'onglet, de requete et de categorie :
   // c'est ce qui rend l'ajout en lot supportable sur petit ecran — chercher
@@ -110,7 +127,13 @@ export function ImportSheet({ open, onClose }: ImportSheetProps) {
       {tab === 'ciqual' ? (
         <CiqualTab library={library} selected={selected} onToggle={toggle} onAdded={setReport} />
       ) : (
-        <OffTab library={library} selected={selected} onToggle={toggle} onAdded={setReport} />
+        <OffTab
+          library={library}
+          selected={selected}
+          onToggle={toggle}
+          onAdded={setReport}
+          autoScan={open && autoScan}
+        />
       )}
     </Sheet>
   )
@@ -350,18 +373,24 @@ function OffTab({
   selected,
   onToggle,
   onAdded,
+  autoScan,
 }: {
   library: LibraryIndex
   selected: ReadonlyMap<string, Ingredient>
   onToggle: (candidate: Ingredient) => void
   onAdded: (message: string) => void
+  autoScan: boolean
 }) {
   const [text, setText] = useState('')
   // Ce que l'utilisateur a VALIDE, distinct de ce qu'il tape : c'est cette
   // separation qui garantit qu'aucune requete ne part a la frappe.
   const [submitted, setSubmitted] = useState('')
+  const [scanning, setScanning] = useState(autoScan)
+  /** Code lu par la camera. Interroge le produit exact, pas la recherche texte. */
+  const [scanned, setScanned] = useState<string | null>(null)
 
   const results = useOffSearch(submitted, submitted.length >= 2)
+  const barcode = useBarcode(scanned)
   const canSearch = text.trim().length >= 2
 
   return (
@@ -370,7 +399,10 @@ function OffTab({
         className="ing-off-search"
         onSubmit={(event) => {
           event.preventDefault()
-          if (canSearch) setSubmitted(text.trim())
+          if (canSearch) {
+            setScanned(null)
+            setSubmitted(text.trim())
+          }
         }}
       >
         <input
@@ -384,49 +416,186 @@ function OffTab({
           autoCapitalize="off"
           aria-label="Rechercher sur OpenFoodFacts"
         />
-        <button type="submit" className="button button--primary" disabled={!canSearch || results.isFetching}>
-          {results.isFetching ? 'Recherche…' : 'Chercher en ligne'}
-        </button>
+        <div className="ing-off-search__actions">
+          <button
+            type="submit"
+            className="button button--primary"
+            disabled={!canSearch || results.isFetching}
+          >
+            {results.isFetching ? 'Recherche…' : 'Chercher en ligne'}
+          </button>
+          {/* Devant un rayon, viser le code-barres bat treize chiffres tapes a
+              une main, et bat surtout la recherche par nom : les libelles
+              d'OpenFoodFacts sont ecrits par des contributeurs, pas par le
+              fabricant. */}
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={() => setScanning(true)}
+          >
+            Scanner
+          </button>
+        </div>
       </form>
 
       <p className="field__hint">
-        La recherche part uniquement quand tu la déclenches : OpenFoodFacts limite le débit des
-        clients anonymes.
+        La recherche par nom part uniquement quand tu la déclenches : OpenFoodFacts limite le débit
+        des clients anonymes. Le scan, lui, interroge directement le code lu.
       </p>
 
-      {submitted === '' ? (
-        <EmptyState title="Produits emballés">
-          Tape au moins 2 caractères puis « Chercher en ligne ». Un code-barres fonctionne aussi.
-        </EmptyState>
-      ) : (
-        // `isFetching` et non `isPending` : une requete desactivee reste
-        // « pending » indefiniment, le squelette ne partirait jamais.
-        results.isFetching && <LoadingRows rows={3} />
+      <BarcodeScanner
+        open={scanning}
+        onClose={() => setScanning(false)}
+        title="Scanner un produit"
+        onDetect={(code) => {
+          setScanning(false)
+          setText(code)
+          setSubmitted('')
+          setScanned(code)
+        }}
+      />
+
+      {scanned !== null && (
+        <ScannedProduct
+          ean={scanned}
+          query={barcode}
+          library={library}
+          onAdded={onAdded}
+          onDismiss={() => setScanned(null)}
+        />
       )}
 
-      {results.isError && <ErrorState error={results.error} onRetry={() => void results.refetch()} />}
+      {/* Un scan en cours occupe l'ecran seul : melanger son resultat avec une
+          liste de recherche precedente laisserait croire que le produit lu est
+          l'un des dix affiches. */}
+      {scanned === null && (
+        <>
+          {submitted === '' ? (
+            <EmptyState title="Produits emballés">
+              Scanne un code-barres, ou tape au moins 2 caractères puis « Chercher en ligne ».
+            </EmptyState>
+          ) : (
+            // `isFetching` et non `isPending` : une requete desactivee reste
+            // « pending » indefiniment, le squelette ne partirait jamais.
+            results.isFetching && <LoadingRows rows={3} />
+          )}
 
-      {results.isSuccess && !results.isFetching && results.data.items.length === 0 && (
-        <EmptyState title="Aucun résultat">
-          Rien ne correspond à « {submitted} » sur OpenFoodFacts. Tu peux créer la fiche à la main.
-        </EmptyState>
-      )}
+          {results.isError && (
+            <ErrorState error={results.error} onRetry={() => void results.refetch()} />
+          )}
 
-      {results.isSuccess && results.data.items.length > 0 && (
-        <ul className="ing-results">
-          {results.data.items.map((candidate) => (
-            <CandidateRow
-              key={catalogKey(candidate)}
-              candidate={candidate}
-              known={isKnown(candidate, library)}
-              checked={selected.has(catalogKey(candidate))}
-              onToggle={() => onToggle(candidate)}
-              onAdded={onAdded}
-            />
-          ))}
-        </ul>
+          {results.isSuccess && !results.isFetching && results.data.items.length === 0 && (
+            <EmptyState title="Aucun résultat">
+              Rien ne correspond à « {submitted} » sur OpenFoodFacts. Tu peux créer la fiche à la
+              main.
+            </EmptyState>
+          )}
+
+          {results.isSuccess && results.data.items.length > 0 && (
+            <ul className="ing-results">
+              {results.data.items.map((candidate) => (
+                <CandidateRow
+                  key={catalogKey(candidate)}
+                  candidate={candidate}
+                  known={isKnown(candidate, library)}
+                  checked={selected.has(catalogKey(candidate))}
+                  onToggle={() => onToggle(candidate)}
+                  onAdded={onAdded}
+                />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Resultat d'un scan
+// ---------------------------------------------------------------------------
+
+/**
+ * Le produit lu, seul a l'ecran.
+ *
+ * Trois issues possibles, et elles n'appellent pas la meme action :
+ * le produit est deja dans la bibliotheque (rien a faire), il est connu
+ * d'OpenFoodFacts (l'ajouter), ou personne ne le connait (le creer a la main
+ * avec son code deja rempli).
+ */
+function ScannedProduct({
+  ean,
+  query,
+  library,
+  onAdded,
+  onDismiss,
+}: {
+  ean: string
+  query: UseQueryResult<BarcodeResult, Error>
+  library: LibraryIndex
+  onAdded: (message: string) => void
+  onDismiss: () => void
+}) {
+  if (query.isPending) return <LoadingRows rows={1} />
+
+  if (query.isError) {
+    const notFound = query.error instanceof ApiError && query.error.status === 404
+    return (
+      <div className="card">
+        <h3 className="card__title">{notFound ? 'Produit inconnu' : 'Lecture impossible'}</h3>
+        <p className="card__lead">
+          {notFound
+            ? `Le code ${ean} n’est pas répertorié sur OpenFoodFacts. Tu peux créer la fiche à la main : le code est déjà rempli.`
+            : query.error.message}
+        </p>
+        <div className="ing-scan-actions">
+          {notFound && (
+            <Link
+              to={`/ingredients/nouveau?ean=${ean}`}
+              className="button button--primary"
+              onClick={onDismiss}
+            >
+              Créer la fiche
+            </Link>
+          )}
+          <button type="button" className="button button--secondary" onClick={onDismiss}>
+            Scanner autre chose
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const product = query.data
+  const known = product.alreadyKnown === true || isKnown(product, library)
+
+  return (
+    <div className="card">
+      {/* Pas de nom ni de marque ici : CandidateRow les affiche deja. Les
+          repeter au-dessus donnait la meme fiche deux fois de suite. */}
+      <p className="card__lead">
+        Code <strong>{ean}</strong>
+      </p>
+
+      {known && product.inLibrary ? (
+        <p className="status status--ok">Déjà dans ta bibliothèque.</p>
+      ) : (
+        <CandidateRow
+          candidate={product}
+          known={known}
+          checked={false}
+          onToggle={() => undefined}
+          onAdded={(message) => {
+            onAdded(message)
+            onDismiss()
+          }}
+        />
+      )}
+
+      <button type="button" className="button button--secondary" onClick={onDismiss}>
+        Scanner autre chose
+      </button>
+    </div>
   )
 }
 
@@ -458,11 +627,16 @@ function CandidateRow({
     else create.mutate(toCreatePayload(candidate), { onSuccess: done })
   }
 
+  // `toLocaleString('fr-FR')` et non l'interpolation brute : OpenFoodFacts rend
+  // « 6.3 », qui s'affichait tel quel au milieu d'une interface ou tous les
+  // autres nombres portent une virgule.
+  const gram = (value: number) => `${value.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} g`
+
   const macros = [
     candidate.kcal !== null ? `${Math.round(candidate.kcal)} kcal` : null,
-    candidate.proteins !== null ? `P ${candidate.proteins} g` : null,
-    candidate.carbs !== null ? `G ${candidate.carbs} g` : null,
-    candidate.fats !== null ? `L ${candidate.fats} g` : null,
+    candidate.proteins !== null ? `P ${gram(candidate.proteins)}` : null,
+    candidate.carbs !== null ? `G ${gram(candidate.carbs)}` : null,
+    candidate.fats !== null ? `L ${gram(candidate.fats)}` : null,
   ].filter((part): part is string => part !== null)
 
   return (

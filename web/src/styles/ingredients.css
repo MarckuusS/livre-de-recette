@@ -17,13 +17,26 @@
 .ing-toolbar {
   display: flex;
   gap: var(--space-sm);
+  /* `stretch` par defaut ferait suivre la hauteur du plus grand ; on veut
+     l'inverse, une rangee dont tous les elements font la meme taille imposee. */
+  align-items: center;
 }
 
 .ing-toolbar__action {
   display: grid;
   place-items: center;
   flex: 1;
+  /* Hauteur IMPOSEE, pas seulement minimale.
+     Un <a> et un <button> ne se dimensionnent pas pareil : le lien prenait la
+     hauteur de sa ligne de texte (56 px, gonflee par le « ＋ » pleine chasse)
+     quand le bouton restait a la hauteur minimale de .button (44 px). Deux
+     boutons cote a cote de tailles differentes, pour le meme role. */
+  height: var(--control-height-lg);
+  min-height: var(--control-height-lg);
+  line-height: 1;
+  padding: 0 var(--space-sm);
   text-decoration: none;
+  white-space: nowrap;
   /* Neutralise le `margin-top` que .button--secondary porte dans app.css pour
      son usage en pile : dans une rangee il decalerait un bouton sur deux. */
   margin-top: 0;

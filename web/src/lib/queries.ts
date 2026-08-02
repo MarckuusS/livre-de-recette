@@ -229,8 +229,36 @@ export function useOffSearch(query: string, enabled: boolean) {
   })
 }
 
-export const lookupBarcode = (ean: string): Promise<Ingredient & { alreadyKnown?: boolean }> =>
+export type BarcodeResult = Ingredient & {
+  /** Vrai quand la fiche existait deja en base : c'est ELLE qui est rendue. */
+  readonly alreadyKnown?: boolean
+}
+
+export const lookupBarcode = (ean: string): Promise<BarcodeResult> =>
   apiFetch(`/api/off/barcode/${encodeURIComponent(ean)}`)
+
+/**
+ * Produit derriere un code-barres.
+ *
+ * Passe par `/api/off/barcode/:ean` et non par la recherche texte : le point
+ * d'acces produit d'OpenFoodFacts repond sur le code exact, la recherche
+ * plein-texte peut rendre autre chose ou rien. En magasin, viser juste compte
+ * plus que ratisser large.
+ *
+ * Le resultat est garde 30 minutes : rescanner le meme produit — ce qui arrive
+ * quand on hesite devant un rayon — ne doit pas repartir sur le reseau.
+ */
+export function useBarcode(ean: string | null) {
+  return useQuery({
+    queryKey: ['barcode', ean],
+    queryFn: () => lookupBarcode(ean ?? ''),
+    enabled: ean !== null && ean.length >= 8,
+    staleTime: 30 * 60 * 1000,
+    // Un code inconnu d'OpenFoodFacts rend 404. Reessayer trois fois ne le
+    // fera pas apparaitre, et fait patienter pour rien devant le rayon.
+    retry: false,
+  })
+}
 
 // ------------------------------------------------------------------ prix
 

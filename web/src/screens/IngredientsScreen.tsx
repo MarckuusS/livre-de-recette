@@ -82,6 +82,10 @@ export function IngredientsScreen() {
   const [sortOpen, setSortOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  // Onglet et camera sont decides par le bouton qui ouvre la feuille : « Scanner »
+  // doit tomber directement sur l'objectif, sans deux taps de plus.
+  const [importTab, setImportTab] = useState<'ciqual' | 'off'>('ciqual')
+  const [autoScan, setAutoScan] = useState(false)
 
   // L'URL peut changer sans nous : bouton Retour, lien partage, reinitialisation
   // des filtres. Sans cette resynchronisation pendant le rendu, le tampon de
@@ -141,17 +145,37 @@ export function IngredientsScreen() {
         aria-label="Rechercher dans ma bibliothèque"
       />
 
+      {/* Trois entrees pour peupler la bibliotheque, de la plus rapide a la
+          plus laborieuse. « Scanner » ouvre l'import camera allumee : devant un
+          produit en main, c'est le chemin le plus court, et il etait absent.
+          Les glyphes decoratifs sont partis — le « ＋ » pleine chasse et la
+          fleche ⇩ ne s'accordaient ni entre eux ni avec le reste. */}
       <div className="ing-toolbar">
-        <Link to="/ingredients/nouveau" className="button button--primary ing-toolbar__action">
-          ＋ Nouveau
-        </Link>
+        <button
+          type="button"
+          className="button button--primary ing-toolbar__action"
+          onClick={() => {
+            setImportTab('off')
+            setAutoScan(true)
+            setImportOpen(true)
+          }}
+        >
+          Scanner
+        </button>
         <button
           type="button"
           className="button button--secondary ing-toolbar__action"
-          onClick={() => setImportOpen(true)}
+          onClick={() => {
+            setImportTab('ciqual')
+            setAutoScan(false)
+            setImportOpen(true)
+          }}
         >
-          ⇩ Importer
+          Importer
         </button>
+        <Link to="/ingredients/nouveau" className="button button--secondary ing-toolbar__action">
+          Nouveau
+        </Link>
       </div>
 
       <div className="ing-chips" role="group" aria-label="Filtres rapides">
@@ -241,7 +265,12 @@ export function IngredientsScreen() {
         onChange={(filters) => setView({ filters })}
       />
 
-      <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
+      <ImportSheet
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        initialTab={importTab}
+        autoScan={autoScan}
+      />
     </section>
   )
 }
