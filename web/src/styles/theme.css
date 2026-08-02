@@ -268,6 +268,22 @@ html {
      un zoom automatique a la mise au point — comportement non desactivable. */
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+
+  /* Le doigt fait defiler, il ne zoome pas.
+     `pan-x pan-y` autorise le defilement dans les deux sens et RIEN d'autre :
+     ni pincement, ni zoom par double tape. `manipulation`, souvent cite pour
+     cet usage, ne supprime que le double tape et laisse passer le pincement.
+     Voir src/lib/gestures.ts : ceci couvre Chrome et Android, Safari demande
+     un traitement en JavaScript. */
+  touch-action: pan-x pan-y;
+}
+
+/* Echappatoire pour ce qui gere ses propres gestes — un graphique qui veut le
+   pincement pour zoomer, une zone de selection a deux doigts. `none` rend la
+   main complete a l'element, qui devient responsable de tout, defilement
+   compris. */
+[data-allow-gestures] {
+  touch-action: none;
 }
 
 @media (min-width: 768px) {

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useCurrentUser } from '../AuthGate.js'
 import { ApiError, apiFetch, logout, type HealthResponse } from '../lib/api.js'
+import { currentZoomScale } from '../lib/gestures.js'
 
 /**
  * Parametres : qui est connecte, ce que repond le serveur, et ce que
@@ -35,6 +36,8 @@ interface ViewportMetrics {
   readonly safeTop: number
   readonly safeBottom: number
   readonly standalone: boolean
+  /** Facteur de zoom. Doit valoir 1 : au-dela, le pincement a echappe au blocage. */
+  readonly zoom: number
 }
 
 /**
@@ -87,6 +90,7 @@ function readMetrics(): ViewportMetrics {
       window.matchMedia('(display-mode: standalone)').matches ||
       // Safari iOS n'implemente pas display-mode et expose ce booleen non standard.
       (navigator as Navigator & { standalone?: boolean }).standalone === true,
+    zoom: currentZoomScale(),
   }
 }
 
@@ -101,10 +105,20 @@ function useViewportMetrics(): ViewportMetrics {
 
     window.addEventListener('resize', refresh)
     window.addEventListener('orientationchange', refresh)
+    // `visualViewport` est le SEUL a signaler un changement de zoom : un
+    // pincement ne declenche pas `resize`. Sans cet ecouteur, la ligne « Zoom »
+    // afficherait ×1 en permanence — donc mentirait exactement quand elle
+    // servirait a quelque chose.
+    const visual = window.visualViewport
+    visual?.addEventListener('resize', refresh)
+    visual?.addEventListener('scroll', refresh)
+
     return () => {
       clearTimeout(timer)
       window.removeEventListener('resize', refresh)
       window.removeEventListener('orientationchange', refresh)
+      visual?.removeEventListener('resize', refresh)
+      visual?.removeEventListener('scroll', refresh)
     }
   }, [])
 
@@ -220,6 +234,8 @@ export function SettingsScreen() {
           <dd>{view.safeTop}</dd>
           <dt>Marge système basse</dt>
           <dd>{view.safeBottom}</dd>
+          <dt>Zoom</dt>
+          <dd>{view.zoom === 1 ? 'bloqué (×1)' : `×${view.zoom.toFixed(2)}`}</dd>
         </dl>
 
         {/* La seule ligne qui demande une action. Les autres ne sont que du

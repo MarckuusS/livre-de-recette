@@ -3,10 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <!-- viewport-fit=cover : sans lui, iOS laisse des bandes blanches autour de
-         l'encoche en mode plein ecran, et env(safe-area-inset-*) reste a 0. -->
+         l'encoche en mode plein ecran, et env(safe-area-inset-*) reste a 0.
+
+         maximum-scale=1 + user-scalable=no : le pincement a deux doigts zoomait
+         par accident et laissait l'ecran dans un etat incomprehensible, sans
+         geste evident pour en sortir. L'interface est deja dimensionnee pour le
+         telephone — texte a 16 px minimum, cibles a 44 px — donc le zoom n'y
+         apporte rien qu'un accident.
+
+         iOS IGNORE ces deux attributs dans un onglet Safari, volontairement.
+         Il les honore une fois l'application installee sur l'ecran d'accueil,
+         qui est l'usage vise. Le repli pour le mode onglet vit dans
+         src/lib/gestures.ts. -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"
     />
     <meta name="description" content="Recettes, ingrédients, planning de la semaine et frigo." />
 
