@@ -110,3 +110,55 @@ export function formatGrams(grams: number): string {
     maximumFractionDigits: decimals,
   })} ${suffix}`
 }
+
+/**
+ * Contenance nette d'un produit emballe, ramenee en grammes.
+ *
+ * Vit ici, teste, parce qu'elle interprete des donnees EXTERIEURES et
+ * incoherentes. OpenFoodFacts rend les deux formes selon le point d'acces :
+ * `product_quantity: 400` accompagne de `product_quantity_unit: 'g'`, ou
+ * `product_quantity: "360 g"` unite comprise dans la chaine. Le repli sur le
+ * libelle humain (`quantity: "360 g"`) rattrape les fiches ou seul lui est
+ * renseigne.
+ *
+ * Les millilitres comptent 1 g pour 1 ml. C'est faux pour l'huile (0,92) et le
+ * miel (1,4), mais cette valeur ne sert qu'a proposer « 1 pièce = X g » : une
+ * approximation utile vaut mieux qu'un champ vide, et l'utilisateur la voit
+ * avant de l'accepter.
+ *
+ * Rend `null` plutot qu'une valeur douteuse — au-dela de 20 kg on tient une
+ * erreur de saisie, pas un produit de course.
+ */
+export function parseQuantityToGrams(
+  value: unknown,
+  unit?: unknown,
+  fallbackText?: unknown,
+): number | null {
+  const factors: Record<string, number> = {
+    mg: 0.001,
+    g: 1,
+    kg: 1000,
+    ml: 1,
+    cl: 10,
+    dl: 100,
+    l: 1000,
+  }
+
+  const fromParts = (amount: unknown, rawUnit: unknown): number | null => {
+    const n = typeof amount === 'number' ? amount : Number.parseFloat(String(amount ?? '').replace(',', '.'))
+    if (!Number.isFinite(n) || n <= 0) return null
+    const factor = factors[String(rawUnit ?? 'g').trim().toLowerCase()]
+    return factor === undefined ? null : n * factor
+  }
+
+  const fromText = (text: unknown): number | null => {
+    const match = /(\d+(?:[.,]\d+)?)\s*(mg|kg|g|ml|cl|dl|l)\b/i.exec(String(text ?? ''))
+    return match ? fromParts(match[1], match[2]) : null
+  }
+
+  const grams =
+    (typeof value === 'number' ? fromParts(value, unit) : fromText(value)) ?? fromText(fallbackText)
+
+  if (grams === null || grams <= 0 || grams > 20_000) return null
+  return Math.round(grams * 100) / 100
+}

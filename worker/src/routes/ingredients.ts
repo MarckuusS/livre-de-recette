@@ -7,7 +7,12 @@
  * distincts — retirer de la bibliotheque, et supprimer pour de bon.
  */
 
-import { ingredientCreateSchema, ingredientPatchSchema, priceHistoryEntrySchema } from '@livre/shared'
+import {
+  ingredientCreateSchema,
+  ingredientPatchSchema,
+  parseQuantityToGrams,
+  priceHistoryEntrySchema,
+} from '@livre/shared'
 
 import { logActivity } from '../activity.js'
 import { badRequest, HttpError, intParam, json, notFound, parseOrThrow, readJson, route } from '../http.js'
@@ -314,6 +319,97 @@ route('GET', '/api/off/barcode/:ean', async ({ params, env, repos }) => {
   return json(toOffCandidate(body.product))
 })
 
+// ---------------------------------------------------------------------------
+// Prix observes — Open Prices
+// ---------------------------------------------------------------------------
+
+/**
+ * Prix constate pour un code-barres, d'apres Open Prices.
+ *
+ * Open Prices est le projet de releves de prix d'OpenFoodFacts, alimente par
+ * des contributeurs qui photographient leurs tickets. Lecture publique, sans
+ * authentification.
+ *
+ * On ne rend PAS le dernier prix vu : sur un meme pot de 400 g, les releves
+ * vont de 2,77 € a 4,39 € selon l'enseigne et la periode. Un point isole
+ * serait une valeur au hasard presentee comme une reference. On rend donc la
+ * MEDIANE — insensible aux extremes, contrairement a la moyenne — accompagnee
+ * de l'etendue et du nombre de releves, pour que l'interface puisse dire a
+ * quel point s'y fier.
+ *
+ * Les prix promotionnels sont ecartes : ils tirent la mediane vers le bas et
+ * ne decrivent pas ce qu'on paiera un jour ordinaire.
+ */
+route('GET', '/api/prices/observed/:ean', async ({ params, env }) => {
+  const ean = (params['ean'] ?? '').replace(/\D/g, '')
+  if (ean.length < 8) throw badRequest('Code-barres invalide.', 'invalid_barcode')
+
+  const target = new URL('https://prices.openfoodfacts.org/api/v1/prices')
+  target.searchParams.set('product_code', ean)
+  target.searchParams.set('currency', 'EUR')
+  target.searchParams.set('price_is_discounted', 'false')
+  target.searchParams.set('order_by', '-date')
+  // 25 releves suffisent pour une mediane stable, et bornent le temps de
+  // reponse : on est devant un rayon, pas devant un tableur.
+  target.searchParams.set('size', '25')
+
+  let response: Response
+  try {
+    response = await fetch(target, {
+      headers: { 'User-Agent': env.OFF_USER_AGENT, Accept: 'application/json' },
+    })
+  } catch {
+    // Une suggestion de prix est un confort : son indisponibilite ne doit pas
+    // faire echouer l'ajout d'un produit. On rend « rien trouve ».
+    return json({ ean, found: false, sampleCount: 0 })
+  }
+
+  if (!response.ok) return json({ ean, found: false, sampleCount: 0 })
+
+  const body = (await response.json()) as {
+    items?: Array<{ price?: unknown; date?: unknown; product?: { product_quantity?: unknown; product_quantity_unit?: unknown } }>
+    total?: number
+  }
+
+  const items = Array.isArray(body.items) ? body.items : []
+  const prices = items
+    .map((i) => (typeof i.price === 'number' ? i.price : Number.parseFloat(String(i.price ?? ''))))
+    .filter((p) => Number.isFinite(p) && p > 0)
+    .sort((a, b) => a - b)
+
+  if (prices.length === 0) return json({ ean, found: false, sampleCount: 0 })
+
+  const middle = Math.floor(prices.length / 2)
+  const median =
+    prices.length % 2 === 1
+      ? (prices[middle] as number)
+      : ((prices[middle - 1] as number) + (prices[middle] as number)) / 2
+
+  // La contenance vient de la copie qu'Open Prices tient du produit : elle est
+  // parfois renseignee la ou la fiche OpenFoodFacts est vide.
+  const first = items[0]?.product ?? {}
+  const quantityG = parseQuantityToGrams(
+    (first as Record<string, unknown>)['product_quantity'],
+    (first as Record<string, unknown>)['product_quantity_unit'],
+    (first as Record<string, unknown>)['quantity'],
+  )
+
+  const lastDate = items.find((i) => typeof i.date === 'string')?.date ?? null
+
+  return json({
+    ean,
+    found: true,
+    // Chaine decimale, comme tout montant dans cette application.
+    priceEur: median.toFixed(4),
+    minEur: (prices[0] as number).toFixed(4),
+    maxEur: (prices[prices.length - 1] as number).toFixed(4),
+    sampleCount: prices.length,
+    totalCount: typeof body.total === 'number' ? body.total : prices.length,
+    quantityG,
+    lastSeen: lastDate,
+  })
+})
+
 /**
  * Traduit un produit OFF vers la forme d'un ingredient.
  *
@@ -350,7 +446,10 @@ function toOffCandidate(raw: unknown): Record<string, unknown> {
     salt: num('salt_100g'),
     priceEur: null,
     priceQuantityG: null,
-    pieceWeightG: null,
+    // Contenance du paquet. Pour un produit emballe, « une piece » EST le
+    // paquet : un pot de moutarde de 360 g. C'est ce qui permet d'ecrire
+    // « 1 pot » dans une recette plutot que de peser.
+    pieceWeightG: parseQuantityToGrams(p['product_quantity'], p['product_quantity_unit'], p['quantity']),
     cookedWeightPer100gRaw: null,
     inLibrary: false,
     categoryL1: null,

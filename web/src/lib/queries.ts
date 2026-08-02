@@ -282,6 +282,39 @@ export function usePriceHistory(ingredientId: number | null) {
 }
 
 /**
+ * Prix constate pour un code-barres, d'apres Open Prices.
+ *
+ * Une INDICATION, jamais une verite : les releves viennent de contributeurs,
+ * d'enseignes et de periodes differentes. L'interface doit montrer l'etendue
+ * et le nombre de releves a cote du montant, sans quoi elle presenterait une
+ * mediane comme un prix officiel.
+ */
+export interface ObservedPrice {
+  readonly ean: string
+  readonly found: boolean
+  readonly priceEur?: string
+  readonly minEur?: string
+  readonly maxEur?: string
+  readonly sampleCount: number
+  readonly totalCount?: number
+  /** Contenance du produit, quand Open Prices la connait. */
+  readonly quantityG?: number | null
+  readonly lastSeen?: string | null
+}
+
+export function useObservedPrice(ean: string | null) {
+  return useQuery({
+    queryKey: ['observed-price', ean],
+    queryFn: () => apiFetch<ObservedPrice>(`/api/prices/observed/${ean}`),
+    enabled: ean !== null && ean.length >= 8,
+    // Les prix bougent lentement : une heure de cache evite de reinterroger
+    // en boucle quand on hesite devant un rayon.
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  })
+}
+
+/**
  * Enregistre un prix pour un ingredient connu seulement a l'envoi.
  *
  * `useAddPrice` fige l'identifiant a la creation du hook, ce qui ne convient

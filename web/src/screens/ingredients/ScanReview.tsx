@@ -18,13 +18,14 @@
  */
 
 import { useState } from 'react'
-import type { Ingredient } from '@livre/shared'
+import { formatEuros, type Ingredient } from '@livre/shared'
 
 import { NumberField, TextField } from '../../components/Field.js'
 import { SourceBadge } from '../../components/States.js'
 import {
   useAddToLibrary,
   useCreateIngredient,
+  useObservedPrice,
   useRecordPrice,
   type BarcodeResult,
 } from '../../lib/queries.js'
@@ -36,6 +37,14 @@ function todayLocalIsoDate(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   return `${now.getFullYear()}-${month}-${day}`
+}
+
+/** « 2026-07-21 » -> « 21 juil. 2026 ». */
+function formatDay(iso: string): string {
+  const parsed = new Date(iso)
+  return Number.isNaN(parsed.getTime())
+    ? iso
+    : parsed.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 /** Les 8 macros du tableau reglementaire, dans l'ordre impose par l'etiquette. */
@@ -102,6 +111,36 @@ export function ScanReview({ ean, product, known, onAdded, onDismiss }: ScanRevi
   const [draft, setDraft] = useState<Draft>(() => draftFrom(product))
   const [macrosOpen, setMacrosOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Vrai tant que le prix affiche est la suggestion et non une saisie. */
+  const [priceIsSuggested, setPriceIsSuggested] = useState(false)
+
+  const observed = useObservedPrice(known ? null : ean)
+
+  /*
+   * Pre-remplissage a l'arrivee des prix constates.
+   *
+   * On n'ecrase JAMAIS une saisie : la condition ne pose la suggestion que sur
+   * des champs restes vides. Quelqu'un qui tape son prix pendant que la
+   * requete est en vol ne doit pas le voir remplace sous ses doigts.
+   *
+   * La contenance d'Open Prices sert de repli quand la fiche OpenFoodFacts n'a
+   * pas de quantite — le cas du Nutella, vide chez OFF et connu a 400 g ici.
+   */
+  const suggestion = observed.data
+  const [applied, setApplied] = useState<string | null>(null)
+  if (suggestion?.found === true && applied !== ean) {
+    setApplied(ean)
+    setDraft((previous) => {
+      const quantity = previous.priceQuantityG ?? previous.pieceWeightG ?? suggestion.quantityG ?? null
+      return {
+        ...previous,
+        pieceWeightG: previous.pieceWeightG ?? suggestion.quantityG ?? null,
+        priceEur: previous.priceEur ?? (suggestion.priceEur ? Number(suggestion.priceEur) : null),
+        priceQuantityG: quantity,
+      }
+    })
+    setPriceIsSuggested(true)
+  }
 
   const create = useCreateIngredient()
   const addToLibrary = useAddToLibrary()
@@ -213,12 +252,12 @@ export function ScanReview({ ean, product, known, onAdded, onDismiss }: ScanRevi
       {/* Deux informations qu'OpenFoodFacts n'a jamais, et que seul
           l'utilisateur peut donner — au moment ou il tient le produit. */}
       <NumberField
-        label="Poids d’une pièce"
+        label="Contenu d’une pièce"
         value={draft.pieceWeightG}
         onChange={(v) => set('pieceWeightG', v)}
         suffix="g"
         emptyOnZero
-        hint="1 œuf ≈ 60 g. Renseigné, il fait apparaître l’unité « pièce » partout."
+        hint="Ce que pèse UNE unité : un pot entier, un œuf, une gousse. Renseigné, tu pourras écrire « 1 pot » dans une recette au lieu de peser."
       />
 
       <fieldset className="scan-review__price">
@@ -226,7 +265,10 @@ export function ScanReview({ ean, product, known, onAdded, onDismiss }: ScanRevi
         <NumberField
           label="Montant"
           value={draft.priceEur}
-          onChange={(v) => set('priceEur', v)}
+          onChange={(v) => {
+            set('priceEur', v)
+            setPriceIsSuggested(false)
+          }}
           suffix="€"
           emptyOnZero
           {...(priceState === 'partial' && draft.priceEur === null
@@ -249,6 +291,33 @@ export function ScanReview({ ean, product, known, onAdded, onDismiss }: ScanRevi
           onChange={(v) => set('store', v)}
           placeholder="Facultatif"
         />
+
+        {observed.isFetching && <p className="field__hint">Recherche des prix constatés…</p>}
+
+        {/* La provenance et l'etendue accompagnent TOUJOURS le montant : une
+            mediane presentee seule passerait pour un prix officiel, alors que
+            l'ecart entre releves depasse souvent l'euro. */}
+        {suggestion?.found === true && priceIsSuggested && (
+          <p className="scan-review__suggested">
+            Prix médian relevé par Open Prices : <strong>{formatEuros(suggestion.priceEur ?? null)}</strong>
+            {suggestion.minEur && suggestion.maxEur && (
+              <>
+                {' '}
+                — observé entre {formatEuros(suggestion.minEur)} et {formatEuros(suggestion.maxEur)} sur{' '}
+                {suggestion.sampleCount} relevé{suggestion.sampleCount > 1 ? 's' : ''}
+                {suggestion.lastSeen ? `, le plus récent du ${formatDay(suggestion.lastSeen)}` : ''}.
+              </>
+            )}{' '}
+            Corrige-le si tu as le vrai prix sous les yeux.
+          </p>
+        )}
+
+        {suggestion?.found === false && (
+          <p className="field__hint">
+            Aucun prix constaté pour ce code. Saisis-le si tu l’as, sinon laisse vide.
+          </p>
+        )}
+
         <p className="field__hint">
           Facultatif. Il alimente l’historique de prix, et donc le coût de ta liste de courses.
         </p>
