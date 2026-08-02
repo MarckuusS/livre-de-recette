@@ -1,0 +1,854 @@
+{
+  "page": "Liste de courses",
+  "summary": "L'onglet 4 agrege le planning de repas d'une semaine ISO en une liste d'achats a plat, groupee visuellement par rayon, avec quantite totale en grammes (et equivalent en pieces), cout par ligne et total euros. Chaque ligne porte une case a cocher \"deja au frigo\", pre-cochee automatiquement quand le stock du Frigo/Cellier couvre le besoin, mais dont l'etat n'est jamais persiste. La seule action de sortie est \"Copier la liste\", qui recalcule un rendu texte depuis la base et le place dans le presse-papier.",
+  "features": [
+    {
+      "id": "acces-onglet-liste-de-courses",
+      "title": "Acceder a l'onglet Liste de courses",
+      "userAction": "L'utilisateur clique l'onglet « Liste de courses » dans la TabBar (4e position, largeur 180 px), ou utilise le menu « Affichage/Navigation → &4. Liste de courses », ou tape Ctrl+4.",
+      "behaviourDetails": "Le StackLayout preserve l'etat de la page (scroll, cases cochees) au changement d'onglet — rien n'est reinitialise. Un fade d'opacite (0.55 → 1.0, durationNormal, OutCubic) joue au changement d'index. La page n'a AUCUN autre raccourci clavier : Ctrl+Gauche / Ctrl+Droite / Ctrl+T (semaine precedente / suivante / aujourd'hui) sont declares uniquement dans CalendarPage.qml et ne fonctionnent PAS ici. La ShortcutsDialog liste bien Ctrl+4 mais range Ctrl+Gauche/Droite/T sous « Calendrier ».",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:153-156",
+        "app/ui/qml/Main.qml:205",
+        "app/ui/qml/Main.qml:240",
+        "app/ui/qml/dialogs/ShortcutsDialog.qml:44",
+        "app/ui/qml/dialogs/ShortcutsDialog.qml:63-65"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [
+        "GET /courses (route SPA)"
+      ],
+      "mobileNotes": "Sur telephone la TabBar a 5 onglets ne tient pas : passer en barre d'onglets basse avec icones (panier) ou menu burger. Pas de raccourci clavier a porter.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "semaine-iso-independante-du-calendrier",
+      "title": "Semaine ISO propre a la liste de courses",
+      "userAction": "Rien a faire : au demarrage la page se positionne sur la semaine ISO courante, independamment de la semaine affichee dans l'onglet Calendrier.",
+      "behaviourDetails": "`ShoppingViewModel.__init__` initialise `_iso_week = IsoWeek.from_date(datetime.now()).value` (format 'YYYY-Www', ex '2026-W18') puis appelle `refresh()` immediatement si un AppContext est fourni. C'est une semaine STRICTEMENT independante de `CalendarViewModel` : naviguer dans le calendrier ne bouge pas la liste de courses et inversement. Validation par le modele Pydantic `IsoWeek` : chaine de 8 caracteres, caracteres 4-5 == '-W', annee entre 2000 et 2100, semaine entre 1 et 53 — sinon ValueError (non rattrapee cote QML).",
+      "sourceRefs": [
+        "app/ui/viewmodels/shopping_vm.py:43",
+        "app/ui/viewmodels/shopping_vm.py:47-48",
+        "app/ui/viewmodels/shopping_vm.py:124-128",
+        "app/domain/models.py:247-269"
+      ],
+      "dataOps": [
+        "aucune (calcul de date pur)"
+      ],
+      "vmMethods": [
+        "ShoppingViewModel.__init__",
+        "ShoppingViewModel.iso_week",
+        "ShoppingViewModel.set_iso_week",
+        "isoWeek (Property str, notify=week_changed)"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18"
+      ],
+      "mobileNotes": "Garder la semaine dans l'URL (/courses/2026-W18) pour que le partage de lien et le retour arriere fonctionnent ; sinon l'etat se perd au reload PWA.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "bouton-semaine-precedente",
+      "title": "Bouton « ‹ Semaine precedente »",
+      "userAction": "Clic sur le bouton secondary tout a gauche de la barre de navigation.",
+      "behaviourDetails": "Appelle `shoppingVM.shiftWeek(-1)`. Cote Python : parse `_iso_week[:4]` (annee) et `_iso_week[6:]` (semaine), reconstruit le lundi via `datetime.fromisocalendar(year, week, 1)`, retranche `timedelta(weeks=1)`, re-derive la cle ISO. Gere donc correctement les bascules d'annee (2026-W01 → 2025-W52/W53). Emet `week_changed` PUIS appelle `refresh()` — la liste est donc systematiquement recalculee. Aucune borne min/max : on peut remonter indefiniment (jusqu'a sortir de la plage 2000-2100 valide pour `IsoWeek`, mais `shift_week` ne revalide pas, donc pas d'erreur levee).",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:37-41",
+        "app/ui/viewmodels/shopping_vm.py:76-78",
+        "app/ui/viewmodels/shopping_vm.py:130-137"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry WHERE iso_week = ?",
+        "SELECT recipe WHERE id IN (...)",
+        "SELECT ingredient WHERE id IN (...)",
+        "SELECT SUM(quantity_g) FROM pantry_stock GROUP BY ingredient_id"
+      ],
+      "vmMethods": [
+        "ShoppingViewModel.shiftWeek",
+        "ShoppingViewModel.shift_week",
+        "ShoppingViewModel.refresh"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W17"
+      ],
+      "mobileNotes": "Cible tactile minimale 44x44 px ; ajouter un swipe horizontal gauche/droite sur la liste pour changer de semaine, plus naturel que deux boutons sur un ecran etroit.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "bouton-semaine-suivante",
+      "title": "Bouton « Semaine suivante › »",
+      "userAction": "Clic sur le bouton secondary a droite du bouton de synchronisation.",
+      "behaviourDetails": "Identique au precedent avec `shiftWeek(1)` : `monday + timedelta(weeks=1)`. Meme sequence emit `week_changed` + `refresh()`. Aucun plafond : on peut avancer sur des semaines vides sans avertissement (on tombe alors sur l'etat vide).",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:47-51",
+        "app/ui/viewmodels/shopping_vm.py:76-78",
+        "app/ui/viewmodels/shopping_vm.py:130-137"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry WHERE iso_week = ?",
+        "SELECT recipe WHERE id IN (...)",
+        "SELECT ingredient WHERE id IN (...)",
+        "SELECT SUM(quantity_g) FROM pantry_stock GROUP BY ingredient_id"
+      ],
+      "vmMethods": [
+        "ShoppingViewModel.shiftWeek",
+        "ShoppingViewModel.shift_week",
+        "ShoppingViewModel.refresh"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W19"
+      ],
+      "mobileNotes": "Idem : swipe + boutons larges. Prevoir un skeleton pendant le fetch reseau, absent en desktop ou le calcul est synchrone.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "bouton-synchroniser-avec-calendrier",
+      "title": "Bouton « Synchroniser avec calendrier »",
+      "userAction": "Clic sur le bouton ghost central de la barre de navigation.",
+      "behaviourDetails": "Appelle `shoppingVM.setIsoWeek(calendarVM.isoWeek)` : recopie la semaine actuellement affichee dans l'onglet Calendrier. `set_iso_week` valide d'abord via `IsoWeek(value=value)` (leve une ValueError non rattrapee si le format est invalide), affecte, emet `week_changed`, puis `refresh()`. Effet de bord important : comme le refresh est inconditionnel, meme si la semaine est DEJA la meme, ce bouton fait aussi office de bouton « rafraichir » manuel — c'est le SEUL moyen pour l'utilisateur de recharger la liste apres avoir modifie son planning dans le calendrier. Aucun etat desactive, aucun feedback visuel de succes.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:42-46",
+        "app/ui/viewmodels/shopping_vm.py:72-74",
+        "app/ui/viewmodels/shopping_vm.py:124-128"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry WHERE iso_week = ?",
+        "SELECT recipe WHERE id IN (...)",
+        "SELECT ingredient WHERE id IN (...)",
+        "SELECT SUM(quantity_g) FROM pantry_stock GROUP BY ingredient_id"
+      ],
+      "vmMethods": [
+        "ShoppingViewModel.setIsoWeek",
+        "ShoppingViewModel.set_iso_week",
+        "ShoppingViewModel.refresh"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week={semaine du calendrier}"
+      ],
+      "mobileNotes": "Sur mobile la notion de « semaine du calendrier » n'est pas visible depuis cet ecran : remplacer par un vrai selecteur de semaine (date picker / chips) plus un pull-to-refresh pour la fonction de rechargement.",
+      "blockers": "Depend d'un etat partage entre deux ecrans (calendarVM.isoWeek) ; sur le web il faudra un store global ou un parametre d'URL.",
+      "priority": "important",
+      "complexity": "S"
+    },
+    {
+      "id": "titre-semaine-en-tete",
+      "title": "Titre « Liste de courses · Semaine YYYY-Www »",
+      "userAction": "Lecture seule, aligne a droite dans la barre de navigation.",
+      "behaviourDetails": "Texte concatene : `\"Liste de courses · Semaine \" + shoppingVM.isoWeek`. La cle ISO est affichee BRUTE ('2026-W18'), sans conversion en dates lisibles (pas de « du 27 avril au 3 mai »). Police fontSizeLg, poids SemiBold, couleur colorText. Se met a jour via le signal `week_changed`.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:57-63",
+        "app/ui/viewmodels/shopping_vm.py:56-58"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "isoWeek (Property str, notify=week_changed)"
+      ],
+      "proposedApi": [],
+      "mobileNotes": "Ecran etroit : afficher plutot « Sem. 18 · 27 avr → 3 mai » et deplacer le titre au-dessus des boutons de navigation.",
+      "blockers": "",
+      "priority": "polish",
+      "complexity": "S"
+    },
+    {
+      "id": "agregation-planning-vers-liste",
+      "title": "Agregation du planning de la semaine en liste d'achats",
+      "userAction": "Automatique a chaque affichage / changement de semaine : l'utilisateur voit la liste consolidee de tout ce qu'il a planifie.",
+      "behaviourDetails": "`aggregate_shopping_list(session, iso_week)` : (1) charge toutes les `meal_plan_entry` de la semaine triees par day_of_week, slot, ordinal ; (2) bulk-load des recettes referencees (1 SELECT ... IN + selectinload lines/ingredient/tags) ; (3) parcourt les entrees et remplit un dict `{ingredient_id: total_g}` ; (4) bulk-load des ingredients ; (4bis) charge les totaux du frigo ; (5) hydrate chaque ligne avec cout. Contrainte de perf verrouillee par test : nombre de SELECT constant (≤ 8), jamais O(N). L'entree du planning est un XOR recipe_id / ingredient_id.",
+      "sourceRefs": [
+        "app/services/shopping_service.py:25-123",
+        "app/data/repositories/meal_plan.py:18-28",
+        "app/data/repositories/recipe.py:38-56",
+        "app/data/repositories/ingredient.py:23-33",
+        "tests/test_shopping_service.py:288-335"
+      ],
+      "dataOps": [
+        "SELECT * FROM meal_plan_entry WHERE iso_week = ? ORDER BY day_of_week, slot, ordinal",
+        "SELECT * FROM recipe WHERE id IN (...) + selectinload(lines→ingredient, tags)",
+        "SELECT * FROM ingredient WHERE id IN (...)",
+        "SELECT ingredient_id, SUM(quantity_g) FROM pantry_stock GROUP BY ingredient_id"
+      ],
+      "vmMethods": [
+        "ShoppingViewModel.refresh",
+        "shopping_service.aggregate_shopping_list"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18"
+      ],
+      "mobileNotes": "Calcul a garder cote serveur (Worker + D1) : le client ne doit recevoir que la liste deja agregee. Prevoir un cache offline (IndexedDB / Cache API) car la PWA sera utilisee en supermarche, potentiellement sans reseau.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "M"
+    },
+    {
+      "id": "depliage-recettes-ratio-portions",
+      "title": "Depliage des recettes avec mise a l'echelle par portions",
+      "userAction": "Automatique : une recette planifiee pour N portions ne consomme qu'une fraction de ses quantites de reference.",
+      "behaviourDetails": "Pour chaque entree de type recette : `default = max(recipe.default_portions, 1)` (garde-fou contre une division par zero), `ratio = (entry.portions or 1.0) / default`. Chaque ligne de recette contribue `line.quantity_g * ratio`. Exemple verrouille par test : recette a 4 portions, entree a 2 portions → 200 g deviennent 100 g. `entry.portions` a None est traite comme 1.0. Les lignes dont `line.ingredient.id` est None sont ignorees.",
+      "sourceRefs": [
+        "app/services/shopping_service.py:61-73",
+        "tests/test_shopping_service.py:95-114"
+      ],
+      "dataOps": [
+        "lecture recipe.default_portions, recipe_ingredient.quantity_g, meal_plan_entry.portions"
+      ],
+      "vmMethods": [
+        "shopping_service.aggregate_shopping_list"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18 (calcul inclus)"
+      ],
+      "mobileNotes": "Aucune interaction ; c'est du calcul serveur. Eventuellement exposer le detail « d'ou vient cette quantite » au tap long, absent en desktop.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "M"
+    },
+    {
+      "id": "somme-multi-sources-par-ingredient",
+      "title": "Somme d'un meme ingredient issu de plusieurs sources",
+      "userAction": "Automatique : la carotte utilisee dans deux recettes plus une entree brute apparait sur UNE seule ligne.",
+      "behaviourDetails": "Le bucket `qty_by_ing` est alimente indistinctement par les lignes de recettes (avec ratio) et par les entrees brutes (`entry.quantity_g or 0.0`). Test : 200 g via recette + 100 g brut = 300 g sur une ligne unique. Aucune deduplication par nom — la cle est strictement `ingredient_id`, donc deux ingredients homonymes (un CIQUAL, un manuel) restent deux lignes distinctes.",
+      "sourceRefs": [
+        "app/services/shopping_service.py:59-78",
+        "tests/test_shopping_service.py:81-92",
+        "tests/test_shopping_service.py:117-133"
+      ],
+      "dataOps": [
+        "agregation en memoire sur ingredient_id"
+      ],
+      "vmMethods": [
+        "shopping_service.aggregate_shopping_list"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18"
+      ],
+      "mobileNotes": "RAS.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "degradation-silencieuse-references-orphelines",
+      "title": "Tolerance aux references orphelines",
+      "userAction": "Invisible : si une recette ou un ingredient planifie a ete supprime depuis, la liste s'affiche quand meme.",
+      "behaviourDetails": "Deux `continue` silencieux : entree pointant une recette introuvable (`recipes_by_id.get()` → None) et bucket pointant un ingredient introuvable (`ingredients_by_id.get()` → None). Aucune exception, aucun message, aucun compteur — l'element disparait simplement de la liste. Test dedie : supprimer la recette apres planification donne `items == []` et `total_eur == 0.00`.",
+      "sourceRefs": [
+        "app/services/shopping_service.py:63-64",
+        "app/services/shopping_service.py:92-94",
+        "tests/test_shopping_service.py:173-187"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "shopping_service.aggregate_shopping_list"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18"
+      ],
+      "mobileNotes": "RAS ; envisager sur le web un compteur « X elements ignores » plutot qu'un silence total.",
+      "blockers": "",
+      "priority": "important",
+      "complexity": "S"
+    },
+    {
+      "id": "tri-par-rayon-puis-nom",
+      "title": "Tri des lignes : rayon puis nom",
+      "userAction": "Automatique, non configurable : aucun bouton de tri sur la page.",
+      "behaviourDetails": "`items.sort(key=lambda i: (i.category_l1 is None, (i.category_l1 or '').lower(), i.name.lower()))`. Consequences precises : (1) les ingredients avec rayon passent AVANT ceux sans rayon (False < True) ; (2) tri alphabetique du rayon en minuscules ; (3) puis tri alphabetique du nom en minuscules. Tri stable. Test verrouille : ['Aubergine', 'Carotte'] (fruits, legumes) puis ['Boeuf'] (viandes) puis ['Sel'] (sans rayon). Attention : la casse est aplatie mais PAS les accents — « Épicerie » se classe apres « Zeste » en tri byte-wise Python.",
+      "sourceRefs": [
+        "app/services/shopping_service.py:111-116",
+        "tests/test_shopping_service.py:136-153"
+      ],
+      "dataOps": [
+        "lecture ingredient.category_l1, ingredient.name"
+      ],
+      "vmMethods": [
+        "shopping_service.aggregate_shopping_list"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18 (tri applique cote serveur)"
+      ],
+      "mobileNotes": "Le tri par rayon est LE tri utile en magasin : le conserver par defaut. Prevoir eventuellement un reordonnancement des rayons selon le parcours du magasin de l'utilisateur (absent du desktop).",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "entetes-de-section-par-rayon",
+      "title": "En-tetes de section par rayon",
+      "userAction": "Lecture : une bande coloree separe chaque groupe d'ingredients dans la liste.",
+      "behaviourDetails": "`ListView.section.property = 'categoryL1'`, `criteria = ViewSection.FullString`. Delegate : Rectangle pleine largeur, hauteur fixe 32 px, fond `Qt.alpha(Theme.colorPrimary, 0.06)`. Texte : `(section || 'Non categorise').toUpperCase()`, marge gauche spaceMd, couleur colorPrimary, fontSizeSm, poids SemiBold, letterSpacing 0.5. Le fallback se declenche quand `category_l1` vaut NULL (QML convertit null en chaine vide, donc `|| 'Non catégorisé'`). Le groupement est purement VISUEL : le modele reste une liste a plat, il repose entierement sur le tri prealable du service (deux blocs du meme rayon separes produiraient deux en-tetes).",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:84-102",
+        "app/ui/models/shopping_list_model.py:25",
+        "app/ui/models/shopping_list_model.py:116"
+      ],
+      "dataOps": [
+        "lecture ingredient.category_l1"
+      ],
+      "vmMethods": [
+        "ShoppingListModel.CategoryL1Role"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18 (champ categoryL1 par item)"
+      ],
+      "mobileNotes": "En-tetes collants (sticky) recommandes sur mobile : en scrollant une longue liste en magasin, on doit toujours savoir dans quel rayon on est. Envisager aussi le repli/depli d'un rayon (absent en desktop).",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "ligne-affichage-nom-ingredient",
+      "title": "Affichage du nom de l'ingredient",
+      "userAction": "Lecture : le nom occupe l'espace flexible de la ligne (hauteur 44 px).",
+      "behaviourDetails": "`Layout.fillWidth: true`, fontSizeMd, poids Medium, `elide: Text.ElideRight` (troncature a droite si trop long). Couleur conditionnelle : `colorTextSecondary` si la case « deja au frigo » est cochee, sinon `colorText`. `font.strikeout: model.inFridge` — le nom est barre quand coche. Le nom n'est PAS cliquable : aucune navigation vers la fiche ingredient depuis cette page (contrairement a l'onglet Recettes).",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:131-140",
+        "app/ui/models/shopping_list_model.py:111"
+      ],
+      "dataOps": [
+        "lecture ingredient.name"
+      ],
+      "vmMethods": [
+        "ShoppingListModel.NameRole"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18"
+      ],
+      "mobileNotes": "Sur ecran etroit le nom + quantite + prix ne tiennent pas sur une ligne : passer en deux lignes (nom en gras, puis quantite · prix en secondaire).",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "ligne-format-quantite",
+      "title": "Formatage de la quantite affichee (g / kg)",
+      "userAction": "Lecture : colonne de 200 px alignee a droite entre le nom et le prix.",
+      "behaviourDetails": "Fonction JS `_formatQty(quantityG, pieceWeightG)` de ShoppingPage.qml. Regles exactes : si `quantityG >= 1000` → conversion en kg avec 2 decimales si kg < 10, sinon 1 decimale, locale Qt (virgule en fr) + ' kg'. Sinon si `quantityG >= 10` → `Math.round(quantityG) + ' g'` (entier arrondi). Sinon → 1 decimale + ' g'. Le stockage est toujours en grammes (`quantity_g` float ≥ 0 valide par Pydantic).",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:141-148",
+        "app/ui/qml/pages/ShoppingPage.qml:288-306",
+        "app/domain/shopping.py:25"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "ShoppingListModel.QuantityGRole"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18 (quantityG brut, formatage cote client)"
+      ],
+      "mobileNotes": "Colonne fixe de 200 px a abandonner : quantite sur la seconde ligne de la carte, en petit.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "ligne-equivalent-en-pieces",
+      "title": "Equivalent « ≈ N piece(s) » pour les ingredients a poids unitaire",
+      "userAction": "Lecture : suffixe ajoute a la quantite quand l'ingredient a un poids unitaire renseigne (oeuf 60 g, oignon 150 g…).",
+      "behaviourDetails": "Affiche seulement si `pieceWeightG > 0`. Calcul : `pieces = quantityG / pieceWeightG`, arrondi a 0,1 via `Math.round(pieces * 10) / 10`. Formatage : 0 decimale si le resultat est entier, sinon 1 decimale, locale Qt. Pluriel « pieces » si `rounded > 1` (donc 1,0 piece reste au singulier, 1,5 pieces au pluriel). Separateur : deux espaces puis « ≈ ». Exemple test : 180 g d'oeufs avec piece_weight_g = 60 → piece_count 3.0. Cote domaine, la propriete `ShoppingItem.piece_count` retourne None si `piece_weight_g` est falsy.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:298-305",
+        "app/domain/shopping.py:52-58",
+        "app/services/shopping_service.py:105",
+        "tests/test_shopping_service.py:190-202"
+      ],
+      "dataOps": [
+        "lecture ingredient.piece_weight_g"
+      ],
+      "vmMethods": [
+        "ShoppingListModel.PieceWeightGRole",
+        "ShoppingListModel.PieceCountRole"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18 (champs pieceWeightG, pieceCount)"
+      ],
+      "mobileNotes": "C'est l'information la plus utile en rayon (« 3 oeufs » plutot que « 180 g ») : la mettre en avant, pas en suffixe discret.",
+      "blockers": "",
+      "priority": "important",
+      "complexity": "S"
+    },
+    {
+      "id": "ligne-cout-unitaire",
+      "title": "Cout de la ligne en euros",
+      "userAction": "Lecture : colonne de 80 px alignee a droite en fin de ligne.",
+      "behaviourDetails": "Visible uniquement si `model.hasPrice`. Le role `costEur` est une CHAINE (Decimal serialise, ex '0.60') — QML fait `Number(parseFloat(x)).toLocaleString(Qt.locale(), 'f', 2) + ' €'`, soit 2 decimales avec virgule en francais. Police fontSizeMd, poids SemiBold, couleur colorText. Si `costEur` est falsy (null), le texte est vide.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:149-160",
+        "app/ui/models/shopping_list_model.py:105-106",
+        "app/ui/models/shopping_list_model.py:117-118"
+      ],
+      "dataOps": [
+        "lecture ingredient.price_eur, ingredient.price_quantity_g"
+      ],
+      "vmMethods": [
+        "ShoppingListModel.CostEurRole",
+        "ShoppingListModel.HasPriceRole"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18 (costEur en string decimal)"
+      ],
+      "mobileNotes": "Garder les euros en string cote API (pas de float JS) et formater avec Intl.NumberFormat('fr-FR', {style:'currency', currency:'EUR'}).",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "calcul-du-cout-arrondi",
+      "title": "Regle de calcul du cout (Decimal, ROUND_HALF_UP)",
+      "userAction": "Automatique.",
+      "behaviourDetails": "`pricing.ingredient_cost(ingredient, quantity_g)` : retourne None si `price_per_g` est None. `price_per_g = price_eur / Decimal(str(price_quantity_g))`, None si `price_eur` est None OU si `price_quantity_g` est falsy (0 ou None). Cout = `price_per_g * Decimal(str(quantity_g))` quantize a 0.01 avec ROUND_HALF_UP. Tout en Decimal pour eviter la derive flottante. Validations Pydantic amont : `price_eur` doit etre None ou strictement > 0 (« Le prix doit etre strictement positif. »), `price_quantity_g` et `piece_weight_g` None ou strictement > 0 (« Une quantite (g) doit etre strictement positive. »). Exemple test : 1,20 €/kg × 500 g = 0,60 €.",
+      "sourceRefs": [
+        "app/domain/pricing.py:39-43",
+        "app/domain/models.py:129-147",
+        "app/services/shopping_service.py:95",
+        "tests/test_shopping_service.py:63-78"
+      ],
+      "dataOps": [
+        "lecture ingredient.price_eur, ingredient.price_quantity_g"
+      ],
+      "vmMethods": [
+        "pricing.ingredient_cost"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18"
+      ],
+      "mobileNotes": "JS n'a pas de Decimal : faire le calcul cote Worker et transmettre des strings, sinon les totaux divergeront du desktop.",
+      "blockers": "Le type Decimal Python n'a pas d'equivalent natif en JS/TS — prevoir une lib decimale ou des entiers en centimes cote Worker.",
+      "priority": "core",
+      "complexity": "M"
+    },
+    {
+      "id": "ligne-badge-prix-manquant",
+      "title": "Badge « (prix manquant) » par ligne",
+      "userAction": "Lecture : remplace la colonne prix quand l'ingredient n'a pas de tarif renseigne.",
+      "behaviourDetails": "Visible si `!model.hasPrice`. Texte litteral « (prix manquant) », couleur `Theme.colorWarning`, fontSizeXs, colonne 80 px alignee a droite. Purement informatif : aucun clic, aucun raccourci pour aller renseigner le prix de l'ingredient depuis cette page.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:161-169",
+        "app/domain/shopping.py:42-44"
+      ],
+      "dataOps": [
+        "lecture ingredient.price_eur"
+      ],
+      "vmMethods": [
+        "ShoppingListModel.HasPriceRole",
+        "ShoppingItem.has_price"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18 (champ hasPrice)"
+      ],
+      "mobileNotes": "Opportunite web : rendre le badge tappable pour ouvrir une saisie rapide de prix — le desktop ne le permet pas et c'est une friction connue.",
+      "blockers": "",
+      "priority": "important",
+      "complexity": "S"
+    },
+    {
+      "id": "case-a-cocher-deja-au-frigo",
+      "title": "Case a cocher « deja au frigo » par ligne",
+      "userAction": "Clic sur la case a cocher a gauche de chaque ligne pour marquer l'ingredient comme deja possede.",
+      "behaviourDetails": "`AppCheckBox` (indicateur 18x18, radius sm, bordure 1,5 px, coche dessinee au Canvas, animations durationFast). `checked: model.inFridge` (binding), `onClicked: shoppingVM.setInFridge(model.ingredientId, checked)`. Cote VM : `setInFridge` fait un balayage LINEAIRE de toutes les lignes du modele pour retrouver l'`ingredientId`, puis `setData(idx, value, InFridgeRole)` qui met a jour le dict `_in_fridge` et emet `dataChanged` sur ce seul index. `setData` refuse tout role autre que `InFridgeRole` (retourne False). Aucun ecrit en base.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:127-130",
+        "app/ui/viewmodels/shopping_vm.py:84-94",
+        "app/ui/models/shopping_list_model.py:85-94",
+        "app/ui/qml/components/AppCheckBox.qml:14-70"
+      ],
+      "dataOps": [
+        "aucune (etat purement en memoire)"
+      ],
+      "vmMethods": [
+        "ShoppingViewModel.setInFridge",
+        "ShoppingListModel.setData"
+      ],
+      "proposedApi": [
+        "PATCH /api/shopping-list/{week}/items/{ingredientId} { \"inFridge\": true } (si l'on decide de persister)"
+      ],
+      "mobileNotes": "Cible tactile trop petite (18 px) : rendre TOUTE la ligne tappable pour basculer la coche, avec la case comme simple indicateur. Prevoir une mise a jour optimiste + file d'attente offline si l'etat devient persiste.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "pre-cochage-automatique-depuis-le-frigo",
+      "title": "Pre-cochage automatique depuis le stock du Frigo / Cellier",
+      "userAction": "Automatique a chaque chargement : les ingredients deja disponibles en quantite suffisante arrivent deja coches.",
+      "behaviourDetails": "`aggregate_shopping_list` charge `PantryRepo.aggregate_quantity_by_ingredient()` (SUM(quantity_g) GROUP BY ingredient_id sur tous les lots) et estampille `in_pantry_g` sur chaque `ShoppingItem` (0.0 si absent). `ShoppingItem.is_covered_by_pantry` retourne True ssi `in_pantry_g >= quantity_g ET quantity_g > 0` (donc une ligne a quantite nulle n'est jamais consideree couverte). `ShoppingListModel.set_items` reseme le dict `_in_fridge` avec cette valeur pour chaque ligne. L'utilisateur peut decocher manuellement ensuite.",
+      "sourceRefs": [
+        "app/services/shopping_service.py:83-85",
+        "app/services/shopping_service.py:108",
+        "app/domain/shopping.py:37-50",
+        "app/ui/models/shopping_list_model.py:55-62",
+        "app/data/repositories/pantry.py:95-103"
+      ],
+      "dataOps": [
+        "SELECT ingredient_id, SUM(quantity_g) FROM pantry_stock GROUP BY ingredient_id"
+      ],
+      "vmMethods": [
+        "ShoppingListModel.set_items",
+        "PantryRepo.aggregate_quantity_by_ingredient",
+        "ShoppingItem.is_covered_by_pantry"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18 (champs inPantryG, isCoveredByPantry)"
+      ],
+      "mobileNotes": "Afficher explicitement « deja 500 g au frigo » sous le nom : sur mobile l'auto-coche sans explication est deroutante (l'utilisateur croit avoir coche par erreur).",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "M"
+    },
+    {
+      "id": "etat-coche-non-persiste",
+      "title": "L'etat « deja au frigo » n'est jamais persiste",
+      "userAction": "Consequence subie : en changeant de semaine puis en revenant, toutes les coches manuelles sont perdues.",
+      "behaviourDetails": "Le dict `_in_fridge` vit dans l'instance de `ShoppingListModel` et est INTEGRALEMENT reconstruit a chaque `set_items()` (donc a chaque `refresh()`, chaque changement de semaine, chaque rafraichissement declenche par le Frigo). Il n'est reseme QUE depuis `is_covered_by_pantry` : toute coche/decoche manuelle est effacee. Aucune colonne en base, aucune ecriture. Commentaire de code explicite : « Not persisted — cleared on every refresh » (Phase 1 du plan F1).",
+      "sourceRefs": [
+        "app/ui/models/shopping_list_model.py:4-5",
+        "app/ui/models/shopping_list_model.py:50-62",
+        "app/ui/viewmodels/shopping_vm.py:86-87"
+      ],
+      "dataOps": [
+        "aucune"
+      ],
+      "vmMethods": [
+        "ShoppingListModel.set_items"
+      ],
+      "proposedApi": [
+        "POST /api/shopping-list/{week}/checked { ingredientIds: [] } (a creer si l'on persiste)"
+      ],
+      "mobileNotes": "Bloquant a l'usage reel en PWA : on coche au fur et a mesure dans le magasin, l'app peut etre mise en arriere-plan et rechargee par iOS. La persistance des coches (serveur + localStorage) devient obligatoire sur mobile.",
+      "blockers": "Comportement desktop a NE PAS porter tel quel : il faut ajouter une persistance (table ou champ JSON par semaine).",
+      "priority": "core",
+      "complexity": "M"
+    },
+    {
+      "id": "ligne-etat-visuel-coche",
+      "title": "Etat visuel d'une ligne cochee",
+      "userAction": "Retour visuel immediat apres avoir coche.",
+      "behaviourDetails": "Fond de la ligne : `Qt.alpha(Theme.colorSuccess, 0.06)` quand `inFridge` est vrai. Le nom passe en `colorTextSecondary` et devient barre (`font.strikeout`). Transition de couleur animee via `Behavior on color { ColorAnimation { duration: Theme.durationFast } }` (150 ms). La quantite et le prix ne changent PAS d'apparence et la ligne reste comptee dans le total et dans le compteur d'ingredients.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:104-112",
+        "app/ui/qml/pages/ShoppingPage.qml:134-138"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "ShoppingListModel.InFridgeRole"
+      ],
+      "proposedApi": [],
+      "mobileNotes": "Bon candidat au swipe-to-check. Envisager de deplacer les lignes cochees en bas de leur rayon (le desktop ne le fait pas).",
+      "blockers": "",
+      "priority": "important",
+      "complexity": "S"
+    },
+    {
+      "id": "ligne-survol",
+      "title": "Surbrillance au survol d'une ligne",
+      "userAction": "Passage de la souris sur une ligne non cochee.",
+      "behaviourDetails": "`MouseArea` en `hoverEnabled: true` et `acceptedButtons: Qt.NoButton` (donc purement decoratif — la ligne n'intercepte AUCUN clic). Fond `Theme.colorSurfaceHover` si survolee et non cochee, sinon `Theme.colorTransparent`. Le fond « coche » (vert) est prioritaire sur le survol.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:107-119"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "mobileNotes": "Le survol n'existe pas sur telephone : remplacer par un etat :active/pressed. Ne rien perdre puisque le survol ne porte aucune information.",
+      "blockers": "Pas de survol sur mobile.",
+      "priority": "polish",
+      "complexity": "S"
+    },
+    {
+      "id": "aucune-action-au-niveau-ligne",
+      "title": "Absence d'actions au niveau d'une ligne",
+      "userAction": "Constat : rien d'autre que la case a cocher n'est actionnable sur une ligne.",
+      "behaviourDetails": "Aucun clic sur la ligne, aucun double-clic, AUCUN menu contextuel (clic droit), aucun bouton de suppression, aucune edition de quantite, aucun ajout manuel d'article hors planning, aucun regroupement/repli, aucune option de tri, aucun filtre. La liste est en lecture seule a l'exception de la case a cocher. C'est le perimetre reel du desktop — a connaitre pour ne pas croire a un oubli d'inventaire.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:104-171"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [
+        "(rien a porter ; candidats web : POST /api/shopping-list/{week}/extra-items, DELETE .../items/{id})"
+      ],
+      "mobileNotes": "Ajouter un article libre (« sacs poubelle ») est LE manque le plus attendu d'une liste de courses mobile — a arbitrer avant le portage.",
+      "blockers": "",
+      "priority": "polish",
+      "complexity": "S"
+    },
+    {
+      "id": "roles-frigo-exposes-non-affiches",
+      "title": "Donnees de stock exposees mais non affichees",
+      "userAction": "Invisible.",
+      "behaviourDetails": "Le modele expose 12 roles ; deux d'entre eux — `inPantryG` (quantite deja au frigo, en grammes) et `isCoveredByPantry` (booleen) — ne sont utilises par AUCUN element de ShoppingPage.qml. Ils ne servent qu'indirectement, via le pre-cochage cote Python. Le role `source` ('ciqual' / 'openfoodfacts' / 'manual') et le role `pieceCount` sont eux aussi exposes et non utilises par la page (le QML recalcule les pieces en JS).",
+      "sourceRefs": [
+        "app/ui/models/shopping_list_model.py:19-45",
+        "app/ui/models/shopping_list_model.py:109-122",
+        "app/ui/qml/pages/ShoppingPage.qml:104-171"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "ShoppingListModel.roleNames",
+        "ShoppingListModel.Roles (QVariantMap)"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=... renvoie deja ces champs"
+      ],
+      "mobileNotes": "Ce sont des donnees deja disponibles : les afficher sur mobile (« il te reste 500 g ») coute peu et clarifie l'auto-coche.",
+      "blockers": "",
+      "priority": "polish",
+      "complexity": "S"
+    },
+    {
+      "id": "etat-vide",
+      "title": "Etat vide « Aucun ingredient a acheter »",
+      "userAction": "Affiche automatiquement quand la semaine selectionnee ne contient rien a acheter.",
+      "behaviourDetails": "Condition : `list.count === 0`. Bloc centre dans le cadre de liste, deux textes. Titre : « Aucun ingredient a acheter » (fontSizeLg, Medium, colorTextSecondary). Sous-titre sur 360 px de large, centre, retour a la ligne par mots : « Planifie des recettes ou des ingredients dans le Calendrier pour cette semaine, puis reviens ici. » (fontSizeSm). L'etat vide est superpose a la ListView, pas a la place — mais la ListView est vide donc invisible.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:174-197"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "itemCount"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=... → items: []"
+      ],
+      "mobileNotes": "Ajouter un bouton d'action directe vers le calendrier de cette semaine (le desktop se contente d'une phrase).",
+      "blockers": "",
+      "priority": "important",
+      "complexity": "S"
+    },
+    {
+      "id": "scrollbar-liste",
+      "title": "Barre de defilement de la liste",
+      "userAction": "Defilement a la molette ou par glissement de la barre.",
+      "behaviourDetails": "`ScrollBar.vertical: AppScrollBar {}` — barre fine qui apparait en fondu au survol. `clip: true`, `spacing: 0` entre les lignes (les lignes sont contigues, separees uniquement par la couleur de fond). Le cadre englobant est un Rectangle colorSurface, radius md, bordure 1 px colorBorder, avec la ListView ancree a 1 px de marge pour ne pas recouvrir la bordure.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:67-82"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "mobileNotes": "Defilement natif ; masquer la scrollbar. Prevoir la virtualisation si la liste depasse ~100 lignes.",
+      "blockers": "",
+      "priority": "polish",
+      "complexity": "S"
+    },
+    {
+      "id": "pied-compteur-ingredients",
+      "title": "Compteur « N ingredient(s) » dans le bandeau bas",
+      "userAction": "Lecture, a gauche du bandeau de pied de page.",
+      "behaviourDetails": "`shoppingVM.itemCount + ' ingredient' + (itemCount > 1 ? 's' : '')`. Pluriel a partir de 2 (0 et 1 → « ingredient » au singulier ; « 0 ingredient » est donc affiche au singulier). `itemCount` est une `Property(int, notify=list_changed)` qui delegue a `self._model.rowCount()`. Compte TOUTES les lignes, y compris celles cochees « deja au frigo ».",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:215-223",
+        "app/ui/viewmodels/shopping_vm.py:68-70"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "itemCount"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=... (items.length)"
+      ],
+      "mobileNotes": "Preferer « 12 restants sur 18 » en tenant compte des coches — plus utile en magasin.",
+      "blockers": "",
+      "priority": "important",
+      "complexity": "S"
+    },
+    {
+      "id": "pied-avertissement-sans-prix",
+      "title": "Avertissement « ⚠ N sans prix »",
+      "userAction": "Lecture : n'apparait que s'il existe au moins un ingredient sans prix.",
+      "behaviourDetails": "`visible: shoppingVM.missingPriceCount > 0`. Texte « ⚠ » + compteur + « sans prix », couleur colorWarning, fontSizeSm. Le compteur vient du service : `missing_count` est incremente une fois par LIGNE dont `pricing.ingredient_cost` retourne None (pas une fois par entree de planning). Ces lignes sont exclues du total mais restent affichees. Test verrouille : 1 ingredient sans prix → `missing_price_count == 1` et `total_eur == 1.00` (seul l'ingredient tarife compte).",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:224-230",
+        "app/services/shopping_service.py:96-99",
+        "app/ui/viewmodels/shopping_vm.py:64-66",
+        "tests/test_shopping_service.py:156-170"
+      ],
+      "dataOps": [
+        "lecture ingredient.price_eur"
+      ],
+      "vmMethods": [
+        "missingPriceCount"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=... (missingPriceCount)"
+      ],
+      "mobileNotes": "Rendre l'avertissement tappable pour filtrer/atteindre les lignes concernees.",
+      "blockers": "",
+      "priority": "important",
+      "complexity": "S"
+    },
+    {
+      "id": "pied-total-euros",
+      "title": "Total en euros du bandeau bas",
+      "userAction": "Lecture : libelle « Total : » puis le montant en gros a droite.",
+      "behaviourDetails": "Libelle « Total : » (fontSizeSm, Medium, colorTextSecondary), montant en fontSizeXl SemiBold colorText. `Number(parseFloat(shoppingVM.totalEur)).toLocaleString(Qt.locale(), 'f', 2) + ' €'` → 2 decimales, virgule en francais. Fallback « 0,00 € » si le VM est absent. Cote service : `total` demarre a Decimal('0.00'), accumule les couts non-None, puis `quantize(Decimal('0.01'))` (arrondi par defaut du contexte, ROUND_HALF_EVEN, contrairement aux couts de ligne en ROUND_HALF_UP). Le total N'EXCLUT PAS les lignes cochees « deja au frigo » — cocher ne diminue pas le total affiche.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:233-248",
+        "app/services/shopping_service.py:89-121",
+        "app/ui/viewmodels/shopping_vm.py:60-62",
+        "app/ui/viewmodels/shopping_vm.py:145"
+      ],
+      "dataOps": [
+        "lecture ingredient.price_eur, ingredient.price_quantity_g"
+      ],
+      "vmMethods": [
+        "totalEur (Property str, notify=list_changed)"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=... (totalEur en string)"
+      ],
+      "mobileNotes": "Bandeau de pied a fixer en position sticky au-dessus de la zone de securite iOS. Proposer un second total « restant a acheter » qui deduit les articles coches — manque flagrant en usage mobile.",
+      "blockers": "",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "bouton-copier-la-liste",
+      "title": "Bouton « 📋 Copier la liste »",
+      "userAction": "Clic sur le bouton primary a l'extreme droite du bandeau bas.",
+      "behaviourDetails": "Etat DESACTIVE quand `shoppingVM.itemCount === 0` (fond colorPrimaryDisabled, texte colorTextDisabled). Au clic : `page._copyToClipboard()` → `shoppingVM.copyToClipboard()`. Cette methode appelle `asText()` qui RE-AGREGE la liste depuis la base (nouvelle session, nouvelles requetes) au lieu d'utiliser le modele affiche — consequence metier importante : les cases « deja au frigo » cochees par l'utilisateur ne sont PAS reflectees dans le texte copie, toutes les lignes y figurent avec une case vide « ☐ ». Retourne False si aucune QGuiApplication n'est active (contexte de test) ; dans ce cas aucun toast.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:250-255",
+        "app/ui/qml/pages/ShoppingPage.qml:308-314",
+        "app/ui/viewmodels/shopping_vm.py:96-116",
+        "app/ui/qml/components/AppButton.qml:64-67"
+      ],
+      "dataOps": [
+        "SELECT * FROM meal_plan_entry WHERE iso_week = ?",
+        "SELECT * FROM recipe WHERE id IN (...)",
+        "SELECT * FROM ingredient WHERE id IN (...)",
+        "SELECT ingredient_id, SUM(quantity_g) FROM pantry_stock GROUP BY ingredient_id"
+      ],
+      "vmMethods": [
+        "ShoppingViewModel.copyToClipboard",
+        "ShoppingViewModel.asText",
+        "shopping_service.format_as_text"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list/{week}/text (Content-Type: text/plain)"
+      ],
+      "mobileNotes": "Sur iOS, `navigator.clipboard.writeText` exige un geste utilisateur direct et HTTPS — l'appel doit etre synchrone dans le handler du tap, sans await prealable. Mieux : utiliser `navigator.share()` (feuille de partage native) pour envoyer par SMS/Notes, plus naturel qu'un presse-papier sur telephone.",
+      "blockers": "API presse-papier Qt a remplacer par Clipboard API / Web Share API ; contraintes iOS sur le geste utilisateur et le contexte securise.",
+      "priority": "core",
+      "complexity": "M"
+    },
+    {
+      "id": "format-texte-exporte",
+      "title": "Format exact du texte exporte",
+      "userAction": "Consequence du bouton Copier : le texte colle ailleurs suit une mise en page precise.",
+      "behaviourDetails": "`format_as_text` : si aucun item → « Liste de courses — {iso_week}\\n\\n(aucun ingredient)\\n ». Sinon : ligne de titre « Liste de courses — 2026-W18 », ligne vide, puis pour chaque changement de rayon un separateur « == {Rayon.capitalize()} == » (le rayon NULL devient « Non categorise »), puis une ligne par article « ☐ {nom tronque a 40 car. et complete a 40} {quantite}{cout} ». Le cout n'apparait que si `has_price` : «   (0,60 €) » (2 decimales, point remplace par virgule). En fin : ligne vide, ligne de 30 tirets « ─ », puis « Total : 4,20 € » ou « Total : 4,20 € · 2 ingredient(s) sans prix ». Se termine par un « \\n ». ATTENTION : le formatage des quantites du TEXTE differe de celui de l'ECRAN — kg avec 3 decimales dont les zeros sont ecretes (« 1,234 kg » vs « 1,23 kg » a l'ecran), separateur pieces « · ≈ » (vs deux espaces + « ≈ »), pluriel base sur la valeur NON arrondie.",
+      "sourceRefs": [
+        "app/services/shopping_service.py:129-183",
+        "app/ui/qml/pages/ShoppingPage.qml:288-306",
+        "tests/test_shopping_service.py:223-279"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "shopping_service.format_as_text",
+        "shopping_service._format_item_line",
+        "shopping_service._format_quantity"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list/{week}/text"
+      ],
+      "mobileNotes": "L'alignement sur 40 caracteres suppose une police a chasse fixe : illisible dans Notes/SMS iOS. Regenerer un format texte adapte (puces courtes) ou un partage HTML/Markdown.",
+      "blockers": "Mise en page a chasse fixe non portable telle quelle sur mobile.",
+      "priority": "important",
+      "complexity": "M"
+    },
+    {
+      "id": "toast-confirmation-copie",
+      "title": "Toast « ✓ Liste copiee dans le presse-papier »",
+      "userAction": "Apparait automatiquement apres une copie reussie.",
+      "behaviourDetails": "Rectangle ancre en bas au centre de la page, marge basse spaceXxl (32 px), z: 20, fond colorSuccess, radius md, opacite 0,95. Largeur/hauteur calculees sur le texte (padding spaceXl horizontal, spaceMd vertical). Texte blanc en dur, fontSizeMd Medium. Un `Timer` de 3000 ms demarre des que le toast devient visible et le masque. Affiche UNIQUEMENT si `copyToClipboard()` retourne True ; aucun toast d'erreur n'existe. Pas d'animation d'entree/sortie (visible bascule sec).",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:260-284",
+        "app/ui/qml/pages/ShoppingPage.qml:308-314"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "ShoppingViewModel.copyToClipboard"
+      ],
+      "proposedApi": [],
+      "mobileNotes": "Positionner le toast au-dessus du bandeau sticky et de la safe-area iOS, sinon il passe sous la barre d'accueil.",
+      "blockers": "",
+      "priority": "polish",
+      "complexity": "S"
+    },
+    {
+      "id": "rafraichissement-declenche-par-le-frigo",
+      "title": "Rafraichissement automatique apres modification du Frigo / Cellier",
+      "userAction": "Invisible : apres avoir ajoute ou supprime un lot dans l'onglet Frigo / Cellier, la liste de courses reflete le nouveau stock (pre-cochage recalcule).",
+      "behaviourDetails": "PantryPage.qml appelle explicitement `shoppingVM.refreshList()` apres un ajout de stock et apres une suppression, protege par `typeof shoppingVM !== 'undefined'`. C'est un couplage IMPERATIF cote QML, pas un branchement de signal (le VM Pantry emet bien `stock_changed`, mais la ShoppingPage ne l'ecoute pas). `refreshList()` est un simple wrapper sur `refresh()` : re-agrege tout et remet a plat le dict `_in_fridge`.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:757-762",
+        "app/ui/qml/pages/PantryPage.qml:773-778",
+        "app/ui/viewmodels/shopping_vm.py:80-82",
+        "app/ui/viewmodels/shopping_vm.py:139-147"
+      ],
+      "dataOps": [
+        "re-execution des 4 requetes d'agregation"
+      ],
+      "vmMethods": [
+        "ShoppingViewModel.refreshList",
+        "ShoppingViewModel.refresh"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=... (a re-appeler apres toute mutation de /api/pantry)"
+      ],
+      "mobileNotes": "Sur le web, invalider la cle de cache de la liste de courses (react-query / SWR) apres toute mutation du garde-manger, plutot que de reproduire l'appel imperatif inter-pages.",
+      "blockers": "",
+      "priority": "important",
+      "complexity": "S"
+    },
+    {
+      "id": "absence-rafraichissement-depuis-calendrier",
+      "title": "Absence de rafraichissement automatique apres modification du planning",
+      "userAction": "Consequence subie : apres avoir ajoute un repas dans le Calendrier, revenir sur la liste de courses affiche encore l'ancienne liste.",
+      "behaviourDetails": "Le `Connections { target: shoppingVM; function onWeek_changed() {} }` en tete de ShoppingPage.qml est VIDE (code mort, commentaire « refresh est appele dans le set »). Aucun element ne branche `calendarVM` sur `shoppingVM`. Le StackLayout conservant l'etat des pages, revenir sur l'onglet ne declenche aucun rechargement. Les seuls declencheurs de refresh sont : la construction du VM, `setIsoWeek`, `shiftWeek`, et l'appel imperatif de PantryPage. Contournement utilisateur : cliquer « Synchroniser avec calendrier » ou faire un aller-retour de semaine.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:22-25",
+        "app/ui/viewmodels/shopping_vm.py:139-147",
+        "app/ui/qml/Main.qml:217-242"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "ShoppingViewModel.refresh"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=... (invalidation apres POST/PUT/DELETE /api/meal-plan)"
+      ],
+      "mobileNotes": "A corriger dans le portage : invalidation de cache automatique + pull-to-refresh. Sur mobile l'utilisateur ne devinera jamais qu'il faut appuyer sur « Synchroniser avec calendrier » pour rafraichir.",
+      "blockers": "Comportement desktop deficient a ne pas reproduire ; necessite une strategie d'invalidation cote web.",
+      "priority": "core",
+      "complexity": "S"
+    },
+    {
+      "id": "import-ticket-deplace-hors-de-la-page",
+      "title": "Import de ticket de caisse — retire de cette page",
+      "userAction": "Constat historique : les boutons « 📥 Importer un ticket » (PDF) et Lidl Plus ne sont PLUS sur la liste de courses.",
+      "behaviourDetails": "Un commentaire dans la barre de navigation documente le deplacement : « les boutons d'import de ticket (PDF + Lidl Plus) ont ete deplaces dans l'onglet Frigo / Cellier — c'est la qu'on rentre de courses, donc l'endroit naturel pour importer un ticket ». Main.qml conserve neanmoins le `ReceiptImportDialog` en global avec un alias `receiptImportDialog` et un commentaire perime qui parle encore du « bouton sur ShoppingPage ». A ne pas re-implanter sur la page Courses lors du portage.",
+      "sourceRefs": [
+        "app/ui/qml/pages/ShoppingPage.qml:52-55",
+        "app/ui/qml/Main.qml:509-518"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [
+        "(hors zone — voir /api/receipts, rattache au Frigo / Cellier)"
+      ],
+      "mobileNotes": "Confirme le decoupage mobile : « Courses » = consultation en magasin, « Frigo » = saisie au retour.",
+      "blockers": "",
+      "priority": "polish",
+      "complexity": "S"
+    }
+  ]
+}

@@ -1,0 +1,1073 @@
+{
+  "page": "Calendrier / semaine",
+  "summary": "La page Calendrier affiche une grille hebdomadaire 7 jours x 5 creneaux (matin / 10 h en-cas / midi / 16 h gouter / soir) alimentee par une seule cle naturelle, la semaine ISO (`2026-W31`), avec ajout d'une recette (portions) ou d'un ingredient (quantite en grammes) par cellule, suppression avec toast d'annulation, et drag-drop depuis un panneau lateral d'ingredients rapides. Sous la grille, trois panneaux derives se recalculent a chaque changement : un tableau nutritionnel 8 nutriments x 7 jours (ordre UE), le cout total de la semaine avec compteur de lignes sans prix, et un mini-histogramme des 12 dernieres semaines archivees automatiquement. La page offre aussi la copie de la semaine precedente et un systeme de templates nommes (sauver / lister / appliquer / supprimer), tous en mode ajout (append) jamais en remplacement, avec confirmation quand la semaine cible n'est pas vide.",
+  "features": [
+    {
+      "id": "week-view-load",
+      "title": "Affichage de la semaine ISO courante",
+      "userAction": "L'utilisateur ouvre l'onglet Calendrier (clic sur l'onglet ou Ctrl+3). La grille se remplit avec les entrees de la semaine ISO en cours, calculee a partir de la date systeme.",
+      "behaviourDetails": "Cle naturelle = chaine ISO 'YYYY-Www' (ex '2026-W31'), validee par le modele Pydantic IsoWeek : longueur exactement 8, caracteres 5-6 == '-W', annee entre 2000 et 2100, semaine entre 01 et 53. A l'instanciation du VM, la semaine est IsoWeek.from_date(datetime.now()). Les entrees sont triees SQL-side par (day_of_week, slot, ordinal). Note: le tri par `slot` est ALPHABETIQUE sur la chaine ('evening' < 'morning' < 'noon' < 'snack_afternoon' < 'snack_morning'), ce qui n'a pas d'impact visuel puisque le QML re-filtre par slot, mais impacte l'ordre de copie/template. A chaque refresh, le VM rehydrate les descriptions cote DB (une requete recipe/ingredient par entree) pour que QML n'ait jamais a resoudre un nom.",
+      "sourceRefs": [
+        "app/ui/viewmodels/calendar_vm.py:72",
+        "app/ui/viewmodels/calendar_vm.py:297-316",
+        "app/data/repositories.py:477-487",
+        "app/domain/models.py:247-269",
+        "app/ui/qml/pages/CalendarPage.qml:69"
+      ],
+      "dataOps": [
+        "SELECT * FROM meal_plan_entry WHERE iso_week = ? ORDER BY day_of_week, slot, ordinal",
+        "SELECT nom depuis recipe / ingredient pour chaque entree (N+1 assume)"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.refresh",
+        "MealPlanRepo.list_by_week",
+        "_describe_with_repos"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek}"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Sur telephone, une grille 7x5 n'est pas lisible. Basculer par defaut sur une vue JOUR (un jour, ses 5 creneaux empiles) avec swipe horizontal pour changer de jour, et garder la vue semaine en mode paysage / tablette. Le selecteur de semaine reste en haut."
+    },
+    {
+      "id": "week-nav-prev",
+      "title": "Bouton « Semaine precedente »",
+      "userAction": "Clic sur le bouton secondaire « ‹ Semaine precedente » en haut a gauche. La grille, les totaux nutritionnels, le cout et l'historique se rechargent.",
+      "behaviourDetails": "Decalage calcule en convertissant l'ISO week en lundi via datetime.fromisocalendar(year, week, 1), soustraction de timedelta(weeks=1), puis re-derivation via IsoWeek.from_date. Robuste aux bornes d'annee (2026-W01 -> 2025-W53). Aucune borne min/max : on peut remonter indefiniment jusqu'a la validation IsoWeek (annee >= 2000).",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:109-113",
+        "app/ui/viewmodels/calendar_vm.py:97-98",
+        "app/ui/viewmodels/calendar_vm.py:289-295"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry par semaine cible"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.shiftWeek",
+        "CalendarViewModel.shift_week"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek}"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Remplacer par un swipe horizontal sur la grille + fleches tactiles d'au moins 44x44 px. Prevoir un indicateur de chargement puisque chaque navigation declenche 10+ requetes cote serveur."
+    },
+    {
+      "id": "week-nav-next",
+      "title": "Bouton « Semaine suivante »",
+      "userAction": "Clic sur « Semaine suivante › ». Meme mecanique que precedente, avec +1 semaine.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:119-123",
+        "app/ui/viewmodels/calendar_vm.py:289-295"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry par semaine cible"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.shiftWeek"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek}"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Swipe gauche. Idem 44x44 px minimum pour la cible tactile."
+    },
+    {
+      "id": "week-nav-today",
+      "title": "Bouton « Aujourd'hui » (retour a la semaine courante)",
+      "userAction": "Clic sur le bouton ghost « Aujourd'hui ». Le calendrier saute a la semaine ISO du jour.",
+      "behaviourDetails": "L'ISO week courante est recalculee EN JAVASCRIPT cote QML (fonction _currentWeek), pas cote Python : algorithme du jeudi ISO — dayNr = (getDay()+6)%7, target = date - dayNr + 3, comparaison au premier jeudi de l'annee, week = 1 + ceil(delta/604800000). Le numero de semaine est zero-padde sur 2 chiffres. Cette duplication de logique (JS ici, Python dans IsoWeek.from_date) est un point a unifier lors du portage.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:114-118",
+        "app/ui/qml/pages/CalendarPage.qml:913-927"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry pour la semaine courante"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.setIsoWeek"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/current"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Garder un bouton « Aujourd'hui » visible en permanence : sur un ecran etroit ou l'on swipe beaucoup, se perdre dans les semaines est frequent. Le calcul de la semaine doit se faire dans le fuseau de l'utilisateur, pas en UTC serveur."
+    },
+    {
+      "id": "week-nav-shortcuts",
+      "title": "Raccourcis clavier Ctrl+Gauche / Ctrl+Droite / Ctrl+T",
+      "userAction": "Au clavier, Ctrl+Fleche gauche recule d'une semaine, Ctrl+Fleche droite avance d'une semaine, Ctrl+T revient a la semaine courante.",
+      "behaviourDetails": "Les trois Shortcut sont en context Qt.WindowShortcut avec `enabled: page.visible` — ils ne se declenchent que quand l'onglet Calendrier est l'onglet actif du StackLayout. Ctrl+3 (menu Navigation de Main.qml) bascule sur l'onglet Calendrier depuis n'importe ou.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:617-634",
+        "app/ui/qml/Main.qml:149-152"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry par semaine cible"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.shiftWeek",
+        "CalendarViewModel.setIsoWeek"
+      ],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Aucun clavier physique sur telephone : ces raccourcis n'ont pas d'equivalent. Les remplacer par des gestes (swipe) et garder les raccourcis pour la version desktop du PWA."
+    },
+    {
+      "id": "week-label",
+      "title": "Libelle « Semaine 2026-W31 » aligne a droite",
+      "userAction": "Lecture seule : l'utilisateur voit en permanence, a droite de la barre de navigation, l'ISO week affichee.",
+      "behaviourDetails": "Texte brut = valeur de la propriete `isoWeek` du VM (format 'YYYY-Www', pas de mise en forme humaine type 'du 28 avril au 4 mai'). Se met a jour via le signal week_changed.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:160-167",
+        "app/ui/viewmodels/calendar_vm.py:88-90"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "CalendarViewModel.isoWeek"
+      ],
+      "proposedApi": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Sur mobile, remplacer par un libelle plus parlant (« 28 avr - 4 mai · S18 ») et le rendre cliquable pour ouvrir un selecteur de semaine/mois — l'ISO brut n'est pas comprehensible pour l'utilisateur final."
+    },
+    {
+      "id": "grid-day-headers",
+      "title": "Entete de grille : date courte + nom du jour",
+      "userAction": "Lecture seule : au-dessus de chaque colonne, l'utilisateur lit « avr 28 » en petit gris puis « Lundi » en semi-gras.",
+      "behaviourDetails": "Les 7 dicts viennent du slot daysAsList() : {dayOfWeek, dayNumber, monthShort, isoDate}. Le mois court est une table FR codee en dur cote Python : jan, fev, mars, avr, mai, juin, juil, aout, sep, oct, nov, dec — volontairement pas la locale systeme, pour rester coherent avec les libelles Lundi..Dimanche codes en dur cote QML. Lundi = index 0. La colonne de gauche (libelles de creneaux) fait exactement 130 px, valeur repliquee dans le panneau nutrition pour un alignement au pixel.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:196-231",
+        "app/ui/qml/pages/CalendarPage.qml:17",
+        "app/ui/viewmodels/calendar_vm.py:225-252"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "CalendarViewModel.daysAsList"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek} (inclure le tableau days[] dans la reponse)"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "En vue jour mobile, l'entete devient un bandeau unique « Lundi 28 avril ». Aucun jour n'est actuellement mis en evidence comme « aujourd'hui » — c'est une lacune a combler sur mobile (pastille sur le jour courant)."
+    },
+    {
+      "id": "grid-five-slots",
+      "title": "Cinq creneaux affiches en permanence",
+      "userAction": "Lecture seule : chaque jour expose 5 lignes — Matin, 10 h (en-cas), Midi, 16 h (gouter), Soir.",
+      "behaviourDetails": "Cles techniques : morning / snack_morning / noon / snack_afternoon / evening (enum MealSlot, stockees verbatim en base). Libelles FR : 'Matin', '10 h (en-cas)', 'Midi', '16 h (gouter)', 'Soir'. L'ancien toggle du menu Affichage qui masquait les deux en-cas a ete SUPPRIME : les 5 creneaux sont desormais toujours visibles (commentaire de refonte UX ligne 18-23 et Main.qml:132-136). L'ordre d'affichage est chronologique, pas alphabetique.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:24-25",
+        "app/ui/qml/pages/CalendarPage.qml:239-282",
+        "app/domain/models.py:23-35",
+        "app/ui/qml/Main.qml:132-136"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "5 creneaux x 7 jours = 35 cellules : impossible sur telephone. Vue jour = liste verticale des 5 creneaux, chaque creneau etant une carte pliable. Les creneaux vides peuvent etre replies pour raccourcir la page."
+    },
+    {
+      "id": "grid-cell-entries",
+      "title": "Affichage des entrees dans une cellule (jour x creneau)",
+      "userAction": "Lecture seule : chaque entree apparait comme une pastille de 28 px de haut, avec une description pre-formatee et un ✕ a droite.",
+      "behaviourDetails": "La description est calculee cote Python et non en QML. Format recette : '🍽 {nom} (1 portion)' si portions == 1.0 exactement, sinon '🍽 {nom} ({portions:g} portions)' — le format %g supprime les zeros inutiles (2.5 -> '2.5', 3.0 -> '3'). Format ingredient : '🥕 {nom} ({quantite:g} g)'. Si la recette ou l'ingredient est introuvable, fallback 'recette #{id}' / 'ingredient #{id}'. Fond de la pastille : primary a 10 % d'opacite, passe en colorSurfacePressed au survol. Il n'existe AUCUN moyen d'EDITER une entree existante (changer les portions ou la quantite) ni de la deplacer vers une autre cellule : il faut supprimer et re-ajouter. `ordinal` existe en base mais n'est jamais expose ni reordonnable dans l'UI.",
+      "sourceRefs": [
+        "app/ui/qml/components/MealSlot.qml:128-182",
+        "app/ui/viewmodels/calendar_vm.py:42-59",
+        "app/ui/models/meal_plan_model.py:33-102"
+      ],
+      "dataOps": [
+        "SELECT recipe.name / ingredient.name par entree"
+      ],
+      "vmMethods": [
+        "_describe_with_repos",
+        "MealPlanModel.set_rows"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek} (entries[] avec description pre-rendue)",
+        "PATCH /api/meal-plan/entries/{id} (a creer : editer portions / quantite, absent du desktop)"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "blockers": "Le Repeater de MealSlot prend en modele TOUTES les entrees de la semaine puis masque celles qui ne correspondent pas (visible: model.dayOfWeek === ... && model.slot === ...). Avec 35 cellules, on instancie 35 x N delegates. En web, il faut au contraire grouper les entrees par (jour, creneau) cote serveur ou cote client une seule fois.",
+      "mobileNotes": "28 px de haut est en dessous de la cible tactile minimale (44 px). Sur mobile, chaque entree devient une ligne de liste de 48-56 px ; le ✕ est remplace par un swipe-to-delete ou un menu ... (voir entry-remove). Prevoir un tap sur l'entree pour ouvrir un panneau d'edition — fonctionnalite absente du desktop mais indispensable sur telephone."
+    },
+    {
+      "id": "grid-cell-add-click",
+      "title": "Toute la cellule est cliquable pour ajouter",
+      "userAction": "L'utilisateur clique n'importe ou dans une cellule (pas seulement sur le « + ») pour ouvrir le dialogue d'ajout, pre-rempli avec le jour et le creneau de la cellule.",
+      "behaviourDetails": "Un MouseArea plein-cadre (bgHover) capte le clic et emet addRequested(dayOfWeek, slot). Les pastilles d'entrees ont un MouseArea propre en z:2 avec propagateComposedEvents: true et mouse.accepted = false, donc un clic sur une entree retombe sur le fond et ouvre AUSSI le dialogue d'ajout (seul le ✕ intercepte reellement). Curseur en main pointeur, fond en colorSurfaceHover au survol.",
+      "sourceRefs": [
+        "app/ui/qml/components/MealSlot.qml:96-102",
+        "app/ui/qml/components/MealSlot.qml:174-180",
+        "app/ui/qml/pages/CalendarPage.qml:274",
+        "app/ui/qml/pages/CalendarPage.qml:649-651"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Pas de survol sur telephone : le « + Ajouter » doit rester visible en permanence et etre le seul declencheur, sinon un tap accidentel sur la carte ouvre un dialogue. Reserver le tap sur une entree a son edition."
+    },
+    {
+      "id": "grid-cell-add-affordance",
+      "title": "Libelle « + Ajouter » toujours visible en bas de cellule",
+      "userAction": "Lecture / survol : le texte « + Ajouter » est affiche en permanence en bas de chaque cellule, grise (textSecondary a 55 % d'opacite) ; au survol de la cellule il passe en couleur primaire et en semi-gras.",
+      "sourceRefs": [
+        "app/ui/qml/components/MealSlot.qml:186-195"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Transformer en bouton plein largeur d'au moins 44 px de haut, toujours dans son etat « actif » (pas d'etat survol sur mobile)."
+    },
+    {
+      "id": "grid-cell-dynamic-height",
+      "title": "Hauteur de cellule dynamique, alignement facon tableur",
+      "userAction": "Automatique : la cellule grandit quand on y ajoute des entrees ; toute la ligne du calendrier adopte la hauteur de sa cellule la plus haute.",
+      "behaviourDetails": "Formule exacte : hauteur = max(140, spaceSm*2 + N*28 + max(0,N-1)*4 + (N>0 ? spaceSm : 0) + 22). 140 px est le minimum, 28 px par entree, 4 px d'espacement entre entrees, 22 px reserves au bouton « + Ajouter ». Le comptage des entrees visibles est recalcule a chaque modelReset / rowsInserted / rowsRemoved / dataChanged, ainsi qu'au changement de dayOfWeek, de slot ou de modele.",
+      "sourceRefs": [
+        "app/ui/qml/components/MealSlot.qml:48-92"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "En CSS le comportement est natif (grid + align-items: stretch). Le minimum de 140 px est trop haut pour un telephone : viser ~88 px pour une cellule vide."
+    },
+    {
+      "id": "entry-remove",
+      "title": "Suppression d'une entree via le ✕",
+      "userAction": "L'utilisateur survole une entree, clique le ✕ a droite (22 px de large, zone de clic elargie de 3 px). L'entree disparait immediatement et un toast d'annulation apparait.",
+      "behaviourDetails": "Le ✕ est gris (textSecondary a 65 %) et devient rouge (colorError) au survol, avec une transition de couleur de durationFast. Aucune confirmation modale — la securite est assuree par le toast Undo. Le VM memorise l'entree supprimee (snapshot Pydantic) et sa description AVANT le DELETE, puis emet deletion_pending_undo('<description> retire').",
+      "sourceRefs": [
+        "app/ui/qml/components/MealSlot.qml:153-172",
+        "app/ui/qml/pages/CalendarPage.qml:275",
+        "app/ui/viewmodels/calendar_vm.py:367-385",
+        "app/data/repositories.py:504-508"
+      ],
+      "dataOps": [
+        "DELETE FROM meal_plan_entry WHERE id = ?"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.removeEntry",
+        "CalendarViewModel.remove",
+        "MealPlanRepo.remove"
+      ],
+      "proposedApi": [
+        "DELETE /api/meal-plan/entries/{id}"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Un ✕ de 22 px est trop petit. Sur telephone : swipe-to-delete sur la ligne, ou bouton corbeille de 44 px dans une feuille d'action ouverte par appui long. Garder le toast Undo, indispensable sans confirmation."
+    },
+    {
+      "id": "entry-undo-delete",
+      "title": "Toast « Annuler » apres suppression",
+      "userAction": "Apres une suppression, un bandeau sombre apparait en bas de la page : « 🥕 Carotte (200 g) retire » + un bouton « Annuler ». Un clic sur Annuler restaure l'entree.",
+      "behaviourDetails": "Auto-masquage apres 5000 ms (Timer). Le toast est en z:100, opacite 0.96, fond '#1f2937' en mode clair et colorSurface en mode sombre. Un seul niveau d'annulation : le VM ne garde qu'un `_last_deleted`. La restauration cree une NOUVELLE ligne (model_copy avec id=None) — l'id change donc apres undo. Apres undo, le buffer est vide : un second clic ne fait rien. Une suppression ecrase le buffer precedent (l'entree d'avant n'est plus recuperable).",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:44-53",
+        "app/ui/qml/components/UndoToast.qml:22-106",
+        "app/ui/viewmodels/calendar_vm.py:76-77",
+        "app/ui/viewmodels/calendar_vm.py:387-397"
+      ],
+      "dataOps": [
+        "INSERT INTO meal_plan_entry (...) — nouvel id"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.undoLastDelete",
+        "deletion_pending_undo signal"
+      ],
+      "proposedApi": [
+        "POST /api/meal-plan/entries (re-creation avec le payload memorise cote client)",
+        "ou DELETE /api/meal-plan/entries/{id}?soft=true + POST /api/meal-plan/entries/{id}/restore"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Un snackbar Material standard convient. Attention : le buffer d'annulation est cote serveur dans l'implementation desktop ; en web il vaut mieux le garder cote client (le payload complet de l'entree) pour rester stateless et supporter plusieurs onglets."
+    },
+    {
+      "id": "add-dialog-window",
+      "title": "Dialogue « Ajouter au calendrier » (fenetre systeme detachable)",
+      "userAction": "Le clic sur une cellule ouvre une vraie fenetre Qt de 540x380 px (min 420x320), non modale, detachable et deplacable hors de l'application, centree sur la fenetre principale.",
+      "behaviourDetails": "flags = Qt.Dialog | WindowCloseButtonHint | WindowTitleHint, modality NonModal. Positionnement : x = parent.x + (parent.width - width)/2, idem en y. A chaque ouverture, tout l'etat est reinitialise : liste des recettes rechargee, ingredient selectionne remis a -1 et libelle a '(aucun)', champ de recherche vide, portions = 1.0, quantite = 80 g.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:12-59",
+        "app/ui/qml/pages/CalendarPage.qml:639-651"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "blockers": "Une fenetre systeme detachable n'a pas d'equivalent web. A remplacer par une modale (desktop) / une bottom-sheet plein ecran (mobile).",
+      "mobileNotes": "Feuille modale plein ecran remontant du bas, avec un bouton de fermeture explicite et le titre du contexte en tete."
+    },
+    {
+      "id": "add-dialog-title",
+      "title": "Titre contextuel « Ajouter au <creneau> — <jour> »",
+      "userAction": "Lecture seule en haut du dialogue : rappelle la cellule ciblee, ex « Ajouter au midi — Mercredi ».",
+      "behaviourDetails": "Le libelle de jour vient d'une table codee en dur dans le dialogue (Lundi..Dimanche, index 0-6). BUG a corriger au portage : la fonction _slotLabel ne connait que morning / noon / evening — pour snack_morning et snack_afternoon, l'expression ternaire retombe sur 'soir'. Un ajout dans le creneau de 10 h affiche donc « Ajouter au soir ».",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:69-75",
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:208-214"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Utiliser une table de libelles unique et partagee (5 creneaux) cote web ; c'est le meme bug qui serait recopie sinon."
+    },
+    {
+      "id": "add-dialog-tabs",
+      "title": "Deux onglets dans le dialogue : Recette / Ingredient",
+      "userAction": "L'utilisateur bascule entre l'onglet « 🍽 Recette » et l'onglet « 🥕 Ingredient » (largeur fixe 160 px chacun) ; le contenu du StackLayout change.",
+      "behaviourDetails": "L'onglet actif au moment du clic sur « Ajouter » determine ce qui est envoye : index 0 -> recipePicked, index 1 -> ingredientPicked. Onglet 0 (Recette) est actif par defaut a chaque ouverture.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:77-98",
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:193-206"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Deux onglets segmentes en haut de la bottom-sheet, ou mieux : un seul champ de recherche unifie qui retourne recettes ET ingredients avec un badge de type — plus rapide au pouce."
+    },
+    {
+      "id": "add-dialog-recipe-combo",
+      "title": "Selection de recette par liste deroulante",
+      "userAction": "Dans l'onglet Recette, l'utilisateur deroule une combobox (largeur max 320 px) listant toutes les recettes et en choisit une.",
+      "behaviourDetails": "La liste est reconstruite a CHAQUE ouverture du dialogue, en parcourant le QAbstractListModel de recipeListVM (roles name / recipeId) — c'est un snapshot du modele de la page Recettes, donc soumis au filtre eventuellement actif sur cette page. currentIndex force a 0 si au moins une recette existe. Pas de recherche textuelle, pas de tri explicite : c'est l'ordre du modele Recettes.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:39-49",
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:104-113"
+      ],
+      "dataOps": [
+        "SELECT id, name FROM recipe (via le modele de la page Recettes)"
+      ],
+      "vmMethods": [
+        "recipeListVM.items"
+      ],
+      "proposedApi": [
+        "GET /api/recipes?fields=id,name"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "blockers": "La dependance au modele d'une AUTRE page (recipeListVM.items, donc au filtre actif de la page Recettes) est un couplage a casser : le web doit appeler un endpoint dedie.",
+      "mobileNotes": "Une combobox native sur une longue liste de recettes est penible. Prevoir un champ de recherche avec autocompletion, ou une liste plein ecran filtrable."
+    },
+    {
+      "id": "add-dialog-portions",
+      "title": "Champ « Portions » pour une entree recette",
+      "userAction": "L'utilisateur ajuste le nombre de portions dans un spinbox de 100 px de large.",
+      "behaviourDetails": "Bornes strictes : min 0.25, max 50, pas 0.5, 2 decimales, valeur par defaut 1.0 (remise a 1.0 a chaque ouverture). Le modele Pydantic MealPlanEntry impose portions strictement positif ET obligatoire quand recipe_id est renseigne.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:114-127",
+        "app/domain/models.py:387-406"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Spinbox trop petit au pouce : utiliser des boutons -/+ de 44 px encadrant la valeur, plus un champ numerique tapable. Clavier decimal (inputmode=decimal)."
+    },
+    {
+      "id": "add-dialog-ingredient-picker",
+      "title": "Recherche d'ingredient avec suggestions (onglet Ingredient)",
+      "userAction": "L'utilisateur tape dans un champ de recherche ; apres 200 ms sans frappe, une popup de suggestions s'ouvre. Il navigue avec Haut/Bas, valide avec Entree, ferme avec Echap, ou clique une suggestion.",
+      "behaviourDetails": "Debounce de 200 ms, scope 'personal' (uniquement la bibliotheque personnelle — les lignes CIQUAL/OFF non importees ne remontent pas), 12 resultats maximum, recherche FTS5 locale sans appel HTTP. Requete vide (< 1 caractere) = popup fermee, aucune requete. Chaque suggestion affiche une pastille de source coloree et, le cas echeant, le poids unitaire.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:135-148",
+        "app/ui/qml/components/IngredientSearch.qml:15-96"
+      ],
+      "dataOps": [
+        "SELECT ... FROM ingredient_fts MATCH ? WHERE in_personal_library = 1 LIMIT 12"
+      ],
+      "vmMethods": [
+        "ingredientVM.searchOnce(query, scope, limit)",
+        "ingredientVM.getAsDict(id)"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/search?q=&scope=personal&limit=12"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Le debounce de 200 ms est a monter a ~300 ms sur reseau mobile. La navigation clavier n'a pas de sens : liste de suggestions tactile de 48 px par ligne, sous le champ, sans popup flottant (le clavier virtuel mange la moitie de l'ecran)."
+    },
+    {
+      "id": "add-dialog-selected-label",
+      "title": "Rappel « Selectionne : <nom> » de l'ingredient choisi",
+      "userAction": "Lecture seule : sous le champ de recherche, l'ingredient retenu s'affiche ; « (aucun) » tant que rien n'est choisi.",
+      "behaviourDetails": "Texte elide a droite si trop long. Reinitialise a '(aucun)' a chaque ouverture. C'est le seul retour visuel de la selection : si l'utilisateur retape dans le champ sans re-selectionner, l'ancien choix reste actif.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:149-159",
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:51-54"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Remplacer par une puce (chip) supprimable, plus lisible et plus explicite qu'une ligne de texte."
+    },
+    {
+      "id": "add-dialog-quantity",
+      "title": "Champ « Quantite » piece-aware pour une entree ingredient",
+      "userAction": "L'utilisateur saisit une quantite et choisit son unite dans une liste deroulante ; le stockage se fait toujours en grammes.",
+      "behaviourDetails": "Valeur par defaut 80 g, 1 decimale, largeur max 320 px. Table d'unites : g (x1), kg (x1000), mg (x0.001), ml (x1), cl (x10), dl (x100), L (x1000), c. a cafe (x5), c. a soupe (x15), tasse (x250), pincee (x1). Si l'ingredient selectionne a un poids unitaire (pieceWeightG), une entree « piece (X g) » est ajoutee EN TETE de la liste et le widget bascule dessus automatiquement. Le changement d'unite preserve la valeur en grammes. Pydantic impose quantity_g strictement positif et obligatoire quand ingredient_id est renseigne.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:160-170",
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:145-147",
+        "app/ui/qml/components/QuantityField.qml:23-79",
+        "app/domain/models.py:387-406"
+      ],
+      "dataOps": [
+        "SELECT piece_weight_g FROM ingredient WHERE id = ?"
+      ],
+      "vmMethods": [
+        "ingredientVM.getAsDict"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/{id}"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Champ numerique + select d'unites cote a cote tiennent sur un ecran etroit, mais prevoir inputmode=decimal et un select natif (meilleur au pouce que tout composant custom)."
+    },
+    {
+      "id": "add-dialog-submit",
+      "title": "Bouton « Ajouter » (validation et fermeture)",
+      "userAction": "Clic sur le bouton primaire « Ajouter » : l'entree est creee dans la cellule ciblee et le dialogue se ferme.",
+      "behaviourDetails": "Validation SILENCIEUSE, sans message d'erreur : onglet Recette, on n'emet que si recipeCombo.currentValue n'est ni undefined ni null ; onglet Ingredient, on n'emet que si l'id selectionne est > 0. Dans tous les cas, close() est appele — donc cliquer « Ajouter » sans rien avoir selectionne ferme le dialogue sans rien creer et sans aucun retour utilisateur. Cote base, la regle XOR est appliquee par le validateur Pydantic (exactement un de recipe_id / ingredient_id) et non par une contrainte SQL.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:185-189",
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:193-206",
+        "app/ui/viewmodels/calendar_vm.py:335-365",
+        "app/domain/models.py:394-406"
+      ],
+      "dataOps": [
+        "INSERT INTO meal_plan_entry (iso_week, day_of_week, slot, recipe_id|ingredient_id, portions|quantity_g, ordinal=0)"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.addRecipe",
+        "CalendarViewModel.addIngredient",
+        "MealPlanRepo.add"
+      ],
+      "proposedApi": [
+        "POST /api/meal-plan/{isoWeek}/entries"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Griser le bouton tant qu'aucune selection n'est faite (au lieu de fermer silencieusement) — sur mobile, la fermeture sans effet est vecue comme un bug."
+    },
+    {
+      "id": "add-dialog-cancel",
+      "title": "Bouton « Annuler » du dialogue d'ajout",
+      "userAction": "Clic sur « Annuler » (variante secondaire) : la fenetre se ferme sans rien creer. La croix de la barre de titre systeme a le meme effet.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddCalendarEntryDialog.qml:180-184"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Bouton « Annuler » en tete de la bottom-sheet + fermeture par swipe vers le bas."
+    },
+    {
+      "id": "side-panel-toggle",
+      "title": "Bouton bascule du panneau « Drag-drop »",
+      "userAction": "Clic sur « 🗂️ Drag-drop » : un panneau lateral de 240 px s'ouvre a droite avec une animation de 250 ms (OutCubic). Le libelle du bouton devient « 🗂️ ‹ » ; un second clic referme.",
+      "behaviourDetails": "Le panneau n'est peuple qu'a la premiere ouverture (si la liste est vide). Sa largeur animee sert aussi de condition de visibilite (visible: Layout.preferredWidth > 0).",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:154-158",
+        "app/ui/qml/pages/CalendarPage.qml:478-491",
+        "app/ui/qml/pages/CalendarPage.qml:579-584"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "blockers": "Toute la fonctionnalite du panneau repose sur le drag-drop souris, inutilisable au pouce.",
+      "mobileNotes": "A remplacer entierement : plutot qu'un panneau de drag, proposer une barre horizontale d'ingredients frequents ; un tap ouvre un mini-selecteur « quel jour / quel creneau ? »."
+    },
+    {
+      "id": "side-panel-filter",
+      "title": "Champ « Filtrer… » du panneau d'ingredients rapides",
+      "userAction": "L'utilisateur tape dans le champ ; la liste de chips se met a jour a chaque frappe (pas de debounce).",
+      "behaviourDetails": "Requete vide : appel searchOnce('', 'personal', 100) qui renvoie [] par contrat, puis fallback qui parcourt le QAbstractListModel ingredientVM.items pour construire la liste (id, name, source, pieceWeightG). Requete non vide : searchOnce(q, 'personal', 100) — plafond de 100 resultats. Contrairement a IngredientSearch, PAS de debounce ici : chaque caractere declenche une requete FTS.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:514-519",
+        "app/ui/qml/pages/CalendarPage.qml:585-613"
+      ],
+      "dataOps": [
+        "SELECT ... ingredient_fts MATCH ? WHERE in_personal_library = 1 LIMIT 100"
+      ],
+      "vmMethods": [
+        "ingredientVM.searchOnce",
+        "ingredientVM.items"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/search?q=&scope=personal&limit=100"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Ajouter un debounce (300 ms) obligatoire en web : une requete HTTP par caractere est inacceptable sur reseau mobile."
+    },
+    {
+      "id": "side-panel-chips",
+      "title": "Chips d'ingredients draggables",
+      "userAction": "Lecture / prise en main : chaque ingredient de la bibliotheque personnelle apparait comme une pastille arrondie dans un Flow scrollable.",
+      "behaviourDetails": "Chaque chip affiche : une pastille de couleur codant la source (ciqual '#15803d' vert, openfoodfacts '#1d4ed8' bleu, manual '#c2410c' orange), le nom elide a 160 px max, et le badge « ● 1pc » si pieceWeightG > 0. Hauteur 28 px. Curseur main ouverte au survol, main fermee pendant le drag. Le texte d'aide au-dessus indique : « Glisse une chip vers une cellule pour ajouter 100 g (ou 1 piece si poids unitaire defini). »",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:504-512",
+        "app/ui/qml/pages/CalendarPage.qml:531-540",
+        "app/ui/qml/components/DraggableIngredientChip.qml:21-83"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Les chips restent pertinentes en tant que raccourcis tappables ; c'est le geste de drag qui doit disparaitre."
+    },
+    {
+      "id": "drag-drop-onto-cell",
+      "title": "Glisser-deposer d'un ingredient sur une cellule du calendrier",
+      "userAction": "L'utilisateur maintient le clic sur une chip, la deplace (seuil de 6 px), la cellule survolee se surligne, il relache : une entree ingredient est creee dans cette cellule.",
+      "behaviourDetails": "REGLE DE QUANTITE PAR DEFAUT : si l'ingredient a un poids unitaire (pieceWeightG > 0), la quantite creee vaut exactement ce poids (= 1 piece) ; sinon 100 g. Aucun dialogue, aucune confirmation, la creation est immediate. Retour visuel de la cible : fond primary a 18 % d'opacite, bordure primary de 2 px (au lieu de 1). Le drag deplace un « ghost » separe (pastille primary a 92 % avec « 🛒 <nom> » en blanc) et non la chip elle-meme, pour eviter que le Flow parent ne reflow pas au relachement.",
+      "sourceRefs": [
+        "app/ui/qml/components/MealSlot.qml:28-41",
+        "app/ui/qml/components/MealSlot.qml:104-121",
+        "app/ui/qml/components/DraggableIngredientChip.qml:85-158",
+        "app/ui/qml/pages/CalendarPage.qml:276-278"
+      ],
+      "dataOps": [
+        "INSERT INTO meal_plan_entry (iso_week, day_of_week, slot, ingredient_id, quantity_g)"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.addIngredient"
+      ],
+      "proposedApi": [
+        "POST /api/meal-plan/{isoWeek}/entries"
+      ],
+      "priority": "polish",
+      "complexity": "L",
+      "blockers": "Le drag-drop fin (viser une cellule de grille de ~120x140 px) est impraticable au doigt, et l'API HTML5 drag-and-drop ne fonctionne pas sur iOS Safari sans polyfill pointer-events. La regle metier (1 piece ou 100 g) doit etre conservee mais rattachee a un autre geste.",
+      "mobileNotes": "Remplacer par : tap sur une chip -> feuille « Ajouter <nom> » avec choix jour + creneau + quantite pre-remplie (1 piece ou 100 g). Alternative : mode « ajout rapide » ou l'on selectionne d'abord une cellule, puis on tape les ingredients a y verser."
+    },
+    {
+      "id": "nutrition-per-day-table",
+      "title": "Tableau « Apports nutritionnels par jour »",
+      "userAction": "Lecture seule sous la grille : un tableau de 8 nutriments x 7 jours, aligne au pixel avec les colonnes de la grille.",
+      "behaviourDetails": "Ordre reglementaire UE 1169/2011 : Energie (kcal, 0 decimale) → Lipides (g, 1) → dont satures (g, 1, gris italique) → Glucides (g, 1) → dont sucres (g, 1, gris italique) → Fibres (g, 1) → Proteines (g, 1) → Sel (g, 2 decimales). Une valeur null/undefined s'affiche « — ». Le panneau entier est MASQUE tant que le total kcal de la semaine est nul ou indefini. Le titre affiche le total semaine arrondi : « Apports nutritionnels par jour · Semaine : 12345 kcal ». Parametres d'alignement : colonne de libelles a 130 px, colonnes de valeurs flexibles, espacement Theme.spaceXs, cellules centrees, icones de 18 px.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:294-312",
+        "app/ui/qml/components/NutritionPanel.qml:78-92",
+        "app/ui/viewmodels/calendar_vm.py:210-218",
+        "app/ui/viewmodels/calendar_vm.py:464-474"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry par semaine (x8 : 7 jours + total)",
+        "SELECT recipe + recipe_ingredient + ingredient pour agreger"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.dayTotalAsDict",
+        "CalendarViewModel.weekTotalAsDict",
+        "nutrition_service.aggregate_day",
+        "nutrition_service.aggregate_week"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek}/nutrition (retourne days[7] + week)"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "blockers": "Le QML declenche 8 appels VM separes, chacun ouvrant sa propre session et rechargeant TOUTE la semaine (aggregate_day fait un list_by_week puis filtre en Python). En web, un unique endpoint doit tout calculer en une passe.",
+      "mobileNotes": "8 lignes x 7 colonnes ne tient pas sur un telephone. En vue jour : afficher les 8 nutriments du jour seul. En vue semaine : un tableau a defilement horizontal dans son propre conteneur overflow-x, ou un accordeon par jour."
+    },
+    {
+      "id": "nutrition-aggregation-rules",
+      "title": "Regles de calcul des apports nutritionnels",
+      "userAction": "Automatique : chaque ajout ou suppression d'entree recalcule les totaux.",
+      "behaviourDetails": "Entree recette : contribution = (somme des macros des lignes de la recette) x (portions de l'entree / max(default_portions de la recette, 1)). Entree ingredient : macros pour 100 g x quantite/100. Une recette ou un ingredient introuvable est IGNORE silencieusement (continue), il ne fait pas echouer l'agregat. Les 8 champs de NutritionTotal sont additionnes independamment ; une valeur inconnue (None) sur un ingredient compte comme 0 dans l'agregat.",
+      "sourceRefs": [
+        "app/services/nutrition_service.py:33-70",
+        "app/ui/viewmodels/calendar_vm.py:412-422",
+        "app/domain/models.py:208-244"
+      ],
+      "dataOps": [
+        "SELECT recipe, recipe_ingredient, ingredient (macros /100 g)"
+      ],
+      "vmMethods": [
+        "nutrition_service.aggregate_entries",
+        "nutrition_service._scale"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek}/nutrition"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Calcul purement serveur, aucune contrainte mobile — mais penser a le mettre en cache/ETag car il est appele a chaque navigation de semaine."
+    },
+    {
+      "id": "week-cost-panel",
+      "title": "Bandeau « Cout de la semaine »",
+      "userAction": "Lecture seule : sous le tableau nutritionnel, un bandeau affiche le cout total de la semaine en euros, et a droite un avertissement si des lignes n'ont pas de prix.",
+      "behaviourDetails": "Formatage : Number(parseFloat(total)).toLocaleString(locale, 'f', 2) + ' €' — toujours 2 decimales, separateur decimal de la locale (virgule en FR). L'avertissement « ⚠ N ligne(s) sans prix » n'est visible que si missingPriceCount > 0, en couleur colorWarning. Le total transite en CHAINE de caracteres (str(Decimal)) pour eviter la perte de precision — a conserver en JSON.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:315-352",
+        "app/ui/viewmodels/calendar_vm.py:220-223"
+      ],
+      "dataOps": [
+        "SELECT recipe / ingredient / recipe_ingredient pour chaque entree"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.weekCostAsDict",
+        "CalendarViewModel.week_cost"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek}/cost"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Bandeau parfaitement adapte au mobile. Le rendre tappable pour derouler le detail par jour (fonctionnalite absente du desktop, mais naturelle en web)."
+    },
+    {
+      "id": "week-cost-rules",
+      "title": "Regles de calcul du cout hebdomadaire",
+      "userAction": "Automatique a chaque modification de la semaine.",
+      "behaviourDetails": "Tout en Decimal, jamais en float. Entree recette : cout total de la recette x (portions / max(default_portions, 1)) ; le compteur `missing` s'incremente du NOMBRE DE LIGNES sans prix de cette recette (pas de 1). Entree ingredient : prix_par_g x quantite_g ; si l'ingredient n'a pas de prix, missing += 1 et rien n'est ajoute au total. Recette/ingredient introuvable = ignore silencieusement (continue). Arrondi : chaque cout de ligne est quantize a 0.01 en ROUND_HALF_UP, puis le total est re-quantize a 0.01. Attention : le facteur de portions est applique APRES l'arrondi du cout recette, ce qui peut introduire un ecart de quelques centimes.",
+      "sourceRefs": [
+        "app/ui/viewmodels/calendar_vm.py:424-453",
+        "app/domain/pricing.py:12-43"
+      ],
+      "dataOps": [
+        "SELECT price_eur, price_quantity_g FROM ingredient",
+        "SELECT recipe + lignes"
+      ],
+      "vmMethods": [
+        "pricing.recipe_cost",
+        "pricing.ingredient_cost"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek}/cost"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "blockers": "Decimal n'existe pas en JavaScript. Cote Workers, calculer en centimes entiers ou via une lib decimale, et serialiser en chaine — surtout ne pas passer par des float JS.",
+      "mobileNotes": "Aucun impact d'interface."
+    },
+    {
+      "id": "cost-auto-snapshot",
+      "title": "Archivage automatique du cout de la semaine",
+      "userAction": "Invisible pour l'utilisateur : a chaque rafraichissement d'une semaine NON VIDE, son cout total est enregistre en base.",
+      "behaviourDetails": "Upsert dans weekly_cost_snapshot, cle primaire = iso_week (une seule ligne par semaine, la plus recente ecrase). Ne se declenche PAS si la semaine n'a aucune entree — on evite de remplir l'historique de zeros. captured_at est force explicitement a datetime.now(UTC) sans fuseau, meme quand le montant n'a pas change, pour que l'horodatage soit toujours bouge. Effet de bord notable : simplement NAVIGUER sur une semaine non vide ecrit en base.",
+      "sourceRefs": [
+        "app/ui/viewmodels/calendar_vm.py:310-328",
+        "app/data/repositories/weekly_cost.py:16-57",
+        "app/domain/models.py:272-285"
+      ],
+      "dataOps": [
+        "INSERT OR UPDATE weekly_cost_snapshot (iso_week PK, total_eur, missing_count, captured_at)"
+      ],
+      "vmMethods": [
+        "CalendarViewModel._archive_current_cost",
+        "WeeklyCostRepo.upsert"
+      ],
+      "proposedApi": [
+        "Implicite dans GET /api/meal-plan/{isoWeek} (side-effect), ou explicite POST /api/meal-plan/{isoWeek}/cost-snapshot"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "blockers": "Une ECRITURE declenchee par une LECTURE est un anti-pattern en REST et pose probleme avec le cache et la concurrence multi-appareils. A repenser : recalculer l'historique a la demande, ou snapshoter uniquement lors d'une mutation reelle."
+    },
+    {
+      "id": "cost-history-chart",
+      "title": "Mini-histogramme « Evolution sur N semaines »",
+      "userAction": "Lecture seule en bas de page : un graphique en barres des 12 dernieres semaines archivees.",
+      "behaviourDetails": "Le bloc entier est masque (hauteur 0) si l'historique est vide. Titre : « Evolution sur N semaine(s) » avec pluriel conditionnel. Barres : hauteur = max(2, round(valeur / max_valeur x 60)) px, largeur max 28 px, rayon 2 px, espacement 4 px. La barre de la semaine actuellement affichee est en colorPrimary plein, les autres en colorPrimary a 45 % d'opacite (transition de couleur animee). Sous chaque barre, un libelle « W18 » (les 2 derniers caracteres+ de l'ISO, via substring(6)), lui aussi en primary et semi-gras pour la semaine courante. A droite du titre : « Moyenne : X,XX € » — affichee uniquement s'il y a au moins 2 points. Ordre : le plus ancien a gauche (la requete DESC est inversee cote repo).",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:354-473",
+        "app/ui/qml/pages/CalendarPage.qml:550-575",
+        "app/ui/viewmodels/calendar_vm.py:254-269",
+        "app/data/repositories/weekly_cost.py:47-57"
+      ],
+      "dataOps": [
+        "SELECT * FROM weekly_cost_snapshot ORDER BY iso_week DESC LIMIT 12 (puis inverse)"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.costHistoryRecent",
+        "WeeklyCostRepo.list_recent"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/cost-history?weeks=12"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "12 barres tiennent sur un ecran etroit si on reduit la largeur des barres, mais les libelles « W18 » a 9 px seront illisibles : n'en afficher qu'un sur trois. Le tooltip au survol n'existe pas au doigt (voir cost-history-tooltip)."
+    },
+    {
+      "id": "cost-history-tooltip",
+      "title": "Info-bulle de valeur au survol d'une barre",
+      "userAction": "L'utilisateur survole une barre du graphique : le montant exact apparait au-dessus, en gras (ex « 47,20 € »). La zone de survol deborde de 4 px autour de la barre pour faciliter le pointage.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:411-420",
+        "app/ui/qml/pages/CalendarPage.qml:433-440"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "blockers": "Le survol n'existe pas sur ecran tactile.",
+      "mobileNotes": "Afficher la valeur en permanence au-dessus des barres (police tres petite), ou au tap — mais le tap est deja pris par la navigation de semaine, donc privilegier l'affichage permanent."
+    },
+    {
+      "id": "cost-history-jump",
+      "title": "Clic sur une barre pour sauter a cette semaine",
+      "userAction": "Clic sur une barre du graphique : le calendrier bascule sur la semaine ISO correspondante (curseur main pointeur).",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:433-440"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry pour la semaine cible"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.setIsoWeek"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek}"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Elargir la zone de tap a toute la colonne (barre + libelle), pas seulement au rectangle de la barre."
+    },
+    {
+      "id": "copy-previous-week",
+      "title": "Bouton « 📋 Copier la semaine precedente »",
+      "userAction": "Clic sur le bouton ghost. Si la semaine affichee est vide, la copie est immediate ; sinon une confirmation modale s'ouvre d'abord.",
+      "behaviourDetails": "Copie en mode AJOUT, jamais en remplacement : les entrees existantes de la semaine cible ne sont pas effacees, deux clics consecutifs creent donc des doublons. Chaque entree copiee est une NOUVELLE ligne (id = None, iso_week = semaine cible) ; jour, creneau, ordinal, portions et quantite sont conserves a l'identique. Garde-fou : si source == destination, la fonction renvoie 0 sans rien faire. La semaine source est calculee via previous_iso_week, robuste aux bornes d'annee (2026-W01 -> 2025-W53).",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:132-136",
+        "app/ui/qml/pages/CalendarPage.qml:706-715",
+        "app/services/meal_plan_service.py:34-78",
+        "app/ui/viewmodels/calendar_vm.py:399-408"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry WHERE iso_week = semaine_precedente",
+        "INSERT INTO meal_plan_entry x N"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.copyPreviousWeek",
+        "meal_plan_service.copy_previous_week",
+        "meal_plan_service.copy_week"
+      ],
+      "proposedApi": [
+        "POST /api/meal-plan/{isoWeek}/copy-from/{sourceIsoWeek}",
+        "POST /api/meal-plan/{isoWeek}/copy-previous"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Fonction a fort effet de levier sur mobile (eviter de re-saisir 20 entrees au pouce) : la mettre bien en evidence, dans un menu « ... » de la barre de semaine plutot que dans une barre d'outils encombree."
+    },
+    {
+      "id": "copy-previous-week-confirm",
+      "title": "Confirmation « Cette semaine contient deja des entrees »",
+      "userAction": "Quand la semaine affichee n'est pas vide, une modale de 460 px s'ouvre : « Cette semaine contient deja des entrees. Les entrees de la semaine precedente vont etre ajoutees (pas remplacees). Continuer ? » avec les boutons OK / Annuler.",
+      "behaviourDetails": "Le mot « ajoutees » est en gras (texte RichText). Modale centree sur l'Overlay. Le declencheur est calendarVM.currentWeekEntryCount() > 0, qui renvoie simplement len(_entries) sans requete supplementaire.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:655-678",
+        "app/ui/viewmodels/calendar_vm.py:123-127"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "CalendarViewModel.currentWeekEntryCount"
+      ],
+      "proposedApi": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Boite de dialogue native centree, boutons empiles pleine largeur de 48 px. Prevoir aussi une option « Remplacer » (absente du desktop) — c'est souvent ce que l'utilisateur veut vraiment."
+    },
+    {
+      "id": "copy-previous-week-toast",
+      "title": "Toast de resultat de la copie",
+      "userAction": "Apres la copie, un bandeau apparait en bas de page pendant 4 secondes.",
+      "behaviourDetails": "Succes (count > 0) : fond colorSuccess, « ✓ N entree(s) copiee(s) depuis la semaine precedente. ». Echec (count == 0) : fond colorWarning, « La semaine precedente est vide — rien a copier. ». Opacite 0.95, texte blanc, auto-masquage par Timer de 4000 ms. Ce meme toast est reutilise pour les messages de templates.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:680-704",
+        "app/ui/qml/pages/CalendarPage.qml:901-911"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Snackbar standard. Attention a ne pas le superposer a la barre de navigation basse du telephone."
+    },
+    {
+      "id": "template-save-button",
+      "title": "Bouton « 💾 Sauver semaine » (grise si semaine vide)",
+      "userAction": "Clic sur le bouton ghost pour ouvrir le dialogue de nommage d'un template.",
+      "behaviourDetails": "Le bouton est DESACTIVE (grise) tant que calendarVM.currentWeekEntryCount() vaut 0 — impossible de sauver une semaine vide depuis l'UI (le service, lui, l'accepterait et stockerait []).",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:147-152",
+        "app/services/meal_plan_service.py:111-121"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "CalendarViewModel.currentWeekEntryCount"
+      ],
+      "proposedApi": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Deplacer dans un menu « ... » : la barre d'actions comporte deja 6 boutons, ce qui est impossible a caser sur un ecran etroit."
+    },
+    {
+      "id": "template-save-dialog",
+      "title": "Dialogue « Sauver la semaine comme template »",
+      "userAction": "L'utilisateur saisit un nom (placeholder « Nom du template ») et valide par le bouton OK ou par la touche Entree.",
+      "behaviourDetails": "Texte d'aide : « Donne un nom a ce template (ex : « Menu hiver », « Menu vacances »). Si un template du meme nom existe, il sera remplace. » Le champ est vide et prend le focus a chaque ouverture. Le nom est trimme cote QML ; s'il est vide, onAccepted fait un return silencieux (aucun message). Cote service, le nom est retrimme et un nom vide leve ValueError. Ecrasement par NOM (pas par id) : la ligne existante voit son snapshot_json remplace. Le snapshot est un JSON de dicts {day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal} — sans id ni iso_week. Un toast de succes s'affiche : « ✓ Template « X » sauve (N entrees) ».",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:845-889",
+        "app/services/meal_plan_service.py:84-138",
+        "app/ui/viewmodels/calendar_vm.py:131-144"
+      ],
+      "dataOps": [
+        "SELECT meal_plan_entry WHERE iso_week = ?",
+        "SELECT meal_plan_template WHERE name = ?",
+        "INSERT ou UPDATE meal_plan_template (name UNIQUE, snapshot_json)"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.saveAsTemplate",
+        "meal_plan_service.save_as_template"
+      ],
+      "proposedApi": [
+        "POST /api/meal-plan/templates  body {name, sourceIsoWeek}"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "blockers": "BUG a ne pas reproduire : le bloc `except ValueError` de saveAsTemplate appelle `log.warning`, mais `log` n'est jamais defini ni importe dans calendar_vm.py — le chemin d'erreur leve un NameError. Le QML masque le probleme en refusant les noms vides en amont.",
+      "mobileNotes": "Champ texte + clavier ; prevoir un avertissement explicite « Un template « X » existe deja, il sera remplace » plutot que la seule phrase d'aide."
+    },
+    {
+      "id": "template-list-popup",
+      "title": "Popup « 📁 Templates ▾ » — liste des templates sauves",
+      "userAction": "Clic sur le bouton « 📁 Templates ▾ » : une popup de 320 px s'ouvre sous le bouton, listant les templates.",
+      "behaviourDetails": "Positionnement calcule : sous le bouton avec 4 px de marge, borne a 8 px des bords de la fenetre. Non modale, se ferme sur Echap ou clic exterieur. Tri ALPHABETIQUE par nom (ORDER BY name cote SQL). Chaque ligne fait 40 px et affiche : le nom, puis « N entree(s) » (pluriel conditionnel) en petit gris, puis un ✕. Le nombre d'entrees est recalcule en desserialisant le JSON a chaque listing (un snapshot corrompu compte 0 sans lever d'erreur). Etat vide : « Aucun template sauve. Configure une semaine puis clique « 💾 Sauver ». » en colorTextDisabled ; sinon « Cliquez un template pour l'appliquer a la semaine courante : ».",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:141-146",
+        "app/ui/qml/pages/CalendarPage.qml:720-829",
+        "app/services/meal_plan_service.py:169-184",
+        "app/ui/viewmodels/calendar_vm.py:161-170"
+      ],
+      "dataOps": [
+        "SELECT * FROM meal_plan_template ORDER BY name"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.listTemplates",
+        "meal_plan_service.list_templates"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/templates"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Popup ancree a un bouton = mauvaise ergonomie mobile. Utiliser une bottom-sheet listant les templates, avec des lignes de 56 px et une action de suppression par swipe."
+    },
+    {
+      "id": "template-apply",
+      "title": "Appliquer un template a la semaine courante",
+      "userAction": "Clic sur la ligne d'un template dans la popup : la popup se ferme, puis soit le template est applique directement (semaine vide), soit une confirmation s'ouvre.",
+      "behaviourDetails": "Application en mode AJOUT : les entrees du template sont ajoutees a la semaine courante, celles deja presentes restent. Chaque entree du snapshot est reconstruite avec l'iso_week cible ; une entree malformee est ignoree avec un log d'avertissement, sans faire echouer les autres (compteur non incremente). Template inexistant ou JSON corrompu -> renvoie 0. Toast de resultat : « ✓ N entree(s) appliquee(s) depuis le template » (fond succes) ou « Template vide — rien a appliquer » (fond warning).",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:809-825",
+        "app/ui/qml/pages/CalendarPage.qml:891-899",
+        "app/services/meal_plan_service.py:141-166",
+        "app/ui/viewmodels/calendar_vm.py:146-159"
+      ],
+      "dataOps": [
+        "SELECT snapshot_json FROM meal_plan_template WHERE id = ?",
+        "INSERT INTO meal_plan_entry x N"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.applyTemplate",
+        "meal_plan_service.apply_template"
+      ],
+      "proposedApi": [
+        "POST /api/meal-plan/{isoWeek}/apply-template/{templateId}"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Excellente fonction pour le mobile (composer une semaine en un tap). Proposer aussi un mode « remplacer », absent du desktop."
+    },
+    {
+      "id": "template-apply-confirm",
+      "title": "Confirmation avant application sur une semaine non vide",
+      "userAction": "Si la semaine courante contient deja des entrees, une modale a trois boutons s'ouvre : « Appliquer » / « Annuler l'application » / « Annuler ».",
+      "behaviourDetails": "Reutilise AppConfirmDialog en mode 'save' (3 boutons), detourne de son usage d'origine : le bouton « discard » (« Annuler l'application ») ne fait rien de particulier — le handler onDiscarded est vide, il se comporte donc exactement comme « Annuler ». Deux boutons sur trois font la meme chose : incoherence a corriger au portage. Message : « Cette semaine contient deja des entrees. Les entrees du template vont etre ajoutees (pas remplacees). Continuer ? ». L'id du template a appliquer est memorise dans `payload` entre l'ouverture et la decision. Echap ferme sans rien emettre.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:831-842",
+        "app/ui/qml/components/AppConfirmDialog.qml:33-62"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "CalendarViewModel.currentWeekEntryCount"
+      ],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Ramener a 2 boutons (Appliquer / Annuler), voire 3 avec un vrai « Remplacer ». Trois boutons dont deux identiques sont un piege sur petit ecran."
+    },
+    {
+      "id": "template-delete",
+      "title": "Supprimer un template (✕ dans la liste)",
+      "userAction": "Clic sur le ✕ a droite d'une ligne de template : le template est supprime immediatement et la liste de la popup se rafraichit.",
+      "behaviourDetails": "AUCUNE confirmation et AUCUN undo — c'est la seule action reellement destructrice non protegee de la page. Le ✕ est gris (textSecondary a 50 %) et passe en colorError au survol. Suppression physique de la ligne meal_plan_template. Le service renvoie False si l'id n'existe pas.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:788-806",
+        "app/services/meal_plan_service.py:187-194",
+        "app/ui/viewmodels/calendar_vm.py:172-180"
+      ],
+      "dataOps": [
+        "DELETE FROM meal_plan_template WHERE id = ?"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.deleteTemplate",
+        "meal_plan_service.delete_template"
+      ],
+      "proposedApi": [
+        "DELETE /api/meal-plan/templates/{id}"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Sur mobile, un ✕ de 22 px a cote d'une zone tappable qui applique le template est un piege a fausse manipulation. Passer par un swipe ou un appui long, et AJOUTER une confirmation (elle manque meme sur desktop)."
+    },
+    {
+      "id": "page-scroll",
+      "title": "Defilement vertical de toute la page",
+      "userAction": "La molette (ou le geste de defilement) fait defiler l'ensemble navigation + grille + nutrition + cout + historique, la grille conservant sa hauteur naturelle.",
+      "behaviourDetails": "ScrollView unique englobant tout le contenu, defilement horizontal explicitement desactive (ScrollBar.horizontal.policy = AlwaysOff), largeur du contenu bornee a pageScroll.availableWidth pour empecher tout debordement lateral. Barre de defilement fine qui apparait au survol.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:85-102",
+        "app/ui/qml/pages/CalendarPage.qml:474-475"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Defilement natif. La regle « jamais de scroll horizontal sur le body » est a respecter strictement : ce sont la grille et le tableau nutritionnel qui doivent avoir leur propre conteneur overflow-x."
+    },
+    {
+      "id": "derived-refresh-cascade",
+      "title": "Recalcul en cascade des panneaux derives",
+      "userAction": "Invisible : chaque mutation ou navigation declenche le rechargement de tous les panneaux derives.",
+      "behaviourDetails": "Le signal week_changed du VM declenche _refreshDerived() cote QML, qui enchaine : weekCostAsDict(), costHistoryRecent(12), 7 appels dayTotalAsDict(0..6), weekTotalAsDict(), daysAsList(). Chaque appel ouvre sa PROPRE session SQLAlchemy et, pour les agregats, recharge integralement les entrees de la semaine. Soit une dizaine de rechargements complets par navigation.",
+      "sourceRefs": [
+        "app/ui/qml/pages/CalendarPage.qml:44-69",
+        "app/ui/viewmodels/calendar_vm.py:297-316"
+      ],
+      "dataOps": [
+        "~10 x SELECT meal_plan_entry + jointures recipe/ingredient"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.refresh",
+        "week_changed signal"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/{isoWeek}?include=nutrition,cost,days,history — une seule reponse agregee"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "blockers": "Ce modele « un appel par panneau » est acceptable en local (< 10 ms) mais devient inacceptable en HTTP. Il faut un endpoint unique qui renvoie entrees + jours + totaux/jour + total semaine + cout + historique en une passe.",
+      "mobileNotes": "Sur reseau mobile, viser un seul aller-retour par changement de semaine, avec pre-chargement optimiste de la semaine suivante et de la precedente."
+    },
+    {
+      "id": "unified-search-calendar",
+      "title": "Recherche unifiee Ctrl+K — section Calendrier",
+      "userAction": "Depuis n'importe quel onglet, Ctrl+K ouvre la recherche unifiee ; une section « 📅 Calendrier · semaine courante » liste les entrees dont la description contient la requete. Entree valide : bascule sur l'onglet Calendrier et saute a la semaine correspondante.",
+      "behaviourDetails": "Recherche insensible a la casse (casefold) et limitee a la SEMAINE COURANTE uniquement, sur la description deja rendue. Limite par defaut 12. Le sous-libelle affiche « Lundi midi » etc. via une table de correspondance des 5 creneaux. BUG BLOQUANT dans l'implementation actuelle : calendarVM.searchOnce parcourt self._entries (une simple list Python) comme si c'etait un QAbstractListModel (appels a rowCount(), index(), data()) — l'appel leve donc une AttributeError et la section Calendrier de Ctrl+K est en pratique toujours vide.",
+      "sourceRefs": [
+        "app/ui/viewmodels/calendar_vm.py:182-208",
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:261-281",
+        "app/ui/qml/Main.qml:493-507"
+      ],
+      "dataOps": [
+        "aucune (parcours en memoire des entrees de la semaine courante)"
+      ],
+      "vmMethods": [
+        "CalendarViewModel.searchOnce"
+      ],
+      "proposedApi": [
+        "GET /api/meal-plan/search?q=&isoWeek=&limit=12 (et idealement toutes semaines, pas seulement la courante)"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "blockers": "Fonctionnalite cassee en l'etat (AttributeError sur une list). A re-implementer proprement cote web, de preference en recherchant sur TOUTES les semaines et non la seule semaine affichee.",
+      "mobileNotes": "Pas de Ctrl+K au doigt : exposer une loupe dans l'entete. La recherche multi-semaines est bien plus utile sur mobile que la recherche limitee a la semaine affichee."
+    },
+    {
+      "id": "cooking-log-dialog",
+      "title": "Journal de cuisson d'une recette (dialogue date/note/commentaire)",
+      "userAction": "Ouvert depuis la page Recettes (bouton dedie), ce dialogue detachable de 720x560 px (min 580x420) affiche l'historique des fois ou la recette a ete cuisinee, et permet d'en ajouter ou d'en supprimer.",
+      "behaviourDetails": "Trois sections : formulaire d'ajout (Date / Note 1-5 avec 0 = pas de note / Notes libres), tableau anti-chronologique, et le compteur « Cuisinee N fois au total » (ou « Aucune cuisson enregistree. »). Le champ Date est pre-rempli avec la date du jour au format ISO (YYYY-MM-DD) et double d'un bouton 📅 ouvrant un mini-calendrier. Le bouton « + Ajouter » est DESACTIVE tant que le champ Date est vide apres trim. La note s'affiche en etoiles : '★' x note + '☆' x (5 - note), en colorWarning ; « — » grise si note = 0. Apres un ajout reussi, le champ Notes et la note sont remis a zero, la liste se rafraichit et le focus revient sur le champ Notes. La suppression via ✕ est immediate, sans confirmation. Etat vide de la liste : « Aucune cuisson enregistree. Ajoute la premiere ! ». NOTE DE PERIMETRE : ce dialogue est instancie par RecipesPage.qml:951, pas par CalendarPage — il appartient fonctionnellement a la zone Recettes, mais il partage la logique de dates et le DatePickerPopup avec le calendrier.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/CookingHistoryDialog.qml:20-320",
+        "app/ui/qml/pages/RecipesPage.qml:951",
+        "app/domain/models.py:316-330"
+      ],
+      "dataOps": [
+        "SELECT * FROM cooking_log WHERE recipe_id = ? ORDER BY cooked_at DESC",
+        "INSERT INTO cooking_log (recipe_id, cooked_at, rating, notes)",
+        "DELETE FROM cooking_log WHERE id = ?"
+      ],
+      "vmMethods": [
+        "recipeEditorVM.cookingLogAsList",
+        "recipeEditorVM.addCookingLog",
+        "recipeEditorVM.deleteCookingLog"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/{id}/cooking-log",
+        "POST /api/recipes/{id}/cooking-log",
+        "DELETE /api/cooking-log/{id}"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "Formulaire en 5 colonnes impossible sur telephone : empiler Date / Note / Commentaire. Utiliser <input type=\"date\"> natif plutot qu'un calendrier custom. La note en etoiles doit devenir 5 boutons tappables de 44 px."
+    },
+    {
+      "id": "date-picker-popup",
+      "title": "Mini-calendrier contextuel (selection de date)",
+      "userAction": "Clic sur le bouton 📅 a cote d'un champ date : une popup de 280 px s'ouvre sous le bouton. L'utilisateur navigue de mois en mois et clique un jour ; la date au format ISO est reinjectee dans le champ et la popup se ferme.",
+      "behaviourDetails": "Grille fixe de 6x7 = 42 cellules de 32 px, la semaine commence LUNDI (decalage isoOffset = (jsDay+6)%7). Les jours hors du mois affiche sont en colorTextDisabled. « Aujourd'hui » est marque d'un anneau primary de 1.5 px ; la date selectionnee est une pastille primary pleine avec texte colorOnPrimary. Entete « ‹ Mois Annee › » avec le nom de mois long capitalise via Qt.locale(). Bandeau des jours en format narrow majuscule (L M M J V S D). Pied de page : « Aujourd'hui » (saute a la date systeme, emet la date et ferme) et « Fermer ». Raccourcis PageUp / PageDown pour changer de mois. Une date ISO invalide ou vide a l'ouverture retombe sur aujourd'hui. Non modal, se ferme sur Echap ou clic exterieur. Utilise par CookingHistoryDialog, PantryPage, AddPantryStockDialog, ReceiptImportDialog et PriceHistoryDialog — pas directement par CalendarPage.",
+      "sourceRefs": [
+        "app/ui/qml/components/DatePickerPopup.qml:31-371"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "M",
+      "blockers": "Composant entierement re-implementable en une ligne avec <input type=\"date\">, qui offre en prime le selecteur natif iOS/Android. Ne pas porter le composant tel quel.",
+      "mobileNotes": "Utiliser le selecteur de date natif du systeme : meilleure accessibilite, meilleure ergonomie, zero code. Ne conserver un calendrier custom que si l'on a besoin de marquer visuellement certaines dates."
+    }
+  ]
+}

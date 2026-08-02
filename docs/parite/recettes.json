@@ -1,0 +1,1421 @@
+{
+  "page": "Recettes",
+  "summary": "Page a deux volets (SplitView 30/70) : a gauche la liste des recettes (vignette photo, filtre par tags, boutons Nouvelle / Importer URL / Supprimer avec undo), a droite un editeur complet de la recette selectionnee (photo, tags, nom/portions/instructions, lignes d'ingredients auto-groupees par rayon avec quantite+unite+notes, tableau nutritionnel UE 3 colonnes + donut macros Atwater, panneau cout + scaling de portions, journal de cuisson). Un buffer d'edition en memoire (dirty flag) declenche une confirmation \"Enregistrer / Abandonner / Annuler\" avant tout changement de recette, tandis que photo et tags sont persistes immediatement. Un wizard d'import par URL en 3 etapes (extraction recipe-scrapers puis fallback JSON-LD, association ingredient par ligne, commit) cree des recettes depuis le web.",
+  "features": [
+    {
+      "id": "recipes-list-render",
+      "title": "Liste des recettes (vignette + meta)",
+      "userAction": "L'utilisateur arrive sur l'onglet Recettes ; le volet gauche affiche toutes les recettes, une par ligne de 68 px de haut : vignette carree 56x56 a gauche, nom en gras, sous-titre gris.",
+      "behaviourDetails": "Tri alphabetique par nom (ORDER BY recipe.name, cote SQL). Sous-titre = '<defaultPortions> portion(s)  ·  <lineCount> ingredient(s)' avec pluriel conditionnel (>1). Vignette : Image en PreserveAspectCrop, asynchronous, cache actif, radius 4, bordure 1 px ; si photoUrl vide OU si Image.status === Error (fichier efface du disque en cours de session) on masque l'image et on affiche l'emoji placeholder 🍽 en 24 px gris disabled. photoUrl est calcule cote Python : absolute_photo_path() retourne None si le fichier n'existe pas sur disque -> chaine vide (et log warning). Nom elide a droite. La liste est integralement reconstruite (beginResetModel/endResetModel) a chaque refresh.",
+      "mobileNotes": "Carte pleine largeur avec vignette 56 px a gauche ; pas de survol, la selection se fait au tap. Prevoir lazy-loading des vignettes (IntersectionObserver) et une image placeholder SVG plutot qu'un emoji.",
+      "blockers": "QAbstractListModel + roles Qt ; URL file:// locale pour les photos (a remplacer par une URL R2/Worker signee).",
+      "complexity": "S",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:284-360",
+        "app/ui/models/recipe_list_model.py:24-101",
+        "app/data/repositories/recipe.py:58-74"
+      ],
+      "dataOps": [
+        "SELECT recipe ORDER BY name avec selectinload(lines->ingredient) et selectinload(tags)",
+        "lecture recipe.image_path -> resolution disque"
+      ],
+      "vmMethods": [
+        "RecipeListViewModel.refresh",
+        "RecipeListViewModel.refreshList",
+        "RecipeListModel.set_items"
+      ],
+      "proposedApi": [
+        "GET /api/recipes"
+      ]
+    },
+    {
+      "id": "recipes-list-select",
+      "title": "Selectionner une recette pour l'editer",
+      "userAction": "Clic sur une ligne de la liste : la ligne se met en surbrillance (barre de selection a gauche via AppListItem) et l'editeur du volet droit se remplit.",
+      "behaviourDetails": "onClicked positionne recipesList.currentIndex = index puis appelle page._loadRecipe(model.recipeId). _loadRecipe verifie d'abord recipeEditorVM.hasUnsavedChanges ET selectedId !== id : si dirty, il memorise la cible dans _pendingSwitchId et ouvre le dialog de confirmation SANS charger. Sinon il pose selectedId = id, met _silenceMetaPush = true (evite un rebond de _pushMeta pendant que les champs se repeuplent), appelle recipeEditorVM.loadById(id), puis remet le flag a false. loadById avec id <= 0 charge une recette vide. Le signal `loaded` re-remplit metaName / metaPortions / metaInstructions puis declenche _refreshScaling, _refreshLines, _refreshDerived, _refreshPhoto, _refreshCookingStats.",
+      "mobileNotes": "Sur telephone la liste et l'editeur ne tiennent pas cote a cote : liste = ecran 1, tap -> navigation vers l'ecran editeur (route /recettes/:id) avec bouton retour. Le garde-fou dirty doit s'accrocher au retour arriere du navigateur.",
+      "blockers": "Le pattern buffer-en-memoire + signaux Qt (loaded / lines_changed / derived_changed) doit devenir un state store cote client.",
+      "complexity": "M",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:293-300",
+        "app/ui/qml/pages/RecipesPage.qml:1102-1112",
+        "app/ui/viewmodels/recipe_vm.py:470-478",
+        "app/ui/viewmodels/recipe_vm.py:821-831"
+      ],
+      "dataOps": [
+        "SELECT recipe WHERE id = ? avec lines->ingredient et tags"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.loadById",
+        "RecipeEditorViewModel.load"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id"
+      ]
+    },
+    {
+      "id": "recipes-new",
+      "title": "Creer une nouvelle recette (bouton Nouvelle / Ctrl+N)",
+      "userAction": "Clic sur le bouton primaire « Nouvelle » (ou Ctrl+N) : la selection de liste est deselectionnee, l'editeur passe en mode « Nouvelle recette » et le curseur se place dans le champ Nom.",
+      "behaviourDetails": "_loadNew() applique d'abord le garde-fou dirty (cible sentinelle -2). _doLoadNew() : recipesList.currentIndex = -1, page.selectedId = -2, loadEmpty() (recipe = Recipe(name='(nouvelle recette)'), default_portions=1, instructions='', lines=[], tags=[]), puis metaName.forceActiveFocus(). Etats derives de selectedId : -1 = aucune selection (editeur entierement grise via `enabled: page.selectedId !== -1`, titre « Selectionne une recette pour l'editer »), -2 = nouvelle non sauvee (titre « Nouvelle recette », photo et journal de cuisson desactives), >0 = recette persistee (titre « Modifier la recette »).",
+      "mobileNotes": "Bouton flottant + (FAB) en bas a droite de la liste ; l'autofocus sur le champ Nom ouvre le clavier virtuel, ce qui est souhaitable ici.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:189-193",
+        "app/ui/qml/pages/RecipesPage.qml:1114-1130",
+        "app/ui/qml/pages/RecipesPage.qml:930-935",
+        "app/ui/viewmodels/recipe_vm.py:479-481"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeEditorViewModel.loadEmpty"
+      ],
+      "proposedApi": []
+    },
+    {
+      "id": "recipes-delete",
+      "title": "Supprimer une recette (bouton Supprimer / touche Suppr)",
+      "userAction": "Avec une recette sauvee selectionnee, clic sur « Supprimer » (variant secondary) ou appui sur Suppr : la recette disparait immediatement de la liste, l'editeur se vide.",
+      "behaviourDetails": "Le bouton est GRISE tant que selectedId <= 0 (pas de suppression possible sur une nouvelle recette non sauvee). Le raccourci Suppr n'est actif que si page.visible && selectedId > 0. Aucune confirmation modale : suppression immediate, annulable via le toast (voir feature undo). _deleteCurrent() : recipeListVM.deleteRecipe(id), selectedId = -1, recipeEditorVM.loadEmpty(). Cote VM : snapshot complet de la Recipe (lignes + tags) dans _last_deleted AVANT le DELETE, puis DELETE (cascade SQL sur recipe_ingredient / recipe_tag / recipe_cooking_log), refresh de la liste, puis emission de deletion_pending_undo('Recette « <nom> » supprimee').",
+      "mobileNotes": "Pas de touche Suppr : swipe-to-delete sur la carte de liste, ou action dans un menu ... contextuel. Le toast d'annulation devient obligatoire (pas de Ctrl+Z).",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:199-204",
+        "app/ui/qml/pages/RecipesPage.qml:942-947",
+        "app/ui/qml/pages/RecipesPage.qml:1167-1172",
+        "app/ui/viewmodels/recipe_vm.py:310-323"
+      ],
+      "dataOps": [
+        "SELECT recipe WHERE id = ? (snapshot)",
+        "DELETE FROM recipe WHERE id = ? (cascade recipe_ingredient, recipe_tag, recipe_cooking_log)"
+      ],
+      "vmMethods": [
+        "RecipeListViewModel.deleteRecipe",
+        "RecipeListViewModel.delete"
+      ],
+      "proposedApi": [
+        "DELETE /api/recipes/:id"
+      ]
+    },
+    {
+      "id": "recipes-delete-undo",
+      "title": "Annuler la suppression (UndoToast)",
+      "userAction": "Apres une suppression, un toast sombre apparait en bas centre avec le libelle « Recette « X » supprimee » et un bouton « Annuler » ; clic dessus -> la recette revient dans la liste.",
+      "behaviourDetails": "Toast auto-masque apres 5000 ms (timeoutMs par defaut), opacite 0.96, fond #1f2937 en mode clair / Theme.colorSurface en mode sombre, z=100. Le clic sur « Annuler » appelle recipeListVM.undoLastDelete() puis masque le toast. ATTENTION regle metier : la restauration passe par repo.create() sur une copie avec id=None -> la recette recuperee obtient un NOUVEL id. Toute reference externe (entree de calendrier qui pointait vers l'ancien id) N'EST PAS re-liee. Le journal de cuisson n'est pas restaure. _last_deleted est remis a None apres restauration (une seule annulation possible).",
+      "mobileNotes": "Snackbar Material en bas d'ecran ; le delai de 5 s est court sur mobile, envisager 7-8 s. Bouton Annuler d'au moins 44x44 px.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:50-60",
+        "app/ui/qml/components/UndoToast.qml:22-106",
+        "app/ui/viewmodels/recipe_vm.py:325-338"
+      ],
+      "dataOps": [
+        "INSERT INTO recipe (+ recipe_ingredient, recipe_tag) a partir du snapshot memoire"
+      ],
+      "vmMethods": [
+        "RecipeListViewModel.undoLastDelete"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/:id/restore",
+        "POST /api/recipes (re-creation depuis snapshot client)"
+      ]
+    },
+    {
+      "id": "recipes-tag-filter",
+      "title": "Filtrer la liste par tags (chips toggle)",
+      "userAction": "Au-dessus de la liste, une rangee de pastilles colorees (une par tag existant). Clic sur une pastille -> elle se remplit de sa couleur et la liste ne montre plus que les recettes portant ce tag ; re-clic -> retour a l'etat clair.",
+      "behaviourDetails": "Le bloc entier est masque si allTags.length === 0. Pastilles : hauteur 22 px, radius full, spacing 3, largeur = texte + 1.5 * spaceMd. Etat actif : fond = tag.colorHex plein, texte blanc ; inactif : fond Qt.alpha(colorHex, 0.10), bordure Qt.alpha(colorHex, 0.35), texte colorHex. Transition ColorAnimation durationFast. Semantique du filtre : OU logique (une recette est retenue si elle porte AU MOINS UN des tags actifs) — implemente par un JOIN recipe_tag + WHERE tag_id IN (...) + DISTINCT. Le filtre est un etat du VM (_tag_filter), il persiste entre les refresh y compris apres un toggle de tag sur une recette (le signal tags_changed force un refreshList car le filtre peut inclure/exclure).",
+      "mobileNotes": "Rangee scrollable horizontalement (overflow-x auto) ; pas de survol donc l'etat actif/inactif doit rester lisible au seul contraste. Prevoir un compteur « N filtres » repliable si beaucoup de tags.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:209-274",
+        "app/ui/viewmodels/recipe_vm.py:157-215",
+        "app/data/repositories/recipe.py:58-74"
+      ],
+      "dataOps": [
+        "SELECT tag ORDER BY name",
+        "SELECT recipe JOIN recipe_tag WHERE tag_id IN (...) DISTINCT ORDER BY name"
+      ],
+      "vmMethods": [
+        "RecipeListViewModel.toggleTagFilter",
+        "RecipeListViewModel.setTagFilter",
+        "RecipeListViewModel.tagFilter",
+        "TagListViewModel.listAll"
+      ],
+      "proposedApi": [
+        "GET /api/tags",
+        "GET /api/recipes?tagIds=1,4,7"
+      ]
+    },
+    {
+      "id": "recipes-tag-filter-clear",
+      "title": "Effacer le filtre de tags",
+      "userAction": "Un lien texte « Effacer » (couleur primaire, curseur main) apparait a droite de l'etiquette « Filtrer : » des qu'au moins un tag est actif ; clic -> tous les filtres tombent.",
+      "behaviourDetails": "Visible uniquement si recipeListVM.tagFilter.length > 0. clearTagFilter() ne fait rien si la liste est deja vide (pas de signal ni de refresh inutile).",
+      "mobileNotes": "Transformer en petit bouton texte a zone de tap elargie (min 44 px de haut) plutot qu'un simple Text cliquable.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:224-236",
+        "app/ui/viewmodels/recipe_vm.py:209-214"
+      ],
+      "dataOps": [
+        "SELECT recipe ORDER BY name (sans filtre)"
+      ],
+      "vmMethods": [
+        "RecipeListViewModel.clearTagFilter"
+      ],
+      "proposedApi": [
+        "GET /api/recipes"
+      ]
+    },
+    {
+      "id": "recipes-list-empty-state",
+      "title": "Etat vide de la liste des recettes",
+      "userAction": "Quand aucune recette n'existe (ou qu'aucune ne passe le filtre de tags), un message centre remplace la liste.",
+      "behaviourDetails": "Texte sur deux lignes, centre, couleur secondaire, fontSizeSm : « Aucune recette\\nClique sur « Nouvelle » pour commencer. ». Affiche des que recipesList.count === 0 — donc AUSSI quand le filtre de tags ne retourne rien, ce qui est trompeur (le message parle de creation alors que la cause est le filtre).",
+      "mobileNotes": "A ameliorer sur mobile : distinguer « bibliotheque vide » (CTA creer) de « aucun resultat pour ce filtre » (CTA effacer le filtre).",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:361-369"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": []
+    },
+    {
+      "id": "recipes-split-resize",
+      "title": "Redimensionner le separateur liste / editeur",
+      "userAction": "L'utilisateur attrape la poignee verticale entre la liste et l'editeur et la fait glisser pour elargir l'un ou l'autre.",
+      "behaviourDetails": "SplitView horizontal. Volet gauche : preferredWidth = 30 % de la largeur totale, minimumWidth = 240 px. Poignee : 5 px de large, transparente au repos, Theme.colorBorder au survol, Theme.colorBorderHover pendant le glissement, ColorAnimation durationFast. Le volet droit prend le reste (SplitView.fillWidth) et scrolle verticalement via un Flickable + AppScrollBar (contentHeight = editor.implicitHeight + 2 * spaceXl).",
+      "mobileNotes": "Non portable : sur telephone il n'y a pas deux volets. Remplacer par une navigation liste -> detail. Le glisser-deposer fin d'une poignee de 5 px est impossible au doigt.",
+      "blockers": "SplitView Qt ; le concept meme de deux volets redimensionnables ne survit pas au format telephone.",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:164-182",
+        "app/ui/qml/pages/RecipesPage.qml:374-393"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": []
+    },
+    {
+      "id": "recipe-photo-display",
+      "title": "Affichage de la photo de recette",
+      "userAction": "En haut de l'editeur, un cadre 300x200 montre la photo de la recette, ou un placeholder si absente.",
+      "behaviourDetails": "Image en PreserveAspectCrop, asynchronous, cache: false (pour que le remplacement d'une photo se voie immediatement — la vignette de liste, elle, a cache: true). Trois etats de placeholder empiles verticalement (emoji 48 px + libelle) : « Photo introuvable » si Image.status === Error (image_path renseigne mais fichier absent du disque), « Enregistre la recette d'abord » si selectedId === -2, « Aucune photo » sinon ; plus un sous-texte italique « (ou glisse une image ici) » visible uniquement si selectedId > 0 et pas de photo. Le bloc entier est masque quand selectedId === -1.",
+      "mobileNotes": "Cadre fixe 300x200 a remplacer par un ratio 3:2 en largeur fluide. Prevoir srcset / tailles multiples car la photo stockee fait jusqu'a 1024x1024.",
+      "blockers": "Chemin file:// local (~/.livre-de-recettes/recipe_photos/<id>.jpg) : a migrer vers R2 avec URL servie par le Worker.",
+      "complexity": "S",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/components/RecipePhotoBlock.qml:40-95",
+        "app/ui/viewmodels/recipe_vm.py:396-405",
+        "app/services/photo_service.py:49-64"
+      ],
+      "dataOps": [
+        "lecture recipe.image_path"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.photoUrl",
+        "RecipeEditorViewModel.hasPhoto"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id/photo"
+      ]
+    },
+    {
+      "id": "recipe-photo-upload",
+      "title": "Ajouter / remplacer la photo via selecteur de fichier",
+      "userAction": "Clic sur « + Ajouter une photo » (ou « Modifier la photo » si une photo existe) : un selecteur de fichier natif s'ouvre, filtre sur les images ; apres validation la photo apparait et un toast vert « ✓ Photo enregistree » s'affiche.",
+      "behaviourDetails": "Le bouton est GRISE tant que selectedId <= 0 (il faut un id stable pour nommer le fichier <recipe_id>.jpg) ; un texte d'aide « Sauvegarde d'abord la recette pour pouvoir y attacher une photo. » s'affiche quand selectedId === -2. Filtre : Images (*.png *.jpg *.jpeg *.webp *.gif *.bmp), mode OpenFile. Le libelle du bouton bascule selon photoUrl === ''. Traitement serveur (Pillow) : exif_transpose (redresse les photos portrait iPhone), thumbnail 1024x1024 max en LANCZOS (ratio preserve, pas d'agrandissement), aplatissement RGBA/LA/P sur fond blanc, sauvegarde JPEG qualite 85 optimize. Le nom de fichier stocke en DB est uniquement '<recipe_id>.jpg' (chemin relatif). La photo est persistee IMMEDIATEMENT (RecipeRepo.update) — elle ne passe pas par le dirty flag. Erreurs remontees en toast rouge 5 s : « Fichier introuvable : ... », « Format d'image non supporte ou erreur disque : ... », « Sauvegarde la recette avant d'ajouter une photo. ». Le signal photo_changed force aussi recipeListVM.refreshList() pour que la vignette de liste mute.",
+      "mobileNotes": "Sur telephone : <input type=file accept=\"image/*\" capture=\"environment\"> pour offrir directement l'appareil photo. Le resize doit se faire cote client (canvas) avant upload pour eviter d'envoyer 5 Mo en 4G.",
+      "blockers": "FileDialog natif Qt ; Pillow cote serveur (a remplacer par un resize client + R2). Nommage <recipe_id>.jpg = une seule photo par recette, pas de cache-busting (meme URL apres remplacement).",
+      "complexity": "M",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/components/RecipePhotoBlock.qml:138-170",
+        "app/ui/viewmodels/recipe_vm.py:483-516",
+        "app/services/photo_service.py:67-121",
+        "app/ui/qml/pages/RecipesPage.qml:1042-1064"
+      ],
+      "dataOps": [
+        "UPDATE recipe SET image_path = ? WHERE id = ?"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.setPhotoFromUrl",
+        "photo_service.save_recipe_photo"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/:id/photo (multipart/form-data)"
+      ]
+    },
+    {
+      "id": "recipe-photo-drag-drop",
+      "title": "Deposer une image sur le cadre photo (fichier local ou URL web)",
+      "userAction": "L'utilisateur fait glisser un fichier image depuis l'explorateur, ou une image depuis un navigateur, et la lache sur le cadre photo ; pendant le survol le cadre s'entoure de bleu, l'emoji devient 📥 et le texte « Deposer ici ».",
+      "behaviourDetails": "DropArea keys: ['text/uri-list','text/plain'], desactivee si selectedId <= 0. Feedback : bordure 2 px Theme.colorPrimary + halo Qt.alpha(colorPrimary, 0.10) tant que containsDrag. Dispatch dans _handleDroppedUrl : prefixe file:// -> setPhotoFromUrl ; http:// ou https:// -> setPhotoFromHttpUrl ; tout autre schema (data:, ftp:) est ignore silencieusement (l'utilisateur ne voit rien changer). Fallback : si drop.hasUrls est vide mais drop.hasText contient une chaine (drag d'un lien plutot que d'une image), on la traite comme URL. Telechargement HTTP : httpx follow_redirects, timeout 15 s (connect 5 s), User-Agent livre-de-recettes/0.1.0, garde-fou 20 Mo -> OSError « Image trop volumineuse », extension devinee depuis l'URL (avant le ?), fichier temporaire supprime dans un finally, puis meme pipeline Pillow que l'upload local. Erreur -> toast rouge « Impossible de telecharger l'image : ... » ou « URL HTTP(S) attendue. ».",
+      "mobileNotes": "Le drag-drop n'existe pas sur telephone. A remplacer par : bouton photo (input file + capture), et eventuellement un champ « coller une URL d'image ». Sur desktop web on peut garder le drop + le paste (Ctrl+V d'une image dans le presse-papier).",
+      "blockers": "DropArea Qt ; telechargement server-side (SSRF a filtrer si on l'expose en API).",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/components/RecipePhotoBlock.qml:106-131",
+        "app/ui/qml/components/RecipePhotoBlock.qml:174-186",
+        "app/ui/viewmodels/recipe_vm.py:518-547",
+        "app/services/photo_service.py:124-196"
+      ],
+      "dataOps": [
+        "UPDATE recipe SET image_path = ? WHERE id = ?"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.setPhotoFromHttpUrl",
+        "photo_service.save_recipe_photo_from_http_url"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/:id/photo/from-url  { url }"
+      ]
+    },
+    {
+      "id": "recipe-photo-remove",
+      "title": "Retirer la photo de la recette",
+      "userAction": "Clic sur « Retirer la photo » (bouton rouge, visible uniquement quand une photo existe) : le cadre repasse au placeholder.",
+      "behaviourDetails": "Aucune confirmation. removePhoto() retourne False (no-op) si recipe.id est None ou image_path vide. Sinon : suppression du fichier sur disque (erreurs OSError loggees et avalees), image_path mis a NULL, UPDATE immediat en DB, emission photo_changed -> le placeholder revient et la vignette de liste se met a jour. Comme la photo, la suppression ne passe pas par le dirty flag.",
+      "mobileNotes": "Ajouter une confirmation ou compter sur l'undo — un tap accidentel detruit le fichier de facon irreversible.",
+      "blockers": "Suppression de fichier sur disque local -> DELETE objet R2.",
+      "complexity": "S",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/components/RecipePhotoBlock.qml:144-149",
+        "app/ui/viewmodels/recipe_vm.py:581-592",
+        "app/services/photo_service.py:199-214"
+      ],
+      "dataOps": [
+        "UPDATE recipe SET image_path = NULL WHERE id = ?"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.removePhoto",
+        "photo_service.delete_recipe_photo"
+      ],
+      "proposedApi": [
+        "DELETE /api/recipes/:id/photo"
+      ]
+    },
+    {
+      "id": "recipe-tags-toggle",
+      "title": "Attacher / detacher un tag a la recette (chips)",
+      "userAction": "Sous la photo, la ligne « Tags : » affiche TOUS les tags du catalogue en pastilles ; clic sur une pastille -> elle se remplit (tag attache), re-clic -> elle redevient claire (tag detache).",
+      "behaviourDetails": "Chips 26 px de haut, radius full, largeur = texte + 2 * spaceMd, texte en SemiBold. Attache : fond colorHex plein, texte blanc, bordure colorHex. Detache : fond Qt.alpha(colorHex, 0.15), bordure Qt.alpha(colorHex, 0.4), texte colorHex. Transitions ColorAnimation durationFast sur color et border.color. toggleTag : si le tag est deja present on le retire de la liste locale ; sinon on l'hydrate depuis TagRepo.get(tag_id) (retour silencieux si le tag n'existe pas). PERSISTANCE IMMEDIATE si recipe.id n'est pas None -> RecipeRepo.set_tags(id, ids) qui remplace atomiquement l'ensemble via la relation ORM (assigner [] supprime toutes les lignes recipe_tag). Sur une recette non sauvee, les tags restent en memoire et partent au create(). Les tags ne mettent PAS le dirty flag. Le signal tags_changed declenche aussi recipeListVM.refreshList() (le filtre de tags peut changer la composition de la liste). Le catalogue de tags est charge une seule fois (Component.onCompleted + garde `allTags.length === 0`) — un tag cree ailleurs n'apparait qu'apres relance.",
+      "mobileNotes": "Chips en Flow scrollable ; 26 px de haut est sous la cible tactile de 44 px, a agrandir. Pas de survol : l'etat attache doit reposer sur le contraste plein/clair uniquement.",
+      "blockers": "Catalogue de tags en lecture seule (pas de creation/renommage/suppression dans l'UI).",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/components/RecipeTagsChips.qml:20-79",
+        "app/ui/qml/pages/RecipesPage.qml:415-420",
+        "app/ui/viewmodels/recipe_vm.py:549-579",
+        "app/data/repositories/recipe.py:105-125",
+        "app/ui/viewmodels/tag_vm.py:46-53"
+      ],
+      "dataOps": [
+        "SELECT tag ORDER BY name",
+        "SELECT tag WHERE id = ?",
+        "DELETE/INSERT recipe_tag (remplacement atomique de l'ensemble)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.toggleTag",
+        "RecipeEditorViewModel.currentTags",
+        "TagListViewModel.listAll",
+        "RecipeRepo.set_tags"
+      ],
+      "proposedApi": [
+        "GET /api/tags",
+        "PUT /api/recipes/:id/tags  { tagIds: [...] }"
+      ]
+    },
+    {
+      "id": "recipe-meta-name",
+      "title": "Saisir le nom de la recette",
+      "userAction": "L'utilisateur tape dans le champ « Nom : » du formulaire.",
+      "behaviourDetails": "AppTextField, Layout.minimumWidth 200, maximumWidth 480. onTextChanged appelle page._pushMeta() a CHAQUE frappe (pas d'attente de perte de focus). _pushMeta est neutralise si _silenceMetaPush (rechargement en cours) ou si selectedId === -1. updateMeta compare aux valeurs courantes et ne pose le dirty flag que si name / instructions / default_portions ont reellement change (evite les faux positifs quand le formulaire renvoie les memes valeurs). Regle de validation : saveCurrent() retourne False si name.strip() est vide -> la sauvegarde echoue SILENCIEUSEMENT (aucun message d'erreur n'est affiche a l'utilisateur, seul le dialog de modifications non sauvees annule alors le changement de recette). Pydantic refuse aussi un nom vide au niveau modele.",
+      "mobileNotes": "Debouncer la mise a jour du buffer (300 ms) plutot qu'a chaque frappe. Ajouter un message d'erreur visible sous le champ quand le nom est vide — l'echec silencieux actuel est un vrai defaut d'UX a corriger dans le portage.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:429-436",
+        "app/ui/qml/pages/RecipesPage.qml:1154-1158",
+        "app/ui/viewmodels/recipe_vm.py:594-596",
+        "app/ui/viewmodels/recipe_vm.py:833-856",
+        "app/domain/models.py:200-205"
+      ],
+      "dataOps": [
+        "UPDATE recipe SET name = ? (au save)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.updateMeta",
+        "RecipeEditorViewModel.update_meta"
+      ],
+      "proposedApi": [
+        "PUT /api/recipes/:id"
+      ]
+    },
+    {
+      "id": "recipe-meta-portions",
+      "title": "Regler le nombre de portions de reference",
+      "userAction": "L'utilisateur tape ou incremente/decremente le spinbox « Portions : ».",
+      "behaviourDetails": "AppSpinBox largeur 100, decimals 0, plage 1 a 50, pas 1, valeur initiale 1. Le SpinBox Qt est entier en interne : realValue est converti par un facteur 10^decimals ; validator DoubleValidator locale fr_FR. Regle metier : changer default_portions REINITIALISE l'eventuel override de scaling (_display_portions = None) pour eviter un ratio implicite deroutant, et emet display_portions_changed. max(1, valeur) est applique cote Python. Les valeurs par portion du tableau nutritionnel sont recalculees (total / default_portions) et le cout par portion aussi.",
+      "mobileNotes": "Spinbox +/- a la souris peu adapte : utiliser <input type=number inputmode=numeric> avec des boutons +/- de 44 px, ou un stepper.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:438-448",
+        "app/ui/qml/components/AppSpinBox.qml:10-69",
+        "app/ui/viewmodels/recipe_vm.py:833-856"
+      ],
+      "dataOps": [
+        "UPDATE recipe SET default_portions = ? (au save)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.updateMeta"
+      ],
+      "proposedApi": [
+        "PUT /api/recipes/:id"
+      ]
+    },
+    {
+      "id": "recipe-meta-instructions",
+      "title": "Saisir les instructions de preparation",
+      "userAction": "L'utilisateur ecrit les etapes dans la zone de texte multiligne « Instructions : ».",
+      "behaviourDetails": "TextArea dans un ScrollView de 120 px de haut, wrapMode Wrap, selectByMouse, placeholder « Etapes de preparation… ». Bordure focus = Theme.colorBorderFocus. onTextChanged -> _pushMeta() a chaque frappe (meme mecanique que le nom). Pas de formatage riche, pas de decoupage en etapes numerotees : c'est un champ texte brut stocke tel quel dans recipe.instructions. Le premier ligne (tronquee a 80 caracteres avec un ellipsis) est expose par le modele de liste sous le role instructionsHead — mais ce role n'est PAS utilise par le delegate actuel.",
+      "mobileNotes": "Textarea auto-grow plutot que hauteur fixe de 120 px, sinon l'ecriture d'une recette longue est penible. Envisager un decoupage en etapes (une ligne = une etape) pour un mode cuisine pas-a-pas.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:450-470",
+        "app/ui/models/recipe_list_model.py:16-21"
+      ],
+      "dataOps": [
+        "UPDATE recipe SET instructions = ? (au save)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.updateMeta"
+      ],
+      "proposedApi": [
+        "PUT /api/recipes/:id"
+      ]
+    },
+    {
+      "id": "recipe-line-add-picker",
+      "title": "Ajouter un ingredient a la recette (recherche + quantite)",
+      "userAction": "Dans l'encadre « Ajouter un ingredient : », l'utilisateur tape un nom, une liste de suggestions s'ouvre sous le champ, il choisit au clic ou au clavier (Bas/Haut puis Entree) ; la ligne s'ajoute au tableau avec la quantite affichee dans le champ voisin.",
+      "behaviourDetails": "Recherche : IngredientSearch avec scope='personal' (SEULE la bibliotheque personnelle est proposee — les lignes CIQUAL/OFF non importees ne polluent pas la composition), debounce 200 ms sur onTextChanged, maxResults 12, appel ingredientVM.searchOnce(q, scope, limit) qui fait un FTS5 local (aucun appel reseau depuis la frappe). Suggestions : hauteur 38 px, popup limitee a 280 px, chaque item montre le nom (elide), un badge source colore (CIQUAL vert #15803d / OFF bleu #1d4ed8 / perso ambre #c2410c) et, si piece_weight_g > 0, « ● 1 pc = X g ». Navigation clavier : Bas/Haut bornees, Entree valide l'item courant, Echap ferme, la perte de focus ferme via Qt.callLater. Apres selection, le champ est vide et le popup ferme. Quantite : QuantityField initialise a 100 g ; a la selection on appelle addLineById(id, lineQty.grams || 100, ''). Regles d'ajout : l'ingredient est re-hydrate depuis la DB ; quantity_g <= 0 -> ligne ignoree silencieusement ; ordinal = len(lines) (position d'insertion) ; emission lines_changed + derived_changed + dirty flag. Le champ quantite n'est PAS remis a 100 apres l'ajout.",
+      "mobileNotes": "Combobox de recherche plein ecran (pattern « search sheet ») plutot qu'un popup ancre. La navigation Haut/Bas/Entree disparait : tap direct sur la suggestion. Le champ quantite a cote du champ de recherche tient mal sur une largeur telephone -> demander la quantite APRES le choix de l'ingredient, dans la ligne creee.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:474-513",
+        "app/ui/qml/components/IngredientSearch.qml:15-184",
+        "app/ui/viewmodels/recipe_vm.py:598-603",
+        "app/ui/viewmodels/recipe_vm.py:865-877"
+      ],
+      "dataOps": [
+        "FTS5 ingredient_fts MATCH prefixe, scope in_personal_library = 1",
+        "SELECT ingredient WHERE id = ? (hydratation)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.addLineById",
+        "RecipeEditorViewModel.add_line",
+        "IngredientViewModel.searchOnce"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/search?q=&scope=personal&limit=12",
+        "POST /api/recipes/:id/lines  { ingredientId, quantityG, unit, notes }"
+      ]
+    },
+    {
+      "id": "recipe-lines-group-by-rayon",
+      "title": "Regroupement automatique des lignes par rayon",
+      "userAction": "Les ingredients de la recette s'affichent regroupes sous des en-tetes de section en majuscules (« ▸ VIANDES », « ▸ LEGUMES », « ▸ AUTRES »).",
+      "behaviourDetails": "Le tri est fait cote Python dans linesAsList : cle de tri = (categoryL1 ou '~~~', ordinal). La sentinelle '~~~' (ASCII 126, superieur a toute lettre) fait passer les ingredients sans categorie en DERNIER. Cote QML, un en-tete est injecte quand index === 0 ou quand la categorie de la ligne precedente differe. Libelle : _formatRayonHeader met la premiere lettre en majuscule (CIQUAL renvoie en minuscules avec virgules) ; categorie vide -> « Autres ». Style : fontSizeXs, SemiBold, Font.AllUppercase, couleur secondaire, marge haute spaceSm sauf pour le premier. Il n'y a AUCUN reordonnancement manuel possible (pas de drag-drop de lignes) : l'ordre est purement automatique ; ordinal ne sert que de departage stable dans une categorie. Compteur affiche au-dessus : « Ingredients (N) ».",
+      "mobileNotes": "Les en-tetes de section fonctionnent bien en liste verticale mobile (sticky headers). Aucun drag-drop a porter puisqu'il n'existe pas.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:576-598",
+        "app/ui/qml/pages/RecipesPage.qml:121-128",
+        "app/ui/viewmodels/recipe_vm.py:633-653",
+        "app/ui/viewmodels/recipe_vm.py:73-98"
+      ],
+      "dataOps": [
+        "lecture ingredient.category_l1 via recipe_ingredient -> ingredient"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.linesAsList"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id (lignes deja triees par rayon)"
+      ]
+    },
+    {
+      "id": "recipe-line-quantity-edit",
+      "title": "Modifier la quantite d'une ligne d'ingredient",
+      "userAction": "Dans la colonne quantite d'une ligne, l'utilisateur tape une nouvelle valeur ou utilise les fleches +/- du spinbox.",
+      "behaviourDetails": "QuantityField : spinbox (decimals 1, pas 1.0, min 0) + combobox d'unite de 110 px. Le stockage interne est TOUJOURS en grammes ; la valeur affichee = grammes / facteur de l'unite courante. Table d'unites miroir de app/domain/units.py : g=1, kg=1000, mg=0.001, ml=1, cl=10, dl=100, L=1000, c. a cafe=5, c. a soupe=15, tasse=250, pincee=1 (densite 1 g/ml assumee pour tous les volumes). Si l'ingredient a piece_weight_g > 0, une entree « piece (X g) » est ajoutee EN TETE de la combobox avec ce facteur. La saisie emet gramsEdited(g) -> updateLineQty(ordinal, g). REGLE CRITIQUE de scaling : la valeur tapee est en unites d'AFFICHAGE, donc deja mise a l'echelle si isScaled ; le VM divise par le ratio pour stocker la quantite d'origine (original_g = displayed_g / ratio). quantity_g <= 0 -> mise a jour ignoree (Pydantic impose gt=0). derived_changed est emis a chaque edition (nutrition + cout recalcules), dirty flag pose seulement si la valeur a reellement change.",
+      "mobileNotes": "Spinbox + combobox cote a cote = ~240 px, trop large pour un telephone : empiler ou utiliser un <input type=number inputmode=decimal> + un select natif. Les fleches +/- de 24 px sont sous la cible tactile.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:644-660",
+        "app/ui/qml/components/QuantityField.qml:23-192",
+        "app/ui/viewmodels/recipe_vm.py:609-616",
+        "app/ui/viewmodels/recipe_vm.py:887-901",
+        "app/domain/units.py:25-49"
+      ],
+      "dataOps": [
+        "UPDATE recipe_ingredient SET quantity_g = ? (au save, via remplacement complet des lignes)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.updateLineQty",
+        "RecipeEditorViewModel.update_line_quantity"
+      ],
+      "proposedApi": [
+        "PATCH /api/recipes/:id/lines/:ordinal  { quantityG }"
+      ]
+    },
+    {
+      "id": "recipe-line-unit-change",
+      "title": "Changer l'unite de saisie d'une ligne",
+      "userAction": "L'utilisateur ouvre la combobox d'unite d'une ligne et choisit par exemple « kg » : le nombre affiche se convertit (1000 g -> 1,0) sans que la quantite reelle change.",
+      "behaviourDetails": "onActivated : unitIndex change, le spin est recalcule depuis les grammes (valeur en grammes preservee), puis unitChanged(code) est emis -> updateLineUnit(ordinal, code) qui memorise le code dans RecipeLine.unit (NULL si chaine vide). Ce champ existe pour restituer fidelement l'unite au rechargement : sans lui, l'heuristique du QuantityField basculerait en « _piece » des que l'ingredient a un piece_weight_g, ecrasant le choix de l'utilisateur (bug corrige). Au rechargement, preferredUnit = modelData.unit prime sur l'heuristique. NOTE : updateLineUnit emet lines_changed mais NE POSE PAS le dirty flag — un changement d'unite seul n'est donc pas detecte comme modification non sauvee (incoherence a reproduire ou corriger). Codes valides persistes : g, kg, mg, ml, cl, dl, L, c_cafe, c_soupe, tasse, pincee, _piece.",
+      "mobileNotes": "Utiliser un <select> natif (roue iOS / dropdown Android) plutot qu'une combobox custom.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/components/QuantityField.qml:176-191",
+        "app/ui/qml/components/QuantityField.qml:95-142",
+        "app/ui/viewmodels/recipe_vm.py:622-631",
+        "app/domain/models.py:150-164"
+      ],
+      "dataOps": [
+        "UPDATE recipe_ingredient SET unit = ? (au save)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.updateLineUnit"
+      ],
+      "proposedApi": [
+        "PATCH /api/recipes/:id/lines/:ordinal  { unit }"
+      ]
+    },
+    {
+      "id": "recipe-line-notes",
+      "title": "Annoter une ligne d'ingredient",
+      "userAction": "L'utilisateur clique dans le champ de note d'une ligne, tape une precision (« egoutter », « ecraser »…) puis appuie sur Entree ou clique ailleurs.",
+      "behaviourDetails": "AppTextField fillWidth, maximumWidth 320, fontSizeSm, placeholder « Notes (ex: « egoutter », « ecraser »…) ». Sauvegarde sur onEditingFinished UNIQUEMENT (Entree ou perte de focus) — volontairement pas a chaque frappe. update_line_notes fait un strip() et convertit la chaine vide en None. N'emet AUCUN signal de re-rendu (les notes n'affectent ni la nutrition ni le cout) mais pose le dirty flag si la valeur a change.",
+      "mobileNotes": "Le champ note a cote de la quantite et du nom ne tient pas sur un telephone : le passer sous la ligne, en repli (« + ajouter une note ») pour ne pas alourdir la liste.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:661-673",
+        "app/ui/viewmodels/recipe_vm.py:618-620",
+        "app/ui/viewmodels/recipe_vm.py:903-918"
+      ],
+      "dataOps": [
+        "UPDATE recipe_ingredient SET notes = ? (au save)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.updateLineNotes",
+        "RecipeEditorViewModel.update_line_notes"
+      ],
+      "proposedApi": [
+        "PATCH /api/recipes/:id/lines/:ordinal  { notes }"
+      ]
+    },
+    {
+      "id": "recipe-line-remove",
+      "title": "Retirer une ligne d'ingredient",
+      "userAction": "Clic sur le bouton rouge « ✕ » (36x30 px) a l'extremite droite d'une ligne : la ligne disparait immediatement.",
+      "behaviourDetails": "Aucune confirmation, aucun undo. removeLineByOrdinal(ordinal) filtre la ligne puis REINDEXE tous les ordinaux restants (0..n-1) — important car l'ordinal est la cle d'adressage utilisee par toutes les autres mutations de ligne. Emission lines_changed + derived_changed, dirty flag pose systematiquement (meme si aucune ligne ne correspondait a l'ordinal).",
+      "mobileNotes": "Bouton 36x30 sous la cible tactile de 44 px. Preferer un swipe-to-delete ou un bouton corbeille plus grand, avec undo.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:675-681",
+        "app/ui/viewmodels/recipe_vm.py:605-607",
+        "app/ui/viewmodels/recipe_vm.py:879-885"
+      ],
+      "dataOps": [
+        "DELETE + reinsertion complete de recipe_ingredient (au save)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.removeLineByOrdinal",
+        "RecipeEditorViewModel.remove_line"
+      ],
+      "proposedApi": [
+        "DELETE /api/recipes/:id/lines/:ordinal"
+      ]
+    },
+    {
+      "id": "recipe-line-open-ingredient",
+      "title": "Ouvrir l'ingredient d'une ligne dans l'onglet Ingredients",
+      "userAction": "Le nom de l'ingredient se souligne et passe en couleur primaire au survol ; un tooltip « Ouvrir l'ingredient en edition (onglet Ingredients) » apparait apres 600 ms ; le clic bascule sur l'onglet Ingredients avec cet ingredient charge en edition.",
+      "behaviourDetails": "Zone de nom de largeur contrainte (preferred 220, min 180, max 260), texte elide a droite, ColorAnimation durationFast sur le changement de couleur. Le clic appelle Window.window.navigateToIngredient(id) declaree dans Main.qml : elle pose tabBar.currentIndex = 0 puis, via Qt.callLater, ingredientsPageRef._loadIngredient(id). ATTENTION : ce changement d'onglet NE PASSE PAS par le garde-fou de modifications non sauvees de la recette — on peut quitter la page Recettes avec un buffer dirty sans aucun avertissement.",
+      "mobileNotes": "Pas de survol ni de tooltip : rendre le nom visiblement cliquable (souligne ou chevron ›). Sur mobile c'est une navigation entre deux ecrans, donc le garde-fou dirty devient indispensable.",
+      "blockers": "navigateToIngredient traverse la frontiere de composants QML via Window.window ; en web c'est un simple lien / router push.",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:604-643",
+        "app/ui/qml/Main.qml:38-45"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE id = ? (cote page Ingredients)"
+      ],
+      "vmMethods": [],
+      "proposedApi": [
+        "(navigation client) /ingredients/:id"
+      ]
+    },
+    {
+      "id": "recipe-lines-empty-state",
+      "title": "Etat vide du tableau d'ingredients",
+      "userAction": "Quand la recette n'a aucune ligne, un message centre s'affiche a la place du tableau.",
+      "behaviourDetails": "Texte centre, couleur secondaire, fontSizeSm : « Aucune ligne — ajoute des ingredients via le picker ci-dessus. ». Visible uniquement si linesSnapshot.length === 0. Le compteur d'en-tete affiche alors « Ingredients (0) ».",
+      "mobileNotes": "Sur mobile le picker n'est pas forcement « ci-dessus » — reformuler et ajouter un bouton d'action direct dans l'etat vide.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:685-693"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": []
+    },
+    {
+      "id": "recipe-nutrition-table",
+      "title": "Tableau nutritionnel 3 colonnes (format etiquette UE)",
+      "userAction": "L'utilisateur lit le tableau qui se met a jour automatiquement a chaque ajout, suppression ou modification de quantite.",
+      "behaviourDetails": "8 lignes dans l'ordre reglementaire UE 1169/2011 : Energie (kcal, 0 decimale) -> Lipides (g, 1) -> dont satures (g, 1, italique gris) -> Glucides (g, 1) -> dont sucres (g, 1, italique gris) -> Fibres (g, 1) -> Proteines (g, 1) -> Sel (g, 2 decimales). Chaque ligne porte un picto PNG (icons/nutrient/<type>.png, 22 px). 3 colonnes : « Pour 100 g », « Par portion », « Recette entiere », valeurs centrees (centerCells: true). Formatage via Number.toLocaleString(Qt.locale(), 'f', decimals) -> separateur decimal francais ; valeur undefined/null -> « — ». Calculs : total = somme de (macro_per_100g * quantity_g / 100) sur toutes les lignes, les macros manquantes (None) comptant pour 0 ; par portion = total / default_portions (INVARIANT au scaling — la ration par personne ne change pas qu'on cuisine pour 4 ou 8) ; pour 100 g = total * (100 / somme des quantity_g en CRU), zeros si le poids total est nul (evite la division par zero). Le total et la colonne « recette entiere » sont multiplies par le ratio de scaling ; le pour-100-g y est invariant par construction.",
+      "mobileNotes": "3 colonnes de chiffres + libelle + picto ne tiennent pas en 375 px : basculer en un selecteur de colonne (onglets « 100 g / portion / total ») ou en tableau scrollable horizontalement dans son propre conteneur.",
+      "blockers": "Pictos PNG locaux (a embarquer en SVG inline).",
+      "complexity": "M",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:709-739",
+        "app/ui/qml/components/NutritionPanel.qml:33-295",
+        "app/ui/viewmodels/recipe_vm.py:655-682",
+        "app/domain/nutrition.py:8-44"
+      ],
+      "dataOps": [
+        "lecture des macros per-100g de chaque ingredient de la recette"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.nutritionTotalAsDict",
+        "RecipeEditorViewModel.nutritionPerPortionAsDict",
+        "RecipeEditorViewModel.nutritionPer100gAsDict",
+        "nutrition.aggregate_recipe"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id/nutrition?portions=N"
+      ]
+    },
+    {
+      "id": "recipe-cooked-weight",
+      "title": "Estimation du poids cuit (sous-titres de colonnes)",
+      "userAction": "Sous les en-tetes « Par portion » et « Recette entiere », l'utilisateur lit une estimation de poids en italique, par exemple « ≈ 281 g cuit » ou « 561 g cru ».",
+      "behaviourDetails": "Pour chaque ligne : si ingredient.cooked_weight_per_100g_raw est renseigne et > 0 -> cooked_g = quantity_g * ratio / 100 (ex. riz a 300 : 100 g cru -> 300 g cuit) ; sinon cooked_g = quantity_g (hypothese 1:1, « ne boit pas d'eau »). Le ratio de scaling courant s'applique. per_portion = total_cooked / max(1, displayPortions), 0 si total nul. Affichage : prefixe « ≈ » + « g cuit » si hasAnyRatio (au moins un ingredient a son ratio renseigne), sinon suffixe « g cru » sans prefixe — la distinction sert a signaler une estimation par defaut. Valeurs arrondies a l'entier (Math.round). Sous-titre vide si le poids est nul. La colonne « Pour 100 g » n'a pas de sous-titre. Le dict retourne expose aussi ratiosDefinedCount et totalLines (non affiches actuellement).",
+      "mobileNotes": "Information secondaire : la mettre en note sous le tableau plutot qu'en sous-titre de colonne, place trop contrainte sur telephone.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:720-733",
+        "app/ui/viewmodels/recipe_vm.py:701-742",
+        "app/domain/models.py:82-88"
+      ],
+      "dataOps": [
+        "lecture ingredient.cooked_weight_per_100g_raw"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.portionWeightAsDict"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id/nutrition (champ portionWeight inclus)"
+      ]
+    },
+    {
+      "id": "recipe-macros-donut",
+      "title": "Donut de composition macros (% d'energie Atwater)",
+      "userAction": "A droite du tableau, un anneau colore montre la repartition energetique de la recette pour 100 g ; au centre s'affiche le total kcal et la mention « / 100 g ».",
+      "behaviourDetails": "Canvas 2D, panneau de 320 px de large aligne en haut. 4 segments : Lipides #FDA406, Glucides #509938, Fibres #7CC04C (declinaison lime pour ne pas se confondre avec Glucides), Proteines #0B6BBB. Conversion energetique FAO Atwater : 1 g lipide = 9 kcal, 1 g glucide = 4, 1 g fibre = 2, 1 g proteine = 4. Le denominateur des pourcentages est la SOMME Atwater recalculee (pas le kcal declare) pour que les segments totalisent exactement 100 %. Trace : depart a -90° (12 h), rayon exterieur = min(w,h)/2 - 4, rayon interieur = 0.62 * exterieur, segments a kcal <= 0 ignores. Etat vide (somme Atwater <= 0) : anneau gris Qt.alpha(colorBorder, 0.35) + texte italique « aucune donnee ». Repaint declenche par tout changement de fats/carbs/fiber/proteins, du survol, de la taille, et du mode sombre.",
+      "mobileNotes": "Le donut est portable en SVG/Canvas responsive. Prevoir une legende textuelle en dessous sur mobile puisque le survol n'existe pas.",
+      "blockers": "Canvas Qt (a reecrire en SVG ou canvas HTML).",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:748-753",
+        "app/ui/qml/components/MacrosChart.qml:27-211"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeEditorViewModel.nutritionPer100gAsDict"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id/nutrition"
+      ]
+    },
+    {
+      "id": "recipe-macros-donut-hover",
+      "title": "Survol d'un segment du donut",
+      "userAction": "En passant la souris sur un segment, celui-ci s'extrude legerement vers l'exterieur et le centre du donut affiche le detail : libelle du nutriment, grammes, kcal et pourcentage.",
+      "behaviourDetails": "Hit-test radial recalcule a chaque mouvement (stateless) : le curseur doit etre dans la couronne [innerR, outerR + 6] (le +6 px suit l'extrusion de 4 px pour que le segment ne « saute » pas), puis l'angle atan2 normalise a partir de -π/2 est compare aux intervalles cumules. Extrusion : rayon exterieur + 4 px. Texte central en survol : libelle en gras 14 px de la couleur du segment, grammes en gras 18 px (1 decimale, format locale), puis « X kcal · Y % » en 11 px gris. Curseur PointingHandCursor seulement si des donnees existent. onExited -> hoveredIndex = -1 -> retour au total.",
+      "mobileNotes": "Le survol n'existe pas : convertir en tap (affiche le detail, re-tap ou tap ailleurs pour revenir au total) ou remplacer par une legende permanente avec valeurs.",
+      "blockers": "Interaction 100 % basee sur le survol souris.",
+      "complexity": "M",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/components/MacrosChart.qml:180-260"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": []
+    },
+    {
+      "id": "recipe-cost-panel",
+      "title": "Panneau cout total et cout par portion",
+      "userAction": "L'utilisateur lit « Cout total : X,XX € » et « soit Y,YY € / portion » ; si des ingredients n'ont pas de prix, un avertissement orange apparait a droite.",
+      "behaviourDetails": "Calcul en Decimal (pas de float) : cout de ligne = ingredient.price_per_g * quantity_g, arrondi ROUND_HALF_UP a 2 decimales ; price_per_g = price_eur / price_quantity_g, None si l'un des deux manque -> la ligne est comptee comme « sans prix » et n'entre pas dans le total. Total arrondi a 2 decimales ; cout par portion = total / default_portions arrondi HALF_UP. Le total affiche est multiplie par le ratio de scaling (scaled_total = total * ratio, quantize 0.01) ; le cout par portion NE L'EST PAS (invariant). Serialisation Decimal -> str vers QML puis reformatage par toLocaleString(Qt.locale(), 'f', 2) (virgule francaise). Avertissement conditionnel : « ⚠ N ingredient(s) sans prix » en Theme.colorWarning, visible si missingPriceCount > 0. La bordure du panneau passe en Qt.alpha(colorWarning, 0.6) quand la recette est mise a l'echelle.",
+      "mobileNotes": "Empiler total / par portion / avertissement verticalement. Le total et le par-portion en gros caracteres se pretent bien a un bandeau resume.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:757-806",
+        "app/ui/viewmodels/recipe_vm.py:684-699",
+        "app/domain/pricing.py:12-36"
+      ],
+      "dataOps": [
+        "lecture ingredient.price_eur et price_quantity_g de chaque ligne"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.costInfoAsDict",
+        "pricing.recipe_cost",
+        "pricing.recipe_cost_per_portion"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id/cost?portions=N"
+      ]
+    },
+    {
+      "id": "recipe-portions-scaler",
+      "title": "Ajuster les portions affichees (mise a l'echelle temporaire)",
+      "userAction": "Dans le panneau cout, l'utilisateur change le spinbox « Ajuster les portions : » (ex. de 4 a 8) : toutes les quantites affichees, le cout total et la colonne « recette entiere » sont multiplies par 2, sans que la recette enregistree change.",
+      "behaviourDetails": "AppSpinBox 1 a 99, pas 1, decimals 0, largeur 100. Garde anti-boucle : setDisplayPortions n'est appele que si |realValue - displayPortions| > 0.01. Cote VM : portions = max(1, int) ; si la valeur egale default_portions on remet _display_portions a None (retour a « utiliser la valeur par defaut ») sinon on stocke l'override. ratio = displayPortions / defaultPortions (1.0 si pas d'override ou si default_portions <= 0). Ce qui est mis a l'echelle : quantites affichees des lignes (linesAsList expose aussi originalQuantityG), nutritionTotal, cout total, poids cuit. Ce qui NE l'est PAS : nutrition par portion, cout par portion, nutrition pour 100 g. L'override est PERDU a chaque rechargement de recette (load() remet _display_portions = None) et a chaque changement de default_portions. Indicateur textuel a droite : « × 2,00 (recette pour 4) » en Theme.colorWarning.",
+      "mobileNotes": "Fonctionnalite tres utile en cuisine mobile : la mettre en evidence (stepper large en haut de la fiche, pas enfoui dans le panneau cout).",
+      "blockers": "",
+      "complexity": "L",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:816-865",
+        "app/ui/viewmodels/recipe_vm.py:407-427",
+        "app/ui/viewmodels/recipe_vm.py:452-468",
+        "app/ui/viewmodels/recipe_vm.py:860-863",
+        "app/ui/viewmodels/recipe_vm.py:90-98"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeEditorViewModel.setDisplayPortions",
+        "RecipeEditorViewModel.displayPortions",
+        "RecipeEditorViewModel.scaleRatio",
+        "RecipeEditorViewModel.isScaled"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id?portions=8 (calculs derives mis a l'echelle, etat non persiste)"
+      ]
+    },
+    {
+      "id": "recipe-scaling-banner",
+      "title": "Bandeau d'avertissement de mise a l'echelle + reinitialisation",
+      "userAction": "Des que les portions affichees different des portions de la recette, un bandeau orange apparait au-dessus du tableau d'ingredients ; il contient un bouton « Reinitialiser » (un second bouton identique existe dans le panneau cout).",
+      "behaviourDetails": "Visible uniquement si isScaled. Fond Qt.alpha(colorWarning, 0.10), bordure Qt.alpha(colorWarning, 0.45). Texte RichText : « ⚠ Quantites affichees pour <b>N portions</b> (recette pour M, facteur ×R). Modifier une quantite ici stocke la valeur ramenee a M portions. » — R formate a 2 decimales en locale francaise. Cet avertissement documente la regle metier la plus subtile de la page : editer une quantite en mode mis a l'echelle stocke displayed_g / ratio. resetDisplayPortions() est un no-op si _display_portions est deja None ; sinon il remet a None et emet display_portions_changed + derived_changed.",
+      "mobileNotes": "Bandeau pleine largeur, texte a raccourcir (le paragraphe actuel est trop long pour un ecran de telephone). Garder un seul bouton Reinitialiser.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:516-551",
+        "app/ui/qml/pages/RecipesPage.qml:859-864",
+        "app/ui/viewmodels/recipe_vm.py:462-468"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeEditorViewModel.resetDisplayPortions"
+      ],
+      "proposedApi": []
+    },
+    {
+      "id": "recipe-save",
+      "title": "Enregistrer la recette (bouton / Ctrl+S)",
+      "userAction": "Clic sur « Enregistrer la recette » (bouton primaire en bas du formulaire) ou Ctrl+S : la recette est persistee et la liste se rafraichit.",
+      "behaviourDetails": "Le raccourci Ctrl+S n'est actif que si page.visible && selectedId !== -1. saveCurrent() retourne False sans rien faire si le contexte est absent ou si name.strip() est vide — echec SILENCIEUX cote UI (_saveCurrent sort sans message). Sinon : create() si id est None, update() sinon. Strategie de persistance des lignes : suppression complete puis reinsertion (row.lines.clear() + flush + append), acceptable car une recette compte moins de 50 lignes ; une ligne dont l'ingredient n'a pas d'id leve ValueError. Les tags sont resynchronises au meme moment. Apres sauvegarde, la recette relue (avec son nouvel id le cas echeant) est rechargee via load() -> le dirty flag est remis a zero, l'override de scaling est perdu, tous les signaux sont reemis. Le bouton n'est jamais grise en fonction de la validite du formulaire.",
+      "mobileNotes": "Bouton d'action fixe en bas d'ecran (sticky) plutot qu'en fin de formulaire long. Ctrl+S n'existe pas : envisager une sauvegarde automatique au blur de chaque champ. Ajouter imperativement un retour visuel de succes/erreur.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:917-922",
+        "app/ui/qml/pages/RecipesPage.qml:936-941",
+        "app/ui/qml/pages/RecipesPage.qml:1160-1165",
+        "app/ui/viewmodels/recipe_vm.py:744-757",
+        "app/data/repositories/recipe.py:76-142"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE recipe",
+        "DELETE + INSERT recipe_ingredient (toutes les lignes)",
+        "sync recipe_tag",
+        "SELECT recipe complet apres flush"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.saveCurrent",
+        "RecipeRepo.create",
+        "RecipeRepo.update"
+      ],
+      "proposedApi": [
+        "POST /api/recipes",
+        "PUT /api/recipes/:id"
+      ]
+    },
+    {
+      "id": "recipe-unsaved-guard",
+      "title": "Confirmation des modifications non sauvees",
+      "userAction": "Si l'utilisateur a modifie la recette en cours et clique sur une autre recette ou sur « Nouvelle », un dialog modal apparait : « Modifications non sauvees » avec trois boutons Annuler / Abandonner / Enregistrer.",
+      "behaviourDetails": "Declencheurs : _loadRecipe (uniquement si la cible differe de selectedId) et _loadNew. La cible est memorisee dans _pendingSwitchId (-2 = nouvelle, >0 = id, -999 = sentinelle « aucun switch »). Message : « La recette en cours d'edition a des modifications non sauvegardees. Veux-tu les enregistrer avant de continuer ? ». Bouton Enregistrer (primary) -> saveCurrent() ; si la sauvegarde ECHOUE (nom vide) le switch est ANNULE (_pendingSwitchId = -999) pour laisser corriger le formulaire ; si elle reussit -> refreshList + resolution du switch. Bouton Abandonner (danger) -> rechargement de l'etat sauve (loadById si selectedId > 0, sinon loadEmpty) puis switch. Bouton Annuler (secondary) ou Echap -> switch abandonne ET restauration de la selection visuelle de la ListView en re-scannant le modele a la recherche de selectedId. Le dirty flag est pose par : updateMeta (si valeur reellement changee), add_line, remove_line, update_line_quantity (si changement), update_line_notes (si changement). Il N'EST PAS pose par : toggleTag, setPhotoFromUrl, setPhotoFromHttpUrl, removePhoto (persistes immediatement) NI par updateLineUnit (oubli probable). Le garde-fou ne couvre PAS le changement d'onglet (Ctrl+1..5, clic sur un ingredient de ligne, Ctrl+K).",
+      "mobileNotes": "Sur mobile la navigation arriere du navigateur doit etre interceptee (beforeunload / router guard). Le dialog a 3 boutons tient mal en largeur telephone : empiler verticalement.",
+      "blockers": "",
+      "complexity": "L",
+      "priority": "core",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:994-1036",
+        "app/ui/qml/pages/RecipesPage.qml:1096-1152",
+        "app/ui/qml/components/AppConfirmDialog.qml:33-114",
+        "app/ui/viewmodels/recipe_vm.py:429-450"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE recipe si l'utilisateur choisit Enregistrer"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.hasUnsavedChanges",
+        "RecipeEditorViewModel.saveCurrent",
+        "RecipeEditorViewModel._mark_dirty",
+        "RecipeEditorViewModel._mark_clean"
+      ],
+      "proposedApi": [
+        "PUT /api/recipes/:id"
+      ]
+    },
+    {
+      "id": "recipe-shortcuts",
+      "title": "Raccourcis clavier de la page Recettes",
+      "userAction": "L'utilisateur presse Ctrl+N, Ctrl+S ou Suppr pendant que l'onglet Recettes est actif.",
+      "behaviourDetails": "Trois Shortcut de contexte Qt.WindowShortcut, tous conditionnes a page.visible : Ctrl+N (toujours actif) -> nouvelle recette avec garde-fou dirty ; Ctrl+S (actif si selectedId !== -1) -> sauvegarde ; Suppr (actif si selectedId > 0) -> suppression. Ils cohabitent avec les raccourcis globaux : Ctrl+2 (aller a l'onglet Recettes), Ctrl+K (recherche unifiee), Ctrl+/ (aide raccourcis), Ctrl+Shift+D (mode sombre). ATTENTION : Suppr est un raccourci de fenetre — il se declenche meme si le focus est dans un champ texte tant que le champ ne le consomme pas.",
+      "mobileNotes": "Aucun raccourci clavier sur telephone : chaque action doit avoir un bouton visible. Conserver les raccourcis pour la version desktop du web (utile), mais ne jamais en faire le seul chemin.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:928-947",
+        "app/ui/qml/Main.qml:139-161",
+        "app/ui/qml/dialogs/ShortcutsDialog.qml:51-59"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": []
+    },
+    {
+      "id": "cooking-log-quick",
+      "title": "Marquer la recette comme cuisinee aujourd'hui (1 clic)",
+      "userAction": "Dans le bandeau « 📖 Journal de cuisson », clic sur « ✓ Cuisinee aujourd'hui » : un toast vert « ✓ Cuisinee aujourd'hui — bon appetit ! » apparait 3 s et le compteur du bandeau s'incremente.",
+      "behaviourDetails": "Le bandeau entier n'est visible que si selectedId > 0 (recette sauvee). Le clic construit un payload { cookedAtIso: date du jour au format YYYY-MM-DD via toISOString().slice(0,10), rating: 0, notes: '' } — donc AUCUNE note et AUCUNE evaluation (l'utilisateur passe par le dialog d'historique pour detailler). Cote VM : rating 0/None/'' -> None ; notes vide -> None ; date de 10 caracteres -> parsee en <date>T00:00:00 ; INSERT dans recipe_cooking_log avec commit explicite. Le toast n'apparait que si la reponse contient un id. Le compteur est ensuite rafraichi.",
+      "mobileNotes": "Excellent candidat pour une action rapide mobile (bouton large « J'ai cuisine ca »). Attention au fuseau : toISOString() renvoie une date UTC, ce qui peut decaler d'un jour en soiree — a corriger avec une date locale au portage.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:104-119",
+        "app/ui/qml/pages/RecipesPage.qml:870-915",
+        "app/ui/viewmodels/recipe_vm.py:780-803",
+        "app/ui/viewmodels/recipe_vm.py:44-56"
+      ],
+      "dataOps": [
+        "INSERT INTO recipe_cooking_log (recipe_id, cooked_at, rating, notes)"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.addCookingLog"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/:id/cooking-log  { cookedAt, rating, notes }"
+      ]
+    },
+    {
+      "id": "cooking-log-month-counter",
+      "title": "Compteur « cuisinee N× ce mois »",
+      "userAction": "Le bandeau journal affiche « Cuisinee 3× ce mois » en couleur primaire, ou « Pas encore cuisinee ce mois » en gris.",
+      "behaviourDetails": "cookedTimesThisMonth() fait un COUNT sur recipe_cooking_log avec cooked_at >= now() - 30 jours : c'est une fenetre GLISSANTE de 30 jours, pas le mois calendaire, malgre le libelle « ce mois ». Retourne 0 si la recette n'a pas d'id. Rafraichi au chargement de la recette, apres un log rapide, et apres chaque ajout/suppression dans le dialog d'historique (signal entryAdded).",
+      "mobileNotes": "Information de contexte utile en mobile ; a afficher directement sur la carte de recette dans la liste plutot que dans un bandeau enfoui.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:100-102",
+        "app/ui/qml/pages/RecipesPage.qml:892-899",
+        "app/ui/viewmodels/recipe_vm.py:772-778",
+        "app/data/repositories/cooking_log.py:61-70"
+      ],
+      "dataOps": [
+        "SELECT COUNT(*) FROM recipe_cooking_log WHERE recipe_id = ? AND cooked_at >= now - 30 jours"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.cookedTimesThisMonth",
+        "CookingLogRepo.count_in_window"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id/cooking-log/stats?days=30"
+      ]
+    },
+    {
+      "id": "cooking-history-dialog",
+      "title": "Consulter l'historique de cuisson (fenetre dediee)",
+      "userAction": "Clic sur « Voir l'historique » : une fenetre systeme detachable « Journal de cuisson · <nom de la recette> » s'ouvre, centree sur la fenetre principale, avec un formulaire d'ajout en haut et le tableau chronologique en dessous.",
+      "behaviourDetails": "Vraie Window Qt (720x560, min 580x420), non modale, detachable, deplacable sur un autre ecran. A l'ouverture : rafraichissement de l'historique, reinitialisation du formulaire (date = aujourd'hui, notes vides, note = 0) et focus sur le champ notes. Tri : cooked_at DESC puis id DESC (le plus recent en haut). Colonnes : Date (110 px, format francais JJ/MM/AAAA pre-formate cote Python), Note (80 px, « ★★★☆☆ » construit par repetition, ou « — » gris si pas de note), Notes (elide a droite, gris disabled si vide), et une colonne ✕ de 40 px. Survol de ligne -> fond colorSurfaceHover. Stat en haut : « Cuisinee N fois au total. » ou « Aucune cuisson enregistree. ». Etat vide du tableau : « Aucune cuisson enregistree. Ajoute la premiere ! ». Bouton « Fermer » en pied.",
+      "mobileNotes": "Fenetre systeme detachable -> impossible : convertir en modal plein ecran ou en section repliable de la fiche recette. Tableau a 4 colonnes -> liste de cartes.",
+      "blockers": "QtQuick.Window detachable, non portable en web.",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:906-913",
+        "app/ui/qml/dialogs/CookingHistoryDialog.qml:20-320",
+        "app/ui/viewmodels/recipe_vm.py:761-770",
+        "app/data/repositories/cooking_log.py:33-40"
+      ],
+      "dataOps": [
+        "SELECT recipe_cooking_log WHERE recipe_id = ? ORDER BY cooked_at DESC, id DESC"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.cookingLogAsList"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id/cooking-log"
+      ]
+    },
+    {
+      "id": "cooking-history-add",
+      "title": "Ajouter une entree d'historique detaillee (date + note + commentaire)",
+      "userAction": "Dans le formulaire du dialog, l'utilisateur saisit une date (ou l'ouvre via l'icone 📅), une note de 0 a 5, un commentaire libre, puis clique « + Ajouter » : la ligne apparait en tete du tableau et le formulaire se reinitialise partiellement.",
+      "behaviourDetails": "Champ date : AppTextField placeholder « YYYY-MM-DD » + bouton 📅 de 32 px qui ouvre un DatePickerPopup (retourne une date ISO). Note : AppSpinBox 0 a 5, pas 1, emptyOnZero: false (0 s'affiche bien comme « 0 »), libelle d'en-tete « Note (1-5, 0 = pas de note) ». Le bouton « + Ajouter » est GRISE si le champ date est vide apres trim. Parsing de date : chaine vide ou absente -> now() ; longueur 10 -> <date>T00:00:00 ; sinon fromisoformat avec gestion du Z et suppression du fuseau. Validation Pydantic : rating doit etre entre 1 et 5 sinon ValueError -> capturee et emise en error_emitted (qui alimente le toast rouge de la page parente) ; rating 0 est converti en None avant validation donc accepte. Apres succes : champ notes vide, note remise a 0, historique rafraichi, signal entryAdded -> le compteur mensuel de la page se met a jour, focus rendu au champ notes. La DATE n'est PAS reinitialisee (permet d'ajouter plusieurs entrees a la meme date).",
+      "mobileNotes": "Utiliser <input type=date> natif (calendrier systeme) au lieu du DatePickerPopup custom. La note 0-5 devient une rangee d'etoiles tappables. Grille a 5 colonnes a passer en formulaire vertical.",
+      "blockers": "DatePickerPopup custom Qt.",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/CookingHistoryDialog.qml:100-166",
+        "app/ui/qml/dialogs/CookingHistoryDialog.qml:305-319",
+        "app/ui/viewmodels/recipe_vm.py:780-803",
+        "app/domain/models.py:316-341"
+      ],
+      "dataOps": [
+        "INSERT INTO recipe_cooking_log"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.addCookingLog",
+        "CookingLogRepo.add"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/:id/cooking-log"
+      ]
+    },
+    {
+      "id": "cooking-history-delete",
+      "title": "Supprimer une entree d'historique",
+      "userAction": "Clic sur le ✕ a droite d'une ligne du tableau d'historique (il rougit au survol) : la ligne disparait.",
+      "behaviourDetails": "Aucune confirmation, aucun undo. deleteCookingLog(id) retourne False si id <= 0 ou si la ligne n'existe pas ; commit explicite en cas de succes. La suppression rafraichit le tableau ET emet entryAdded pour que le compteur mensuel de la page parente soit recalcule (le nom du signal est trompeur : il sert aussi aux suppressions). Couleur du ✕ : Qt.alpha(colorTextSecondary, 0.55) au repos, Theme.colorError au survol, ColorAnimation durationFast.",
+      "mobileNotes": "Zone de tap de 40x32 px trop petite ; swipe-to-delete ou menu contextuel. Ajouter une confirmation ou un undo.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/CookingHistoryDialog.qml:247-268",
+        "app/ui/viewmodels/recipe_vm.py:805-813",
+        "app/data/repositories/cooking_log.py:53-59"
+      ],
+      "dataOps": [
+        "DELETE FROM recipe_cooking_log WHERE id = ?"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.deleteCookingLog"
+      ],
+      "proposedApi": [
+        "DELETE /api/cooking-log/:entryId"
+      ]
+    },
+    {
+      "id": "url-import-open",
+      "title": "Ouvrir le wizard d'import de recette par URL",
+      "userAction": "Clic sur « Importer URL » (bouton secondary de la barre de liste) : une fenetre systeme detachable 1000x720 s'ouvre, centree sur la fenetre principale, sur l'etape 0.",
+      "behaviourDetails": "Window non modale, flags Dialog + CloseButton + Title + MinMax, min 760x520. openCentered() reinitialise integralement : recipeUrlImportVM.reset() (buffer a None, etape 0), champ URL vide, banniere d'erreur videe, spinner arrete ; puis show() + raise(). Le wizard est pilote par un StackLayout dont currentIndex = recipeUrlImportVM.stepIndex (0 = saisie URL, 1 = revue, 2 = confirmation).",
+      "mobileNotes": "Fenetre detachable impossible : convertir en parcours plein ecran a 3 etapes avec une barre de progression et un bouton retour. Sur mobile le point d'entree naturel est le partage systeme (Web Share Target : partager une URL de recette vers la PWA).",
+      "blockers": "QtQuick.Window detachable.",
+      "complexity": "S",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:194-198",
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:20-86",
+        "app/ui/viewmodels/recipe_url_import_vm.py:148-168"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.reset",
+        "RecipeUrlImportViewModel.stepIndex"
+      ],
+      "proposedApi": []
+    },
+    {
+      "id": "url-import-fetch",
+      "title": "Etape 0 — coller une URL et extraire la recette",
+      "userAction": "L'utilisateur colle l'URL d'une page recette dans le champ, clique « Charger la recette » (ou appuie sur Entree) : un spinner remplace le bouton, puis l'ecran bascule sur l'etape de revue — ou une banniere rouge affiche l'erreur.",
+      "behaviourDetails": "Carte centree (max 580 px) : pictogramme 🌐 56 px, titre « Importer une recette depuis le web », description, champ URL (placeholder https://www.marmiton.org/recettes/recette_…), CTA de 220 px GRISE tant que l'URL trimmee est vide, et desactive pendant l'extraction. Le bouton est MASQUE pendant le fetch, remplace par un AppSpinner 56 px + « Chargement de la recette… ». Hint sous la carte : « Sites supportes en natif : Marmiton, 750g, Herve Cuisine, Cuisine AZ, Cuisine Actuelle, HelloFresh, etc. Les autres sites passent par un fallback Schema.org (peut echouer si la page n'expose pas de donnees structurees). ». Extraction en thread daemon (le fetch peut prendre 5-10 s) : GET httpx timeout 15 s (connect 5 s), follow_redirects, User-Agent livre-de-recettes/0.1.0, Accept-Language fr-FR. Strategie : (1) recipe-scrapers sur le HTML deja recupere, (2) si echec ou resultat vide, parseur JSON-LD maison (BeautifulSoup + lxml, premier noeud @type Recipe, gere @graph et les @type en liste), (3) sinon UnsupportedSite. Messages d'erreur francais exacts : « Colle une URL avant de charger. », « Page introuvable (HTTP 404). Verifie l'URL. », « Cette page necessite une connexion ou un abonnement (HTTP 401/403). », « Le serveur est temporairement indisponible (HTTP 502/503/504). Reessaie dans quelques minutes. », « Trop de requetes vers ce site (HTTP 429). Attends une minute avant de reessayer. », « Le serveur ne repond pas (timeout). Verifie ta connexion. », « Impossible de joindre ce site. Verifie l'URL et ta connexion internet. », « La page semble vide. Verifie qu'elle s'affiche bien dans un navigateur. » (HTML < 50 caracteres), « Les donnees de recette sur cette page sont mal formees. », « Aucune recette trouvee sur cette page. Le site n'est pas supporte ou n'expose pas de donnees structurees (Schema.org). », « Erreur inattendue : ... ».",
+      "mobileNotes": "Champ URL avec inputmode=url et bouton coller. Le fetch doit devenir un appel a un Worker (impossible de scraper depuis le navigateur a cause du CORS), avec un vrai etat de chargement et un timeout visible.",
+      "blockers": "recipe-scrapers + BeautifulSoup/lxml sont des libs Python : cote Cloudflare il faut soit reimplementer le parseur JSON-LD en TS (faisable, c'est du JSON), soit garder un service Python. Threading Qt -> async/await.",
+      "complexity": "L",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:93-215",
+        "app/ui/viewmodels/recipe_url_import_vm.py:172-254",
+        "app/services/recipe_url_importer/core.py:60-171",
+        "app/services/recipe_url_importer/jsonld_fallback.py:131-208",
+        "app/services/recipe_url_importer/scrapers_adapter.py:43-106"
+      ],
+      "dataOps": [
+        "FTS5 / SELECT ingredient pour la resolution des candidats de chaque ligne extraite"
+      ],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.extractFromUrl",
+        "RecipeUrlImportViewModel._do_extract",
+        "recipe_url_importer.fetch_recipe"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/import-url/extract  { url }"
+      ]
+    },
+    {
+      "id": "url-import-quantity-parsing",
+      "title": "Parsing francais des quantites des lignes extraites",
+      "userAction": "L'utilisateur constate que « 1 c. a soupe d'huile d'olive » est pre-decoupe en quantite 1, unite c. a soupe, nom « huile d'olive ».",
+      "behaviourDetails": "parse_french_quantity retourne (quantite, code_unite, nom) et ne leve JAMAIS. Nombres geres : entier (200), decimal francais (1,5) et anglais (1.5), fraction (1/2 = 0.5), fraction mixte (1 1/2 = 1.5). Alias d'unites reconnus sur la forme minuscule sans accents, les plus longs d'abord : cuilleres a soupe / cuillere a soupe / cuilleree a soupe / c. a soupe / c a soupe / cas / c.s. / c.s / cs -> c_soupe ; equivalents cafe / cac / c.c. / cc -> c_cafe ; litres/litre/l -> L ; ml, cl, dl ; kilos/kilogrammes/kg ; grammes/gramme/gr/g ; mg ; tasses/tasse ; pincees/pincee. Verification de frontiere de mot (le caractere suivant ne doit pas etre alphanumerique). Articles de tete supprimes du nom, les plus longs d'abord : « de l' », « de la », « des », « du », « de », « d' », puis « a ». Prefixes de conditionnement supprimes pour nettoyer le nom sans donner d'unite (typiquement HelloFresh) : piece(s), pieces, paquet(s), sachet(s), boite(s), tranche(s), bouquet(s), branche(s), feuille(s) et leurs pluriels — « 1 piece(s) Oignon » donne nom « Oignon », unite None. « 1 gousse d'ail » garde « gousse d'ail » comme nom (c'est un ingredient nomme chez Marmiton). Aucun nombre en tete -> tout est le nom (« Sel, poivre »). Conversion en grammes cote VM : to_grams si qty > 0 et unite != _piece, sinon la valeur brute ; KeyError ou resultat <= 0 -> 100 g par defaut ; le code d'unite conserve est limite a la liste blanche {g, kg, ml, cl, dl, L, c_cafe, c_soupe, tasse, pincee}, tout le reste retombe sur « g ». Portions : premier nombre trouve dans le champ yield/recipeYield, minimum 1, defaut 1. Duree : totalTime en ISO 8601 (PT1H30M) converti en minutes, a defaut prepTime + cookTime.",
+      "mobileNotes": "Aucun impact d'interface — c'est de la logique pure a porter telle quelle (facilement transposable en TypeScript, les regex et tables d'alias sont autonomes).",
+      "blockers": "Aucun (Python pur, sans dependance Qt/SQL) — c'est la partie la plus facilement portable de la zone.",
+      "complexity": "L",
+      "priority": "important",
+      "sourceRefs": [
+        "app/services/recipe_url_importer/quantity_parser.py:32-268",
+        "app/ui/viewmodels/recipe_url_import_vm.py:209-241",
+        "app/services/recipe_url_importer/jsonld_fallback.py:34-102"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeUrlImportViewModel._build_resolved"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/import-url/extract (parsing inclus dans la reponse)"
+      ]
+    },
+    {
+      "id": "url-import-review-meta",
+      "title": "Etape 1 — corriger le nom, les portions et voir la source",
+      "userAction": "En haut de l'ecran de revue, l'utilisateur peut corriger le nom extrait et le nombre de portions ; a droite s'affiche le temps de preparation estime et, en dessous, l'URL source.",
+      "behaviourDetails": "Champ nom : AppTextField min 280 px, pousse vers le VM sur onEditingFinished (pas a chaque frappe). Portions : AppSpinBox 1 a 50, decimals 0. updateMeta : le nom vide apres trim CONSERVE le nom precedent (fallback ext.name) ; portions = max(1, int) ; instructions passees a chaine vide depuis le QML (_pushMeta envoie toujours '' en deuxieme argument — les instructions extraites de la page sont donc CONSERVEES cote VM tant que _pushMeta n'est pas appele, mais ECRASEES par une chaine vide des que l'utilisateur touche le nom ou les portions : bug de perte des instructions a corriger au portage). Temps : « ≈ N min » en italique, visible si prepTimeMin > 0. Source : « Source : <url> » en italique fontSizeXs, elide au milieu, visible si sourceUrl non vide.",
+      "mobileNotes": "Champs empiles verticalement. Afficher la source comme un lien tappable vers la page d'origine.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:222-258",
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:602-604",
+        "app/ui/viewmodels/recipe_url_import_vm.py:258-266"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.updateMeta",
+        "RecipeUrlImportViewModel.name",
+        "RecipeUrlImportViewModel.defaultPortions",
+        "RecipeUrlImportViewModel.prepTimeMin",
+        "RecipeUrlImportViewModel.sourceUrl"
+      ],
+      "proposedApi": []
+    },
+    {
+      "id": "url-import-line-table",
+      "title": "Etape 1 — tableau d'association des lignes extraites",
+      "userAction": "L'utilisateur parcourt le tableau : chaque ligne montre le texte original de la page, un nom d'ingredient modifiable, une combobox d'ingredient associe, un champ quantite, et un bouton d'actions.",
+      "behaviourDetails": "En-tetes de colonnes : « Texte original » (220 px), « Ingredient associe » (fillWidth), « Quantite » (220 px), colonne d'actions (130 px). Zebrures : lignes paires transparentes, impaires Qt.alpha(colorBorder, 0.08). Ligne ignoree : fond Qt.alpha(colorTextDisabled, 0.10), opacite 0.55, combobox et champ quantite DESACTIVES, le bouton d'action devient « Reactiver » (variant secondary). Le texte original s'affiche en italique gris fontSizeXs elide. Le modele du Repeater est recharge manuellement (linesRepeater.model = recipeUrlImportVM.linesAsList()) a chaque signal lines_changed. linesAsList hydrate en une passe tous les ingredients candidats (cache id -> Ingredient) pour eviter les requetes repetees.",
+      "mobileNotes": "4 colonnes impossibles en 375 px : une carte par ligne (texte original en titre, nom editable, selecteur d'ingredient pleine largeur, quantite, actions en bas). C'est l'ecran le plus difficile a porter de toute la zone.",
+      "blockers": "",
+      "complexity": "L",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:260-412",
+        "app/ui/viewmodels/recipe_url_import_vm.py:270-316"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE id IN (candidats) pour hydratation"
+      ],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.linesAsList"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/import-url/extract (renvoie les lignes + candidats)"
+      ]
+    },
+    {
+      "id": "url-import-line-rename",
+      "title": "Corriger le nom d'ingredient extrait (re-recherche automatique)",
+      "userAction": "L'utilisateur corrige le nom propose (ex. « tomates cerises » -> « tomate ») et quitte le champ : la liste de candidats de cette ligne est recalculee et le meilleur est auto-selectionne.",
+      "behaviourDetails": "Sauvegarde sur onEditingFinished, et seulement si le texte differe de la valeur courante. setLineParsedName : trim, is_manual_override = True, puis resolve_ingredient_name relance la resolution locale. Algorithme de resolution (jamais de reseau) : (1) correspondance exacte insensible a la casse dans la bibliotheque personnelle, bonus de score +0.10 ; (2) FTS5 prefixe scope='personal' (limite 2 * max_candidates), bonus +0.10 ; (3) si moins de 5 candidats, extension en scope='all' (CIQUAL + OFF en cache), bonus 0. Re-classement final par rapidfuzz token_set_ratio / 100 + bonus, tri decroissant, 5 candidats maximum. Si rapidfuzz est absent, on retombe sur l'ordre du pool. Le premier candidat est automatiquement choisi ; si la recherche ne donne rien, candidates = [] et chosen_ingredient_id = None.",
+      "mobileNotes": "Le blur au tap ailleurs est peu fiable sur mobile : declencher la re-recherche au bouton « rechercher » ou en debounce.",
+      "blockers": "rapidfuzz (fuzzy matching) et FTS5 : D1 supporte FTS5, mais rapidfuzz doit etre remplace (fuzzysort / trigram SQL).",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:312-332",
+        "app/ui/viewmodels/recipe_url_import_vm.py:350-387",
+        "app/services/ingredient_search.py:155-233"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE name = ? (par source)",
+        "FTS5 ingredient_fts scope personal puis all"
+      ],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.setLineParsedName",
+        "RecipeUrlImportViewModel.searchCandidatesForLine",
+        "ingredient_search.resolve_ingredient_name"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/resolve?name=tomate&max=5"
+      ]
+    },
+    {
+      "id": "url-import-line-candidate-select",
+      "title": "Choisir l'ingredient associe a une ligne (combobox de candidats)",
+      "userAction": "L'utilisateur ouvre la combobox « Ingredient associe » de la ligne et choisit parmi les propositions, chacune libellee « <nom>  ·  <source> ».",
+      "behaviourDetails": "Etiquette de source : « perso » pour manual, « CIQUAL » pour ciqual, « OFF » pour openfoodfacts, sinon la valeur brute. displayText vaut chosenIngredientName si un ingredient est choisi, sinon « (non associe) ». currentIndex est resolu en cherchant chosenIngredientId dans la liste de candidats (-1 si absent). setLineChosenIngredient : id 0 -> None ; si le nouvel id n'est PAS dans candidates (cas d'un choix via la fenetre de recherche), il est insere EN TETE de candidates pour que la combobox ait un libelle a afficher. La promotion en bibliotheque personnelle est volontairement differee au commit pour que l'utilisateur puisse encore revenir en arriere. Combobox desactivee si la ligne est ignoree.",
+      "mobileNotes": "Utiliser un select natif ou un bottom-sheet de selection ; le libelle a deux parties « nom · source » se prete mieux a deux lignes avec badge.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:334-371",
+        "app/ui/viewmodels/recipe_url_import_vm.py:318-334"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE id = ?"
+      ],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.setLineChosenIngredient"
+      ],
+      "proposedApi": []
+    },
+    {
+      "id": "url-import-line-quantity",
+      "title": "Ajuster quantite et unite d'une ligne importee",
+      "userAction": "L'utilisateur corrige la quantite et/ou l'unite d'une ligne du tableau d'import via le meme composant que dans l'editeur de recette.",
+      "behaviourDetails": "QuantityField de 220 px, initialise avec quantityG (converti en grammes par le VM) et preferredUnit = unitCode extrait. pieceWeightG provient de l'ingredient CHOISI (0 si aucun choix ou pas de poids unitaire) : la liste d'unites se reconstruit donc dynamiquement quand l'utilisateur associe un ingredient piece-aware. On ecoute gramsEdited (saisie utilisateur) et non gramsChanged, precisement pour eviter une boucle quand le VM reemet lines_changed apres setLineQuantityG. setLineQuantityG applique max(0.0, valeur) ; setLineUnitCode remplace une chaine vide par « g ». Champ desactive si la ligne est ignoree.",
+      "mobileNotes": "Meme contrainte que dans l'editeur : empiler nombre et unite, clavier decimal.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:373-391",
+        "app/ui/viewmodels/recipe_url_import_vm.py:336-348"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.setLineQuantityG",
+        "RecipeUrlImportViewModel.setLineUnitCode"
+      ],
+      "proposedApi": []
+    },
+    {
+      "id": "url-import-line-actions-menu",
+      "title": "Menu d'actions par ligne (4 chemins de resolution)",
+      "userAction": "Clic sur « Actions ▾ » d'une ligne : un menu style app s'ouvre sous le bouton avec quatre entrees.",
+      "behaviourDetails": "Entrees exactes : « Rechercher dans CIQUAL/OFF… » (ouvre la fenetre de recherche sur l'onglet CIQUAL), « Rechercher dans la Bibliotheque personnelle… » (meme fenetre, onglet bibliotheque), « Creer manuellement… » (dialog modal interne pre-rempli avec le nom parse), « Ignorer cette ligne » (exclusion du commit). Le menu memorise lineIdx, lineRawText et lineParsedName au moment de l'ouverture et se positionne via popup(bouton, 0, hauteur du bouton). Note d'implementation : ce sont des Action et non des MenuItem, sinon le delegate d'AppMenu ne s'applique pas et Qt rend un fond noir natif. Si la ligne est deja ignoree, le bouton devient « Reactiver » et appelle directement unignoreLine(idx) sans passer par le menu.",
+      "mobileNotes": "Menu ancre au survol/clic droit inexistant : bottom-sheet d'actions declenchee par un bouton « ⋮ » de 44 px. Les quatre chemins restent pertinents.",
+      "blockers": "AppMenu Qt (popup ancre).",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:393-406",
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:494-535",
+        "app/ui/viewmodels/recipe_url_import_vm.py:415-428"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.ignoreLine",
+        "RecipeUrlImportViewModel.unignoreLine"
+      ],
+      "proposedApi": []
+    },
+    {
+      "id": "url-import-search-popup",
+      "title": "Fenetre de recherche manuelle d'ingredient (3 onglets)",
+      "userAction": "Depuis le menu d'actions, une fenetre « Rechercher un ingredient » s'ouvre, centree sur le wizard, avec trois onglets ; l'utilisateur tape une requete, clique « Chercher » (ou Entree), puis « Choisir » ou double-clic sur un resultat.",
+      "behaviourDetails": "Window detachable 760x600 (min 600x420), non modale. Trois onglets : « Bibliotheque personnelle » (ingredientVM.searchOnce(q, 'personal', 50), FTS5 instantane), « CIQUAL (local) » (ingredientVM.searchBySource(q, 'ciqual', 50)), « OpenFoodFacts (en ligne) » (ingredientVM.fetchOnlineAndList(q, 30), bloquant 1-3 s avec AppSpinner). L'onglet initial depend du chemin choisi dans le menu (personal -> 0, ciqual -> 1, off -> 2). Le champ est pre-rempli avec le nom parse et une recherche est lancee automatiquement a l'ouverture s'il n'est pas vide ; changer d'onglet relance la recherche si la requete n'est pas vide. Bouton « Chercher » grise pendant une recherche ou si la requete est vide. Aucun resultat -> « Aucun resultat pour « X ». » en italique. Resultats : lignes de 48 px, zebrees, badge de source colore de 60 px, nom + sous-titre (marque ou categorie L1) en italique, etoile ★ orange si deja en bibliotheque, bouton « Choisir ». Double-clic sur la ligne (hors zone du bouton, marge droite 110 px) equivaut a Choisir. A la selection : si inLibrary !== true on appelle ingredientVM.importExisting(id) (promotion en bibliotheque personnelle) puis setLineChosenIngredient et la fenetre se ferme. Pied de fenetre : bouton « Annuler ».",
+      "mobileNotes": "Fenetre detachable -> modal plein ecran. Trois onglets restent viables en segmented control. La recherche OFF bloquante de 1-3 s a rendre asynchrone avec un etat de chargement.",
+      "blockers": "QtQuick.Window detachable ; appel OFF synchrone bloquant l'UI.",
+      "complexity": "L",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/IngredientSearchPopup.qml:29-310",
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:515-540"
+      ],
+      "dataOps": [
+        "FTS5 ingredient_fts (scope personal / source ciqual)",
+        "HTTP OpenFoodFacts Search-a-licious + upsert_by_source_ref en cache local",
+        "UPDATE ingredient SET in_personal_library = 1"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.searchOnce",
+        "IngredientViewModel.searchBySource",
+        "IngredientViewModel.fetchOnlineAndList",
+        "IngredientViewModel.importExisting",
+        "RecipeUrlImportViewModel.setLineChosenIngredient"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/search?q=&scope=personal|ciqual",
+        "GET /api/ingredients/search/online?q=",
+        "POST /api/ingredients/:id/promote"
+      ]
+    },
+    {
+      "id": "url-import-create-manual",
+      "title": "Creer un ingredient manuel a la volee pour une ligne",
+      "userAction": "Depuis le menu d'actions, « Creer manuellement… » ouvre un petit dialog modal de 460 px pre-rempli avec le nom parse ; l'utilisateur complete eventuellement le rayon et les kcal, valide par OK.",
+      "behaviourDetails": "Trois champs : Nom (pre-rempli avec parsedName), « Rayon (facultatif) » (placeholder « Ex. Epicerie »), « Energie kcal/100 g (facultatif) » (AppSpinBox 0 a 2000, decimals 0). Pied DialogButtonBox standard Ok / Cancel. createManualForLine : le nom trimme est OBLIGATOIRE, sinon error_emitted « Le nom de l'ingredient est obligatoire. » et retour 0 (le dialog reste ouvert). L'ingredient cree a source=MANUAL, in_personal_library=True, category_l1 = valeur saisie ou NULL, kcal_per_100g = valeur si > 0 sinon None. Apres creation, l'id est place EN TETE des candidats de la ligne (en dedoublonnant) et selectionne automatiquement ; le dialog se ferme seulement si l'id retourne est > 0.",
+      "mobileNotes": "Formulaire vertical en bottom-sheet. Le rayon en champ texte libre est fragile : proposer un selecteur de rayons existants.",
+      "blockers": "",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:542-594",
+        "app/ui/viewmodels/recipe_url_import_vm.py:430-464"
+      ],
+      "dataOps": [
+        "INSERT INTO ingredient (name, source='manual', in_personal_library=1, category_l1, kcal_per_100g)"
+      ],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.createManualForLine",
+        "IngredientRepo.create"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients  { name, categoryL1, kcalPer100g, source: 'manual' }"
+      ]
+    },
+    {
+      "id": "url-import-online-search-line",
+      "title": "Rechercher en ligne (OFF) les candidats d'une ligne",
+      "userAction": "Action disponible cote VM pour interroger OpenFoodFacts sur le nom parse d'une ligne et enrichir ses candidats.",
+      "behaviourDetails": "searchOnlineForLine(idx) : sort si le nom parse est vide ; appelle fetch_from_openfoodfacts_and_cache(session, query, page_size=10) qui met les resultats en cache local (upsert_by_source_ref, SANS ajout automatique a la bibliotheque personnelle), puis relance resolve_ingredient_name pour que les nouvelles lignes apparaissent en candidats. Le premier candidat n'est choisi automatiquement QUE si aucun choix n'existait deja. Une OpenFoodFactsError est remontee par error_emitted. NOTE : ce slot n'est plus cable dans le QML actuel — le menu d'actions passe desormais par la fenetre IngredientSearchPopup (onglet OFF). Le message d'erreur du commit y fait pourtant toujours reference (« Chercher en ligne (OFF) »), incoherence a nettoyer.",
+      "mobileNotes": "Le message d'erreur du commit doit etre aligne sur les chemins reellement disponibles dans l'UI portee.",
+      "blockers": "Appel HTTP OFF synchrone.",
+      "complexity": "M",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/viewmodels/recipe_url_import_vm.py:389-413",
+        "app/services/ingredient_search.py:86-147"
+      ],
+      "dataOps": [
+        "HTTP OpenFoodFacts",
+        "upsert ingredient (cache local)",
+        "FTS5 re-resolution"
+      ],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.searchOnlineForLine"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/search/online?q=&pageSize=10"
+      ]
+    },
+    {
+      "id": "url-import-commit",
+      "title": "Etape 1 — importer la recette (validations de commit)",
+      "userAction": "Clic sur « Importer la recette » (bouton primaire du pied) : soit un message d'erreur rouge s'affiche a droite au-dessus des boutons, soit l'ecran bascule sur la confirmation.",
+      "behaviourDetails": "Le champ d'erreur est vide avant chaque tentative. Trois refus possibles, avec messages exacts : « Aucune recette a importer. » (buffer vide), « Contexte indisponible. », « Toutes les lignes sont ignorees — rien a importer. » (aucune ligne active), « N ingredient(s) non associe(s). Utilise « Ignorer », « Creer manuellement » ou « Chercher en ligne (OFF) » sur chaque ligne. ». Il faut donc que CHAQUE ligne non ignoree ait un ingredient associe. En cas de succes : pour chaque ligne active dans l'ordre, l'ingredient est relu ; s'il n'est pas encore en bibliotheque personnelle il y est PROMU (mark_in_personal_library) ; RecipeLine construite avec quantity_g (ou 100.0 si <= 0), unit = unitCode ou NULL, notes = None, ordinal sequentiel. La Recipe est creee avec name = nom trimme ou « (recette importee) », instructions extraites, default_portions = max(1, valeur). Un id NULL apres create renvoie « Echec de la sauvegarde. ». Le bouton « ‹ Precedent » (ghost) ramene a l'etape 0 sans perdre le buffer.",
+      "mobileNotes": "Erreur a afficher au-dessus du bouton, pas alignee a droite. Le bouton d'import doit etre sticky en bas.",
+      "blockers": "",
+      "complexity": "L",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:414-446",
+        "app/ui/viewmodels/recipe_url_import_vm.py:468-548"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE id = ? (par ligne)",
+        "UPDATE ingredient SET in_personal_library = 1 (promotion)",
+        "INSERT INTO recipe + recipe_ingredient"
+      ],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.commit",
+        "ingredient_search.promote_to_personal_library",
+        "RecipeRepo.create"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/import-url/commit  { extracted, lines }"
+      ]
+    },
+    {
+      "id": "url-import-photo-auto",
+      "title": "Telechargement automatique de la photo au commit",
+      "userAction": "Apres un import reussi, la photo de la page web est automatiquement attachee a la nouvelle recette — sans action de l'utilisateur.",
+      "behaviourDetails": "Uniquement si ExtractedRecipe.image_url est renseigne (extrait du champ Schema.org `image`, qui peut etre une chaine, une liste — on prend le premier — ou un objet {url} / {@id}). Traitement best-effort : save_recipe_photo_from_http_url puis UPDATE recipe SET image_path. Toute exception (URL morte, format inconnu, disque plein) est LOGGEE en warning et AVALEE — le commit reste un succes et la recette est simplement creee sans photo, l'utilisateur pourra en ajouter une manuellement. Note : la docstring de ExtractedRecipe affirme le contraire (« image_url n'est PAS telecharge au commit ») — la documentation est perimee, le code telecharge bien.",
+      "mobileNotes": "Aucun impact d'interface. En web, le telechargement doit se faire cote Worker (CORS) et alimenter R2.",
+      "blockers": "Telechargement server-side (SSRF a filtrer), Pillow.",
+      "complexity": "M",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/viewmodels/recipe_url_import_vm.py:526-540",
+        "app/services/photo_service.py:124-196",
+        "app/services/recipe_url_importer/jsonld_fallback.py:172-179",
+        "app/domain/url_recipe.py:47-62"
+      ],
+      "dataOps": [
+        "UPDATE recipe SET image_path = ? WHERE id = ?"
+      ],
+      "vmMethods": [
+        "photo_service.save_recipe_photo_from_http_url"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/:id/photo/from-url"
+      ]
+    },
+    {
+      "id": "url-import-confirmation",
+      "title": "Etape 2 — confirmation et bascule sur la nouvelle recette",
+      "userAction": "Un ecran de confirmation affiche un grand ✓ vert, « Recette « X » importee » et une explication ; la fenetre se ferme toute seule au bout de ~1,8 s, ou immediatement via « Fermer ».",
+      "behaviourDetails": "Texte : « L'editeur va s'ouvrir sur la nouvelle recette pour finitions (photo, tags, instructions affinees). ». Le signal import_completed(recipeId) est capte par RecipesPage : recipeListVM.refreshList() puis recipeEditorVM.loadById(recipeId) — l'editeur bascule DIRECTEMENT sur la recette importee. ATTENTION : cette bascule NE PASSE PAS par le garde-fou de modifications non sauvees, un buffer dirty en cours serait perdu sans avertissement. Le timer de fermeture est de 1800 ms et appelle reset() avant close(). Le bouton « Fermer » fait la meme chose immediatement.",
+      "mobileNotes": "La fermeture automatique de 1,8 s est trop rapide pour lire le message ; sur mobile preferer un ecran de succes avec un bouton explicite « Voir la recette ».",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:449-485",
+        "app/ui/qml/dialogs/ImportRecipeUrlDialog.qml:64-81",
+        "app/ui/qml/pages/RecipesPage.qml:959-965"
+      ],
+      "dataOps": [
+        "SELECT recipe complet (rechargement dans l'editeur)"
+      ],
+      "vmMethods": [
+        "RecipeUrlImportViewModel.import_completed",
+        "RecipeEditorViewModel.loadById"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/:id"
+      ]
+    },
+    {
+      "id": "recipe-quick-search",
+      "title": "Recherche rapide de recette (Ctrl+K, section Recettes)",
+      "userAction": "Depuis n'importe quel onglet, Ctrl+K ouvre la recherche unifiee ; en tapant, une section « 🍽 Recettes » liste les recettes correspondantes ; valider en ouvre une dans l'editeur.",
+      "behaviourDetails": "Debounce 200 ms. recipeListVM.searchOnce(query, limit=12) : recherche par SOUS-CHAINE insensible a la casse avec casefold() (gere correctement Œ/œ), appliquee cote Python sur list_all() — ce n'est PAS du FTS5, et cela charge donc toutes les recettes en memoire a chaque frappe. Requete vide -> liste vide. Retourne id, name, defaultPortions, lineCount. Sous-libelle affiche : « N portion(s) ». L'activation emet itemActivated('recipe', {id}) -> Main.qml pose tabBar.currentIndex = 1 et appelle recipeEditorVM.loadById(id) — la aussi SANS garde-fou de modifications non sauvees. Navigation clavier : Haut/Bas sur la liste plate des trois sections, Entree valide, Echap ferme.",
+      "mobileNotes": "Ctrl+K n'existe pas : bouton loupe dans l'en-tete + ecran de recherche plein ecran. La recherche par sous-chaine cote client ne tiendra pas a l'echelle : utiliser un LIKE / FTS5 cote D1.",
+      "blockers": "Recherche en memoire (charge toutes les recettes avec leurs lignes) — a remplacer par une requete SQL.",
+      "complexity": "M",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/viewmodels/recipe_vm.py:169-186",
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:244-256",
+        "app/ui/qml/Main.qml:493-507",
+        "app/ui/qml/Main.qml:549-553"
+      ],
+      "dataOps": [
+        "SELECT recipe avec lines + tags (list_all) puis filtrage Python par sous-chaine"
+      ],
+      "vmMethods": [
+        "RecipeListViewModel.searchOnce"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/search?q=&limit=12"
+      ]
+    },
+    {
+      "id": "recipe-match-by-ingredients",
+      "title": "Trouver les recettes realisables avec des ingredients donnes",
+      "userAction": "Depuis la page Ingredients, l'utilisateur selectionne plusieurs ingredients et demande quelles recettes il peut cuisiner ; le moteur est expose par le viewmodel des recettes.",
+      "behaviourDetails": "findByIngredientsCategorized(ingredientIds, maxMissing=3) retourne trois listes. « ready » : recettes dont TOUS les ingredients sont disponibles, triees par nombre d'ingredients DECROISSANT puis par nom. « missing » : recettes auxquelles il manque de 1 a maxMissing ingredients, avec missingCount et missingNames tries alphabetiquement, triees par nombre de manquants croissant puis par taille de recette decroissante puis par nom. « shopping » : TOP 5 des ingredients a acheter, calcules UNIQUEMENT sur les recettes a exactement 1 manquant (acheter un seul article ne debloque pas une recette a 2 manquants), tries par nombre de recettes debloquees decroissant puis par nom. Les recettes sans aucune ligne sont ignorees. Chaque entree expose recipeId, name, score (0..1), matchCount, totalCount, photoUrl. Il existe aussi une variante plus ancienne findByIngredients(ids, min_match=0.5) qui retourne une liste plate triee par score decroissant puis matchCount. Implementation : parcours Python de toutes les recettes (assume moins de 200 recettes).",
+      "mobileNotes": "Ecran « qu'est-ce que je peux cuisiner ? » tres pertinent en mobile (a partir du frigo). Trois sections en accordeon, cartes avec photo et « il te manque : X, Y ».",
+      "blockers": "Parcours en memoire de toutes les recettes ; a reecrire en SQL (GROUP BY / HAVING) pour D1.",
+      "complexity": "L",
+      "priority": "important",
+      "sourceRefs": [
+        "app/ui/viewmodels/recipe_vm.py:216-285",
+        "app/data/repositories/recipe.py:150-271",
+        "app/ui/qml/pages/IngredientsPage.qml:42",
+        "app/ui/qml/pages/IngredientsPage.qml:1082"
+      ],
+      "dataOps": [
+        "SELECT recipe avec lines->ingredient (toutes)",
+        "lecture recipe.image_path pour les vignettes"
+      ],
+      "vmMethods": [
+        "RecipeListViewModel.findByIngredientsCategorized",
+        "RecipeListViewModel.findByIngredients",
+        "RecipeRepo.find_by_ingredient_ids_categorized"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/match-by-ingredients  { ingredientIds: [...], maxMissing: 3 }"
+      ]
+    },
+    {
+      "id": "recipe-toasts",
+      "title": "Notifications ephemeres de la page (toasts)",
+      "userAction": "Selon l'action, un bandeau colore apparait en bas au centre de la page puis disparait seul.",
+      "behaviourDetails": "Quatre toasts distincts, tous ancres en bas + centres, marge basse spaceXl, opacite 0.95, radius Md, z=20 (z=100 pour l'undo). Succes photo : fond Theme.colorSuccess, « ✓ Photo enregistree », 3000 ms. Succes cuisson : fond colorSuccess, « ✓ Cuisinee aujourd'hui — bon appetit ! », 3000 ms. Erreur : fond Theme.colorError, message dynamique venant du signal error_emitted du VM (photo introuvable, format non supporte, telechargement impossible, sauvegarde requise, erreur de validation du journal), largeur bornee a parent.width - 4 * spaceXl, wrap, 5000 ms. Undo suppression : toast sombre avec bouton Annuler, 5000 ms. Aucun de ces toasts n'est empilable : un nouveau message ecrase le precedent et remet le timer a zero uniquement via la remise a visible.",
+      "mobileNotes": "Snackbars en bas d'ecran, au-dessus de la barre de navigation systeme ; durees a rallonger (5 s minimum) et gerer l'empilement.",
+      "blockers": "",
+      "complexity": "S",
+      "priority": "polish",
+      "sourceRefs": [
+        "app/ui/qml/pages/RecipesPage.qml:967-990",
+        "app/ui/qml/pages/RecipesPage.qml:1042-1090",
+        "app/ui/qml/pages/RecipesPage.qml:90-93"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "RecipeEditorViewModel.error_emitted"
+      ],
+      "proposedApi": []
+    }
+  ]
+}

@@ -1,0 +1,1579 @@
+{
+  "page": "Ingredients",
+  "summary": "La page Ingrédients est une vue maître-détail : à gauche la bibliothèque personnelle (recherche FTS5, tri sur 18 critères, groupement en sections, filtres avancés persistés en QSettings, multi-sélection, glisser-déposer vers le Frigo), à droite un formulaire d'édition complet (nom, source, marque, tableau nutritionnel réglementaire UE à 8 champs, poids unitaire, poids cuit, rayon, saisonnalité 12 mois). Le prix n'est plus saisissable directement : il est dérivé automatiquement de la dernière observation d'un historique de prix géré dans un dialogue dédié (formulaire + graphique + tableau). Trois fenêtres satellites complètent la zone : l'import CIQUAL/OpenFoodFacts (recherche paginée + filtres + import multiple), le picker de rayon, et l'éditeur de rayons dans les Paramètres.",
+  "features": [
+    {
+      "id": "ing-list-personal",
+      "title": "Liste de la bibliothèque personnelle",
+      "userAction": "L'utilisateur ouvre l'onglet « Ingrédients » (1er onglet, Ctrl+1) et voit la liste de sa bibliothèque personnelle dans le panneau gauche d'un splitter horizontal (42 % de la largeur par défaut, minimum 280 px).",
+      "behaviourDetails": "Seules les lignes avec in_personal_library = 1 sont listées. Sans filtre texte : list_personal(limit=2000) trié par nom SQL. Chaque ligne fait 52 px de haut. La ListView n'a pas de sélection par défaut (currentIndex = -1). Les lignes CIQUAL/OFF non importées n'apparaissent jamais ici — elles ne sont visibles que via le dialogue d'import ou les pickers.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:311-358",
+        "app/ui/viewmodels/ingredient_vm.py:820-847",
+        "app/data/repositories/ingredient.py:41-50"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.refresh",
+        "IngredientViewModel.refreshList",
+        "IngredientListModel.set_items"
+      ],
+      "dataOps": [
+        "SELECT * FROM ingredient WHERE in_personal_library = 1 ORDER BY name LIMIT 2000"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients?scope=personal&limit=2000"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Le splitter maître-détail ne tient pas sur téléphone : passer à une navigation en 2 écrans (liste → fiche) avec retour, ou une feuille modale plein écran pour la fiche. La ligne de 52 px est déjà au-dessus du minimum tactile de 44 px, mais elle contient une checkbox + une poignée de drag qu'il faudra espacer."
+    },
+    {
+      "id": "ing-search-text",
+      "title": "Recherche texte dans la bibliothèque",
+      "userAction": "L'utilisateur tape dans le champ « Rechercher dans ma bibliothèque personnelle… » en haut de page ; la liste se filtre 200 ms après la dernière frappe. Ctrl+F remet le focus dans ce champ.",
+      "behaviourDetails": "Timer de debounce à 200 ms (repeat: false, restart à chaque onTextChanged) → ingredientVM.setFilter(text) qui fait un .strip() puis refresh(). Requête FTS5 : chaque token est quoté puis suffixé de '*' (préfixe), scope='personal', limit=500 (contre 2000 sans recherche). L'ordre devient le rank FTS5 avant que le tri utilisateur Python ne s'applique par-dessus. Une requête composée uniquement d'espaces retourne 0 résultat. Le texte de recherche n'est pas persisté entre sessions.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:108-119",
+        "app/ui/qml/pages/IngredientsPage.qml:1065-1070",
+        "app/ui/viewmodels/ingredient_vm.py:816-826",
+        "app/data/repositories/ingredient.py:163-181"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.setFilter",
+        "IngredientViewModel.set_filter"
+      ],
+      "dataOps": [
+        "SELECT i.id FROM ingredient i JOIN ingredient_fts f ON f.rowid = i.id WHERE ingredient_fts MATCH :q AND i.in_personal_library = 1 ORDER BY rank LIMIT 500"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients?q=tomate&scope=personal&limit=500"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "blockers": "Dépend de FTS5 ; D1 étant du SQLite, la table virtuelle ingredient_fts et ses triggers se portent tels quels.",
+      "mobileNotes": "Sur téléphone, la barre de recherche doit devenir l'élément principal du haut d'écran (le bouton Importer passe en icône ou dans un menu). Ctrl+F n'existe pas — prévoir un bouton loupe qui ouvre le clavier."
+    },
+    {
+      "id": "ing-sort",
+      "title": "Tri de la liste sur 18 critères",
+      "userAction": "L'utilisateur choisit dans le menu déroulant « Trier : » l'un des 18 tris : Nom A→Z / Z→A, Énergie ↑↓, Protéines ↑↓, Glucides ↑↓, Lipides ↑↓, Fibres ↑↓, Sel ↑↓, Prix ↑↓, Récents, Anciens.",
+      "behaviourDetails": "Codes internes : name_asc, name_desc, kcal_asc/desc, proteins_asc/desc, carbs_asc/desc, fats_asc/desc, fiber_asc/desc, salt_asc/desc, price_asc/desc, created_desc, created_asc. Défaut = name_asc. Le tri est fait EN PYTHON après le chargement (pas en SQL) : tri par nom via casefold() ; pour les macros les valeurs NULL sont poussées en dernier dans les deux sens (clé (1,0) contre (0,valeur) ou (0,-valeur)) ; prix converti en float ; created_at absent → datetime.min. Un setSortBy avec une valeur hors liste est ignoré silencieusement. Le combo se resynchronise sur ingredientVM.sortBy.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:136-174",
+        "app/ui/viewmodels/ingredient_vm.py:284-294",
+        "app/ui/viewmodels/ingredient_vm.py:375-381",
+        "app/ui/viewmodels/ingredient_vm.py:957-1004"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.setSortBy",
+        "IngredientViewModel.sortBy",
+        "IngredientViewModel._apply_sort"
+      ],
+      "dataOps": [
+        "lecture seule ; tri applicatif après SELECT"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients?sort=proteins_desc"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Un select de 18 entrées est pénible au pouce : préférer une feuille de tri (bottom sheet) avec le critère et la direction séparés (6+ critères × ↑/↓)."
+    },
+    {
+      "id": "ing-group",
+      "title": "Groupement de la liste en sections",
+      "userAction": "L'utilisateur choisit dans le menu « Grouper : » entre Aucun, Source, Rayon, Saisonnalité, Tranche kcal ; des en-têtes de section apparaissent dans la liste.",
+      "behaviourDetails": "Codes : none / source / rayon / season / kcal_range. Libellés d'en-tête calculés côté Python : Source → « CIQUAL » / « OFF » / « Manuel » / « Lidl » ; Rayon → category_l1 ou « Sans rayon » ; Saisonnalité → « 🌱 De saison » / « Hors saison » / « — » (pas de mois renseignés) ; Tranche kcal → « 0–100 kcal/100g », « 100–300 », « 300–500 », « 500+ », « Sans valeur kcal » si NULL. Quand un groupement est actif, refresh() applique un tri stable secondaire par groupKey pour éviter qu'un même groupe apparaisse plusieurs fois. groupBy='none' fait renvoyer une clé vide → l'en-tête a une hauteur de 0 et est invisible. En-tête : 28 px, fond primaire à 6 % d'opacité.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:176-194",
+        "app/ui/qml/pages/IngredientsPage.qml:328-350",
+        "app/ui/viewmodels/ingredient_vm.py:382-390",
+        "app/ui/viewmodels/ingredient_vm.py:841-842",
+        "app/ui/models/ingredient_list_model.py:184-220"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.setGroupBy",
+        "IngredientViewModel.groupBy",
+        "IngredientListModel.set_group_by",
+        "_compute_group_key"
+      ],
+      "dataOps": [
+        "lecture seule ; groupement applicatif"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients?groupBy=rayon (le serveur renvoie groupKey par item)"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Les en-têtes de section doivent devenir collants (sticky) sur mobile, sinon on perd le contexte au scroll."
+    },
+    {
+      "id": "ing-view-options-persist",
+      "title": "Persistance des options de vue entre sessions",
+      "userAction": "L'utilisateur règle son tri / groupement / filtres, ferme l'application, la rouvre : tout est restauré à l'identique.",
+      "behaviourDetails": "QSettings sous la clé view_options/ingredients (registre Windows / ~/.config). Sauvegarde déclenchée par le signal view_options_changed, connecté à _save_view_options dans __init__. Les listes (sources, rayons) sont sérialisées en CSV pour éviter les différences de typage QStringList selon la plateforme. Les booléens sont relus de façon tolérante (« true »/« 1 »/« yes »). Une valeur de tri/groupement devenue invalide entre deux versions est ignorée et le défaut s'applique. Le chargement se fait AVANT le premier refresh, sans émettre de signal. Le filtre texte n'est PAS persisté.",
+      "sourceRefs": [
+        "app/ui/viewmodels/ingredient_vm.py:296-352",
+        "app/ui/viewmodels/ingredient_vm.py:894-955"
+      ],
+      "vmMethods": [
+        "IngredientViewModel._load_view_options",
+        "IngredientViewModel._save_view_options"
+      ],
+      "dataOps": [
+        "aucune (QSettings hors DB)"
+      ],
+      "proposedApi": [
+        "GET /api/me/view-options/ingredients",
+        "PUT /api/me/view-options/ingredients"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "blockers": "QSettings est une API Qt liée au poste. En web il faut choisir : localStorage (par appareil, comportement le plus proche) ou une table user_preferences en D1 (synchronisée entre téléphone et desktop — probablement plus cohérent avec l'objectif du portage).",
+      "mobileNotes": "À décider explicitement : des filtres restaurés silencieusement au lancement peuvent donner l'impression d'une bibliothèque vide sur téléphone. Prévoir un rappel visible du nombre de filtres actifs au chargement."
+    },
+    {
+      "id": "ing-filter-dialog-open",
+      "title": "Bouton Filtres avec compteur de filtres actifs",
+      "userAction": "L'utilisateur clique sur « 🔧 Filtres » (à droite de la barre de contrôles) ; la fenêtre « Filtres avancés — bibliothèque d'ingrédients » s'ouvre, centrée sur la fenêtre principale.",
+      "behaviourDetails": "Le libellé devient « 🔧 Filtres · N » et le bouton passe en variant primary dès qu'au moins un filtre est actif. Le compte activeFilterCount vaut : +1 si des sources sont cochées, +1 si des rayons sont cochés, +1 par toggle binaire actif (4 max), +1 par macro dont min OU max > 0 (6 max) — soit un maximum de 12. La fenêtre est non modale (720×720, min 540×480) : la liste se met à jour en direct derrière, il n'y a pas de bouton « Appliquer ». Elle est instanciée globalement dans Main.qml et exposée via l'alias window.ingredientFilterDialog.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:198-212",
+        "app/ui/qml/dialogs/IngredientFilterDialog.qml:21-109",
+        "app/ui/viewmodels/ingredient_vm.py:514-528",
+        "app/ui/qml/Main.qml:33",
+        "app/ui/qml/Main.qml:535"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.activeFilterCount"
+      ],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "état porté dans la query string de GET /api/ingredients"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Fenêtre détachable non modale impossible sur téléphone → feuille plein écran avec un bouton « Voir les N résultats » en bas, car l'aperçu en direct de la liste derrière n'existera pas."
+    },
+    {
+      "id": "ing-filter-sources",
+      "title": "Filtre par source (multi-sélection)",
+      "userAction": "Dans le dialogue de filtres, section SOURCE, l'utilisateur coche une ou plusieurs cases parmi CIQUAL / OpenFoodFacts / Manuel.",
+      "behaviourDetails": "Aucune case cochée = toutes les sources affichées (mention explicite affichée en gris sous les cases). Le filtre compare ing.source.value au set choisi. Chaque clic reconstruit la liste complète et appelle setFilterSources — refresh immédiat. Note : la source « lidl » existe dans l'énumération du domaine mais n'est PAS proposée dans ce filtre.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/IngredientFilterDialog.qml:111-153",
+        "app/ui/viewmodels/ingredient_vm.py:392-399",
+        "app/ui/viewmodels/ingredient_vm.py:853-855",
+        "app/domain/models.py:12-20"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.setFilterSources",
+        "IngredientViewModel.filterSources"
+      ],
+      "dataOps": [
+        "filtrage applicatif sur ingredient.source"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients?sources=ciqual,manual"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Transformer en groupe de chips à sélection multiple plutôt qu'en cases à cocher alignées horizontalement (débordement en largeur sur écran étroit)."
+    },
+    {
+      "id": "ing-filter-rayons",
+      "title": "Filtre par rayon (chips multi-sélection)",
+      "userAction": "Dans le dialogue de filtres, section RAYONS, l'utilisateur clique sur des pastilles arrondies portant le nom de chaque rayon existant ; une pastille sélectionnée passe en couleur primaire.",
+      "behaviourDetails": "La liste des rayons vient de categoryVM.flatL1() et est rechargée à chaque ouverture du dialogue (openCentered). La section entière est masquée si aucun rayon n'est configuré. Aucune sélection = tous les rayons (y compris les ingrédients sans rayon). Le filtre compare (ing.category_l1 or \"\") au set choisi — donc « Sans rayon » n'est pas sélectionnable ici, contrairement au groupement. Disposition en Flow (retour à la ligne automatique).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/IngredientFilterDialog.qml:36-46",
+        "app/ui/qml/dialogs/IngredientFilterDialog.qml:155-216",
+        "app/ui/viewmodels/ingredient_vm.py:401-408",
+        "app/ui/viewmodels/ingredient_vm.py:856-857",
+        "app/ui/viewmodels/category_vm.py:60-67"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.setFilterRayons",
+        "IngredientViewModel.filterRayons",
+        "CategoryViewModel.flatL1"
+      ],
+      "dataOps": [
+        "SELECT * FROM category_definition WHERE parent_id IS NULL ORDER BY ordinal, name",
+        "filtrage applicatif sur ingredient.category_l1"
+      ],
+      "proposedApi": [
+        "GET /api/rayons",
+        "GET /api/ingredients?rayons=Fruits%20%26%20l%C3%A9gumes,Viandes"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Les chips fonctionnent très bien au doigt ; garder une hauteur ≥ 32 px et un défilement horizontal si la liste dépasse deux lignes."
+    },
+    {
+      "id": "ing-filter-toggles",
+      "title": "Quatre filtres rapides binaires",
+      "userAction": "Dans le dialogue de filtres, section FILTRES RAPIDES (grille 2 colonnes), l'utilisateur coche : « 🌱 De saison ce mois-ci », « 🏷️ Avec une marque renseignée », « ● Avec un poids unitaire défini », « 💰 Avec un prix renseigné ».",
+      "behaviourDetails": "Sémantique : coché = n'afficher QUE ceux qui ont la propriété (jamais l'inverse). De saison = le mois courant (datetime.now().month) figure dans le CSV season_months. Avec marque = brand non vide après strip. Avec poids unitaire = piece_weight_g > 0. Avec prix = price_eur > 0. Chaque toggle compte pour 1 dans activeFilterCount.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/IngredientFilterDialog.qml:218-258",
+        "app/ui/viewmodels/ingredient_vm.py:410-436",
+        "app/ui/viewmodels/ingredient_vm.py:858-870",
+        "app/ui/viewmodels/ingredient_vm.py:76-99"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.setFilterInSeason",
+        "setFilterWithBrand",
+        "setFilterWithPieceWeight",
+        "setFilterWithPrice",
+        "_is_in_season_now"
+      ],
+      "dataOps": [
+        "filtrage applicatif sur season_months / brand / piece_weight_g / price_eur"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients?inSeason=1&withBrand=1&withPieceWeight=1&withPrice=1"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Ces 4 filtres sont les plus utiles au quotidien : les remonter en chips directement sous la barre de recherche plutôt que de les enterrer dans une feuille de filtres."
+    },
+    {
+      "id": "ing-filter-macros",
+      "title": "Six plages min/max sur les macros",
+      "userAction": "Dans le dialogue de filtres, section PLAGES MACROS, l'utilisateur saisit un minimum et/ou un maximum pour Énergie, Lipides, Glucides, Fibres, Protéines, Sel (dans cet ordre à l'écran).",
+      "behaviourDetails": "Bornes hautes des spinbox : Énergie 2000, Lipides 100, Glucides 100, Fibres 50, Protéines 100, Sel 30. Une décimale, pas de 1, emptyOnZero (0 s'affiche comme une cellule vide). Règle métier explicitée à l'écran : « Laisser un champ à 0 = pas de borne sur ce côté. Une valeur min ou max active = on n'affiche QUE les ingrédients dont la valeur est CONNUE ET dans la plage » — un ingrédient dont la macro est NULL est donc exclu dès qu'une borne existe. Bornes inclusives. Les valeurs négatives sont ramenées à 0 par setMacroRange. Chaque macro bornée compte pour 1 dans activeFilterCount. Le stockage interne utilise 0.0 comme sentinelle « pas de borne ».",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/IngredientFilterDialog.qml:260-348",
+        "app/ui/viewmodels/ingredient_vm.py:438-453",
+        "app/ui/viewmodels/ingredient_vm.py:504-512",
+        "app/ui/viewmodels/ingredient_vm.py:871-889"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.setMacroRange",
+        "IngredientViewModel.macroRange"
+      ],
+      "dataOps": [
+        "filtrage applicatif sur kcal_per_100g / fats_g / carbs_g / fiber_g / proteins_g / salt_g"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients?kcalMin=&kcalMax=&proteinsMin=&…"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "12 champs numériques dans une feuille est intenable au pouce : privilégier des sliders à double poignée, ou ne garder que les macros réellement filtrées (kcal + protéines) et masquer le reste derrière « Plus de critères »."
+    },
+    {
+      "id": "ing-filter-reset",
+      "title": "Réinitialiser tous les filtres",
+      "userAction": "L'utilisateur clique sur « ↺ Réinitialiser » en haut du dialogue de filtres.",
+      "behaviourDetails": "Vide les sources, les rayons, remet les 4 toggles à false et les 12 bornes macro à 0.0. Ne touche NI au tri NI au groupement NI au filtre texte. La ligne d'état sous l'en-tête repasse à « Aucun filtre actif — tous les ingrédients affichés. ». Attention : le dialogue ne resynchronise pas visuellement les spinbox macros après reset (elles sont initialisées via Component.onCompleted uniquement) — la liste est bien refiltrée mais les champs peuvent rester affichés avec leur ancienne valeur tant que la fenêtre n'est pas recréée.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/IngredientFilterDialog.qml:83-87",
+        "app/ui/qml/dialogs/IngredientFilterDialog.qml:298-338",
+        "app/ui/viewmodels/ingredient_vm.py:455-468"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.resetFilters"
+      ],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "DELETE /api/me/view-options/ingredients/filters (ou simplement rechargement sans query params)"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Bien remettre aussi les contrôles à zéro visuellement — le décalage constaté sur desktop serait plus visible encore sur mobile."
+    },
+    {
+      "id": "ing-row-badges",
+      "title": "Contenu d'une ligne d'ingrédient (badges et macros)",
+      "userAction": "L'utilisateur lit une ligne de la liste : nom, badge de source coloré, badge de saison, macros P/G/L et poids unitaire.",
+      "behaviourDetails": "Badge source : « CIQUAL » vert #15803d, « OFF » bleu #1d4ed8, « perso » ambre #c2410c (fond = couleur à 14 % d'opacité, rayon petit, hauteur 18 px). Badge « 🌱 saison » vert de succès affiché seulement si inSeasonNow est vrai (calculé côté Python à chaque conversion, pas dans le delegate). Macros affichées à 1 décimale avec les couleurs officielles : P bleu #0B6BBB, G vert #509938, L orange #FDA406 ; une macro NULL fait disparaître son étiquette (pas de « — »). Indicateur « ● 1 pc = X g » affiché si piece_weight_g > 0. Le nom est en elide right.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:379-467",
+        "app/ui/viewmodels/ingredient_vm.py:44-47",
+        "app/ui/models/ingredient_list_model.py:169-181"
+      ],
+      "vmMethods": [
+        "IngredientListModel.data",
+        "_is_in_season_now"
+      ],
+      "dataOps": [
+        "lecture seule"
+      ],
+      "proposedApi": [
+        "inclus dans GET /api/ingredients (champs source, inSeasonNow, proteins, carbs, fats, pieceWeightG)"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Trop d'informations pour une largeur de 360 px : garder nom + badge source sur la 1re ligne, macros sur la 2e, et déplacer le poids unitaire dans la fiche détail."
+    },
+    {
+      "id": "ing-select-row",
+      "title": "Sélection d'un ingrédient et chargement du formulaire",
+      "userAction": "L'utilisateur clique sur une ligne de la liste ; elle devient sélectionnée (barre de sélection à gauche) et le formulaire de droite se remplit.",
+      "behaviourDetails": "_loadIngredient(id) appelle ingredientVM.getAsDict(id). Si le dict est vide ou sans id, le formulaire est vidé et selectedId repasse à -1. Convention d'état : -1 = rien de sélectionné (titre « Sélectionne un ingrédient pour le modifier », grille désactivée), -2 = nouvel ingrédient (titre « Nouvel ingrédient »), > 0 = édition (titre « Modifier l'ingrédient »). Toutes les valeurs numériques nulles deviennent 0 dans les champs (donc affichées vides grâce à emptyOnZero). Le prix est reçu sous forme de chaîne (Decimal sérialisé) car QML ne connaît pas Decimal.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:352-362",
+        "app/ui/qml/pages/IngredientsPage.qml:1193-1224",
+        "app/ui/qml/pages/IngredientsPage.qml:579-594",
+        "app/ui/viewmodels/ingredient_vm.py:39-73",
+        "app/ui/viewmodels/ingredient_vm.py:530-532"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.getAsDict",
+        "IngredientViewModel.get"
+      ],
+      "dataOps": [
+        "SELECT * FROM ingredient WHERE id = :id"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/:id"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Le formulaire de droite devient un écran (ou une feuille) séparé ; il faut une navigation retour et gérer l'avertissement de modifications non enregistrées, qui n'existe pas aujourd'hui."
+    },
+    {
+      "id": "ing-empty-state",
+      "title": "État vide de la bibliothèque",
+      "userAction": "Quand la bibliothèque est vide ET que le champ de recherche est vide, l'utilisateur voit un message centré à la place de la liste.",
+      "behaviourDetails": "Titre « Bibliothèque vide », sous-texte « Crée un ingrédient avec « Nouveau » ou importe-en depuis CIQUAL / OpenFoodFacts. » (largeur cadrée à 280 px, centré). Nuance importante : si une recherche est en cours et ne renvoie rien, AUCUN message n'est affiché — la liste reste simplement vide. Il n'y a pas non plus d'état vide dédié quand les filtres avancés éliminent tout.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:534-557"
+      ],
+      "vmMethods": [],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "aucun"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Combler les deux trous en web : « Aucun résultat pour \"x\" » et « N filtres masquent tous les ingrédients — Réinitialiser », avec un bouton d'action directement dans l'état vide."
+    },
+    {
+      "id": "ing-new",
+      "title": "Créer un nouvel ingrédient",
+      "userAction": "L'utilisateur clique sur « Nouveau » (bouton primaire en haut du panneau gauche) ou appuie sur Ctrl+N ; le formulaire se vide et le curseur se place dans le champ Nom.",
+      "behaviourDetails": "Désélectionne la liste (currentIndex = -1), passe selectedId à -2, appelle _clearForm() puis force le focus sur nameField. _clearForm remet la source affichée à « manuel », vide tous les textes et appelle .clear() sur chaque FixedUnitField (valeur 0 → cellule vide), vide le rayon et la saisonnalité. Le raccourci Ctrl+N n'est actif que si la page est visible (évite les collisions entre onglets).",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:242-246",
+        "app/ui/qml/pages/IngredientsPage.qml:1044-1049",
+        "app/ui/qml/pages/IngredientsPage.qml:1226-1231",
+        "app/ui/qml/pages/IngredientsPage.qml:1303-1324"
+      ],
+      "vmMethods": [],
+      "dataOps": [
+        "aucune (création différée au save)"
+      ],
+      "proposedApi": [
+        "aucun (formulaire local) ; création par POST /api/ingredients au save"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Remplacer par un bouton d'action flottant « + » ; Ctrl+N n'a pas d'équivalent tactile."
+    },
+    {
+      "id": "ing-form-name",
+      "title": "Champ Nom (obligatoire)",
+      "userAction": "L'utilisateur saisit ou modifie le nom de l'ingrédient dans le premier champ du formulaire.",
+      "behaviourDetails": "Largeur entre 200 et 480 px. La valeur est trimée à l'enregistrement. Validation à deux niveaux : le viewmodel refuse un nom vide avec le message « Le nom de l'ingrédient est obligatoire. » (émis via error_emitted → toast rouge) et le modèle Pydantic lève « Le nom de l'ingrédient ne peut pas être vide. ». Aucune contrainte de longueur maximale, aucune vérification de doublon à la frappe (voir ing-name-collision, déclenchée seulement au save d'une création).",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:596-602",
+        "app/ui/viewmodels/ingredient_vm.py:545-547",
+        "app/domain/models.py:111-116"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.saveFromDict"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE ingredient.name"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients",
+        "PUT /api/ingredients/:id"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Validation à afficher sous le champ plutôt qu'en toast bas d'écran (le clavier virtuel masque la zone du toast)."
+    },
+    {
+      "id": "ing-form-source-link",
+      "title": "Affichage de la source avec lien vers la fiche d'origine",
+      "userAction": "L'utilisateur voit la source de l'ingrédient (« ciqual ↗ », « openfoodfacts ↗ » ou « manuel ») ; s'il clique sur le lien, la fiche produit s'ouvre dans son navigateur.",
+      "behaviourDetails": "Champ en lecture seule, jamais modifiable par le formulaire. Lien CIQUAL : https://ciqual.anses.fr/#/aliments/{source_ref} ; lien OFF : https://world.openfoodfacts.org/product/{source_ref} — la référence est encodée en URI. Le lien n'apparaît que si source_ref est non vide, sinon on affiche juste le nom de la source en texte. Couleur du lien #1d4ed8, curseur main au survol (HoverHandler + hoveredLink), ouverture via Qt.openUrlExternally.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:604-635",
+        "app/ui/qml/pages/IngredientsPage.qml:1203-1205"
+      ],
+      "vmMethods": [],
+      "dataOps": [
+        "lecture de ingredient.source et ingredient.source_ref"
+      ],
+      "proposedApi": [
+        "inclus dans GET /api/ingredients/:id"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Ouvrir en nouvel onglet avec rel=\"noopener\" ; sur PWA iOS, prévenir que le lien quitte l'application."
+    },
+    {
+      "id": "ing-form-source-ref",
+      "title": "Champ Réf. source (code CIQUAL ou EAN)",
+      "userAction": "L'utilisateur saisit un code CIQUAL ou un code-barres EAN dans le champ « Réf. source » (placeholder « Code CIQUAL ou code-barres EAN (optionnel) »).",
+      "behaviourDetails": "Piège métier important : le champ est éditable et sa valeur est bien envoyée dans le payload, mais _dict_to_ing ne la prend en compte QUE pour une création (existing is None). En modification, source_ref est TOUJOURS réécrit depuis la ligne existante — la saisie de l'utilisateur est silencieusement ignorée. Même règle pour la source elle-même (Source.MANUAL en création, préservée en modification). Aucune validation de format sur l'EAN ici.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:637-644",
+        "app/ui/viewmodels/ingredient_vm.py:156-167",
+        "app/ui/qml/pages/IngredientsPage.qml:1248"
+      ],
+      "vmMethods": [
+        "_dict_to_ing"
+      ],
+      "dataOps": [
+        "INSERT ingredient.source_ref (création uniquement)"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients (champ sourceRef)"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "À trancher lors du portage : soit rendre le champ vraiment en lecture seule en modification (cohérent avec le code), soit autoriser la modification. Le comportement actuel est un piège utilisateur silencieux."
+    },
+    {
+      "id": "ing-form-brand",
+      "title": "Champ Marque",
+      "userAction": "L'utilisateur saisit ou corrige la marque commerciale (placeholder « Ex : Pâturages, Carrefour Bio… (optionnel) »).",
+      "behaviourDetails": "Auto-rempli pour les ingrédients OpenFoodFacts depuis le champ `brands` de l'API : liste → premier élément, chaîne → premier segment avant la virgule. Éditable ensuite. Chaîne vide après strip → NULL. Contrairement à source_ref, la marque est bien prise en compte en modification (la clé « brand » est présente dans le payload). Alimente le filtre rapide « Avec une marque renseignée ».",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:646-654",
+        "app/ui/viewmodels/ingredient_vm.py:176-182",
+        "app/services/openfoodfacts.py:120-130"
+      ],
+      "vmMethods": [
+        "_dict_to_ing"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE ingredient.brand"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients",
+        "PUT /api/ingredients/:id"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Rien de spécifique ; champ texte simple."
+    },
+    {
+      "id": "ing-form-nutrition",
+      "title": "Tableau nutritionnel à 8 champs (ordre réglementaire UE)",
+      "userAction": "L'utilisateur renseigne Énergie, Lipides, dont saturés, Glucides, dont sucres, Fibres, Protéines, Sel — chaque libellé étant accompagné de son pictogramme, dans cet ordre exact.",
+      "behaviourDetails": "Ordre imposé par la réglementation UE. Les sous-lignes « dont saturés » et « dont sucres » sont en italique gris (propriété subline). Unités figées à droite du champ : « kcal/100g » pour l'énergie, « g/100g » pour les 7 autres. Bornes : énergie 0–2000, les autres 0–10000 (valeur par défaut de FixedUnitField). 2 décimales, pas de 0,1, saisie au format français (validateur DoubleValidator locale fr_FR). Règle métier majeure : _or_none convertit 0, None et '' en NULL — il est donc IMPOSSIBLE de saisir une macro à zéro, elle est stockée comme « inconnue ». Les valeurs négatives sont refusées par Pydantic (« Les macros par 100 g ne peuvent pas être négatives. »). Aucune vérification de cohérence (saturés ≤ lipides, sucres ≤ glucides, somme ≤ 100 g) n'est faite.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:656-684",
+        "app/ui/qml/components/FixedUnitField.qml:16-86",
+        "app/ui/qml/components/NutrientLabel.qml:20-63",
+        "app/ui/viewmodels/ingredient_vm.py:241-249",
+        "app/domain/models.py:118-127"
+      ],
+      "vmMethods": [
+        "_or_none",
+        "_dict_to_ing"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE ingredient.kcal_per_100g, fats_g, saturated_fats_g, carbs_g, sugars_g, fiber_g, proteins_g, salt_g"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients",
+        "PUT /api/ingredients/:id"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "8 champs numériques empilés : utiliser inputmode=\"decimal\", accepter la virgule comme séparateur, et permettre la navigation « suivant » entre champs. La colonne de libellés alignée à droite doit passer en libellé au-dessus du champ."
+    },
+    {
+      "id": "ing-form-piece-weight",
+      "title": "Champ Poids unitaire (g / pièce)",
+      "userAction": "L'utilisateur saisit le poids d'une pièce (1 œuf ≈ 60 g, 1 oignon ≈ 150 g, 1 gousse d'ail ≈ 5 g) dans le champ « Poids unitaire ».",
+      "behaviourDetails": "Unité figée « g / pièce », maximum 10000. Vide (= 0 → NULL) signifie « pas d'unité pièce » (huiles, lait, riz, sel). Quand la valeur est non nulle, le QuantityField des sélecteurs de recette et de calendrier ajoute une entrée « pièce (X g) » en tête de son menu d'unités et bascule dessus automatiquement ; la liste affiche « ● 1 pc = X g » ; le glisser-déposer vers le Frigo pré-remplit la quantité avec ce poids. Pydantic exige une valeur strictement positive quand elle est présente.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:812-819",
+        "app/ui/qml/pages/IngredientsPage.qml:459-465",
+        "app/ui/qml/pages/PantryPage.qml:212-219",
+        "app/domain/models.py:136-140"
+      ],
+      "vmMethods": [
+        "_dict_to_ing"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE ingredient.piece_weight_g"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients",
+        "PUT /api/ingredients/:id"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Champ décisif pour la saisie mobile (on compte en pièces, pas en grammes) : le mettre en évidence, pas en bas de formulaire."
+    },
+    {
+      "id": "ing-form-cooked-weight",
+      "title": "Champ Poids cuit (g pour 100 g cru)",
+      "userAction": "L'utilisateur saisit combien pèsent 100 g crus de cet ingrédient une fois cuits (ex : 300 pour du riz).",
+      "behaviourDetails": "Unité figée « g / 100 g cru », maximum 1000. Texte d'aide affiché sous le champ : « Ex : 300 pour du riz (100 g cru → 300 g cuit). Optionnel — sert à estimer le poids d'une portion servie. Les valeurs nutritionnelles restent par 100 g cru. » Vide = conversion 1:1 (huiles, sel, légumes crus). Pydantic exige une valeur strictement positive quand renseignée. C'est le seul champ du formulaire dont le payload envoie explicitement `null` quand la valeur est 0 (`cookedWeightField.value || null`).",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:821-849",
+        "app/ui/qml/pages/IngredientsPage.qml:1262",
+        "app/domain/models.py:82-88",
+        "app/domain/models.py:136-140"
+      ],
+      "vmMethods": [
+        "_dict_to_ing"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE ingredient.cooked_weight_per_100g_raw"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients",
+        "PUT /api/ingredients/:id"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Champ de niche : le replier derrière une section « Avancé » sur téléphone, avec le texte d'aide en info-bulle plutôt qu'en permanence."
+    },
+    {
+      "id": "ing-form-rayon",
+      "title": "Attribution d'un rayon via le picker",
+      "userAction": "L'utilisateur clique sur le bouton « 📁 Choisir un rayon… » (ou « 📁 <NomDuRayon> » si déjà assigné) ; la fenêtre modale « Choisir un rayon » s'ouvre.",
+      "behaviourDetails": "Le bouton passe du variant ghost au variant secondary dès qu'un rayon est assigné. Connexion au signal categorySelected faite au clic puis déconnectée immédiatement dans le handler (évite l'accumulation d'abonnements). Texte d'aide permanent : « Impact : regroupement dans liste de courses + frigo / cellier. Édite la liste via Fichier → Paramètres → Rayons d'ingrédients. » Le rayon est stocké dans category_l1 (TEXT, pas de clé étrangère). Décision produit actée : la hiérarchie L1/L2 est abandonnée — le save force TOUJOURS category_l2 à null, ce qui nettoie progressivement les seeds CIQUAL hérités au fil des enregistrements.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:851-894",
+        "app/ui/qml/pages/IngredientsPage.qml:1263-1268",
+        "app/ui/qml/dialogs/CategoryPickerDialog.qml:25-56"
+      ],
+      "vmMethods": [
+        "CategoryViewModel.flatL1"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE ingredient.category_l1",
+        "UPDATE ingredient.category_l2 = NULL"
+      ],
+      "proposedApi": [
+        "GET /api/rayons",
+        "PUT /api/ingredients/:id (champ rayon)"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Un select natif suffit sur mobile — la fenêtre modale dédiée n'apporte rien. Prévoir une option « + Créer un rayon » directement dans le sélecteur pour éviter l'aller-retour vers les Paramètres."
+    },
+    {
+      "id": "ing-form-season",
+      "title": "Saisonnalité — 12 boutons mois",
+      "userAction": "L'utilisateur clique sur les initiales des mois (J F M A M J J A S O N D) où l'ingrédient est de saison ; un mois actif devient vert plein avec texte blanc.",
+      "behaviourDetails": "12 carrés de 28×28 px, curseur main, transition de couleur de 150 ms. Sérialisation : liste triée croissante jointe par des virgules (« 6,7,8,9 »). Côté Python, _normalize_season_csv trie, déduplique, ne garde que 1..12, ignore les entrées non numériques, et retourne None si le résultat est vide (donc aucune saisonnalité = NULL, pas de chaîne vide). Texte d'aide : « Clique sur les mois où l'ingrédient est de saison. Vide = pas de badge \"🌱 saison\". » Alimente le badge de la liste, le groupement par Saisonnalité et le filtre rapide « De saison ce mois-ci ». Environ 50 ingrédients connus sont pré-remplis par un seed.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:896-977",
+        "app/ui/viewmodels/ingredient_vm.py:216-238",
+        "app/ui/viewmodels/ingredient_vm.py:84-99",
+        "app/domain/models.py:100-104"
+      ],
+      "vmMethods": [
+        "_normalize_season_csv",
+        "_parse_season_months"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE ingredient.season_months (CSV)"
+      ],
+      "proposedApi": [
+        "PUT /api/ingredients/:id (champ seasonMonths: number[])"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "12 cibles de 28 px sur une seule ligne : trop petit et trop serré au doigt. Passer sur deux lignes de 6, cibles ≥ 40 px, et prévoir un raccourci « toute l'année » / « aucun »."
+    },
+    {
+      "id": "ing-form-price-readonly",
+      "title": "Prix et quantité de référence en lecture seule",
+      "userAction": "L'utilisateur consulte deux cellules verrouillées (icône 🔒, fond gris) : « Prix (€) » et « Quantité de réf. ». Il ne peut pas les modifier directement.",
+      "behaviourDetails": "Décision d'architecture : ingredient.price_eur et price_quantity_g sont un cache dénormalisé de la DERNIÈRE observation de l'historique par recorded_at. Affichage « — » gris quand la valeur est absente. La quantité est formatée à 1 décimale suivie de « g » via la locale courante. Texte d'aide commun : « Calculé automatiquement depuis le dernier prix de l'historique. » Le payload d'enregistrement n'envoie PAS ces deux champs ; _dict_to_ing les recopie depuis la ligne existante en base pour qu'un simple renommage n'efface pas le prix. Un ingrédient neuf démarre à NULL. Les prix saisis manuellement avant l'introduction de l'historique sont conservés tant que l'utilisateur n'ajoute pas sa première observation.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:686-810",
+        "app/ui/viewmodels/ingredient_vm.py:169-175",
+        "app/services/pricing_history_service.py:1-67"
+      ],
+      "vmMethods": [
+        "_dict_to_ing",
+        "recompute_current_price"
+      ],
+      "dataOps": [
+        "lecture de ingredient.price_eur et price_quantity_g"
+      ],
+      "proposedApi": [
+        "inclus dans GET /api/ingredients/:id"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "L'icône cadenas ne suffit pas à expliquer pourquoi le champ est bloqué ; rendre la cellule cliquable pour ouvrir directement l'historique."
+    },
+    {
+      "id": "ing-price-history-open",
+      "title": "Bouton Historique des prix",
+      "userAction": "L'utilisateur clique sur « 📊 Historique » à droite de la cellule Prix ; la fenêtre « Historique des prix · <nom> » s'ouvre.",
+      "behaviourDetails": "Bouton actif dès que selectedId ≠ -1 (donc AUSSI pour un nouvel ingrédient non enregistré, ce qui ouvre le dialogue avec ingredientId = -2 et un historique vide). Info-bulle après 300 ms : « Saisir / consulter l'historique des prix » ou « Sélectionne un ingrédient d'abord » si désactivé. openFor(id, nom, quantitéParDéfaut) pré-remplit la quantité avec la quantité de référence actuelle, met la date du jour au format ISO, vide l'enseigne / le prix / les notes, puis place le focus sur le champ Prix.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:736-757",
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:50-71"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.priceHistoryFor",
+        "IngredientViewModel.knownStores"
+      ],
+      "dataOps": [
+        "SELECT * FROM ingredient_price_history WHERE ingredient_id = :id ORDER BY recorded_at ASC, id ASC",
+        "SELECT DISTINCT store FROM ingredient_price_history"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/:id/prices",
+        "GET /api/stores"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Fenêtre de 880×640 non modale : devient un écran plein à part entière. Désactiver le bouton tant que l'ingrédient n'est pas enregistré (le comportement actuel autorise l'ouverture sur un id fantôme)."
+    },
+    {
+      "id": "price-history-add",
+      "title": "Ajouter une observation de prix",
+      "userAction": "Dans le dialogue d'historique, l'utilisateur remplit Date / Enseigne / Quantité (g) / Prix (€) / Notes et clique sur « + Ajouter ».",
+      "behaviourDetails": "Le bouton n'est actif que si le prix est non vide ET la quantité > 0 ET la date non vide. Le prix accepte la virgule française (remplacée par un point avant conversion en Decimal ; placeholder « ex : 2,50 »). La date accepte YYYY-MM-DD ou un ISO-8601 complet ; un suffixe Z est neutralisé et le fuseau retiré (stockage naïf). Enseigne et notes vides deviennent NULL après strip. Pydantic impose price_eur > 0 et quantity_g > 0. Quantité : 1 décimale, pas de 10, plage 0–100000. Après un ajout réussi, seuls le prix et les notes sont vidés — la date et l'enseigne restent, pour la saisie en rafale (« j'étais chez Auchan, voici 5 prix ») — la quantité revient à la valeur par défaut, l'historique et la liste des enseignes sont rechargés et le focus retourne au champ Prix. Le prix de référence de l'ingrédient est recalculé et le signal current_price_recomputed rafraîchit la cellule en lecture seule de la page.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:113-252",
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:631-653",
+        "app/ui/viewmodels/ingredient_vm.py:121-153",
+        "app/ui/viewmodels/ingredient_vm.py:738-766",
+        "app/domain/models.py:288-313"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.addPriceHistory",
+        "_dict_to_price_entry",
+        "recompute_current_price"
+      ],
+      "dataOps": [
+        "INSERT INTO ingredient_price_history (ingredient_id, price_eur, quantity_g, store, recorded_at, notes)",
+        "UPDATE ingredient SET price_eur, price_quantity_g (recalcul depuis la dernière observation)"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients/:id/prices"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "C'est LE cas d'usage mobile par excellence (saisir un prix devant le rayon). Une grille à 6 colonnes est impossible : empiler les champs, utiliser un date picker natif, inputmode décimal pour le prix, et garder le comportement « la date et l'enseigne persistent » qui est excellent pour la saisie en rafale."
+    },
+    {
+      "id": "price-history-date-picker",
+      "title": "Mini-calendrier de sélection de date",
+      "userAction": "L'utilisateur clique sur le bouton « 📅 » (carré de 32 px) à droite du champ Date ; un mini-calendrier contextuel s'ouvre et remplit le champ au format YYYY-MM-DD.",
+      "behaviourDetails": "La saisie clavier directe au format YYYY-MM-DD reste possible en parallèle (pour les utilisateurs avancés). Info-bulle « Ouvrir le calendrier » après 400 ms. Le composant DatePickerPopup s'ouvre ancré sur le bouton et émet dateSelected(iso).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:138-177",
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:624-629"
+      ],
+      "vmMethods": [],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "aucun"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Remplacer par <input type=\"date\"> : le sélecteur natif iOS/Android est meilleur que tout composant maison et gère la locale."
+    },
+    {
+      "id": "price-history-store-autocomplete",
+      "title": "Autocomplétion de l'enseigne",
+      "userAction": "L'utilisateur tape le nom d'une enseigne (placeholder « Lidl, Auchan… ») ou la choisit dans la liste déroulante des enseignes déjà utilisées.",
+      "behaviourDetails": "ComboBox éditable alimentée par knownStores() : SELECT DISTINCT store des observations existantes, en excluant NULL et chaîne vide, trié alphabétiquement. La liste est rechargée après chaque ajout (une nouvelle enseigne devient donc immédiatement proposable). Aucune normalisation de casse ni déduplication approximative : « lidl » et « Lidl » créeront deux entrées distinctes.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:179-219",
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:81-85",
+        "app/ui/viewmodels/ingredient_vm.py:787-794",
+        "app/data/repositories/price_history.py:56-65"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.knownStores"
+      ],
+      "dataOps": [
+        "SELECT DISTINCT store FROM ingredient_price_history WHERE store IS NOT NULL AND store != '' ORDER BY store ASC"
+      ],
+      "proposedApi": [
+        "GET /api/stores"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Un <input list=\"datalist\"> ou un champ avec suggestions suffit. Envisager une normalisation de casse à l'occasion du portage pour éviter la prolifération d'enseignes en doublon."
+    },
+    {
+      "id": "price-history-chart",
+      "title": "Graphique d'évolution du prix au 100 g",
+      "userAction": "L'utilisateur consulte la courbe « Évolution (€ / 100 g) » (bandeau de 180 px) et survole un point pour voir la date, le prix au 100 g et l'enseigne.",
+      "behaviourDetails": "Canvas dessiné à la main. Axes X (temps) et Y (€/100 g) avec marge de 24 px. Étiquettes Y : minimum et maximum à 2 décimales suivis de « € ». Étiquettes X : date de début et de fin en ISO tronqué à 10 caractères. Marge verticale de 10 % ajoutée de part et d'autre ; si toutes les valeurs sont identiques, la plage est artificiellement élargie de ±1. Ligne moyenne en pointillés (4,4) avec l'étiquette « moy X € ». Polyligne de 2 px en couleur primaire, points de 3 px (5 px et couleur d'accent au survol). Détection du point survolé sur l'axe X uniquement, avec un seuil de 24 px. Info-bulle sur 3 lignes positionnée à +12 px du curseur. Message centré si l'historique est vide : « Aucune donnée — ajoute des observations pour voir l'évolution. » Le €/100 g est précalculé côté Python (price_eur × 100 / quantity_g) pour éviter tout calcul en QML.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:254-453",
+        "app/ui/viewmodels/ingredient_vm.py:102-118",
+        "app/domain/models.py:310-313"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.priceHistoryFor",
+        "PriceHistoryEntry.price_per_100g"
+      ],
+      "dataOps": [
+        "SELECT * FROM ingredient_price_history WHERE ingredient_id = :id ORDER BY recorded_at ASC"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/:id/prices (le champ pricePer100g est calculé côté serveur)"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "Le survol n'existe pas au doigt : passer sur un appui/glissé qui déplace un curseur avec valeur affichée en permanence. Réduire à un sparkline si l'écran est étroit."
+    },
+    {
+      "id": "price-history-table",
+      "title": "Tableau chronologique des observations",
+      "userAction": "L'utilisateur parcourt le tableau des observations, de la plus récente à la plus ancienne, avec les colonnes Date / Enseigne / Qté (g) / Prix (€) / € / 100 g / Notes.",
+      "behaviourDetails": "Le modèle est stocké en ordre chronologique CROISSANT (pour le graphique) et le tableau l'inverse à l'affichage via (count - 1 - index). Largeurs fixes : 100 / 130 / 90 / 90 / 100 px, notes en largeur restante, 40 px pour l'action. Quantité formatée sans décimale, prix et €/100 g à 2 décimales selon la locale. La colonne €/100 g est mise en couleur primaire et en demi-gras (c'est la colonne de comparaison). Enseigne absente → « — » en gris désactivé. Lignes de 30 px avec surbrillance au survol. En-tête récapitulatif au-dessus du formulaire : « N observations · de <date min> à <date max> » ou « Aucune observation enregistrée. »",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:102-111",
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:455-611"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.priceHistoryFor"
+      ],
+      "dataOps": [
+        "SELECT * FROM ingredient_price_history WHERE ingredient_id = :id ORDER BY recorded_at ASC, id ASC"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/:id/prices"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Un tableau à 7 colonnes ne passe pas : transformer chaque observation en carte (date + enseigne en en-tête, €/100 g en gros, prix et quantité en second plan, suppression par balayage)."
+    },
+    {
+      "id": "price-history-delete",
+      "title": "Supprimer une observation de prix",
+      "userAction": "L'utilisateur clique sur la croix « ✕ » en bout de ligne d'une observation ; elle disparaît immédiatement.",
+      "behaviourDetails": "Aucune confirmation, aucune annulation possible (contrairement à la suppression d'ingrédient). La croix passe en rouge au survol, info-bulle « Supprimer cette observation » après 400 ms. Après suppression, le prix de référence de l'ingrédient est recalculé à partir de l'observation restante la plus récente, ou remis à NULL si l'historique est vide. La liste principale et la cellule de prix de la page sont rafraîchies. La table est délibérément append-only : il n'y a pas de modification d'une observation — pour corriger une faute de frappe il faut supprimer puis ré-ajouter.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/PriceHistoryDialog.qml:571-600",
+        "app/ui/viewmodels/ingredient_vm.py:768-785",
+        "app/data/repositories/price_history.py:14-54"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.deletePriceHistory",
+        "recompute_current_price"
+      ],
+      "dataOps": [
+        "DELETE FROM ingredient_price_history WHERE id = :entryId",
+        "UPDATE ingredient SET price_eur, price_quantity_g"
+      ],
+      "proposedApi": [
+        "DELETE /api/price-entries/:entryId"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Une croix de 40 px sans confirmation est dangereuse au doigt : basculer sur un balayage vers la gauche avec un toast « Annuler » de quelques secondes."
+    },
+    {
+      "id": "price-recompute",
+      "title": "Recalcul automatique du prix de référence",
+      "userAction": "Après chaque ajout ou suppression dans l'historique, l'utilisateur voit la cellule « Prix (€) » et « Quantité de réf. » du formulaire se mettre à jour toute seule.",
+      "behaviourDetails": "recompute_current_price recopie price_eur et quantity_g de l'observation la plus récente (ORDER BY recorded_at DESC, id DESC LIMIT 1 — l'id sert de départage en cas d'égalité de date) dans les colonnes de l'ingrédient. Sans historique, les deux colonnes sont mises à NULL. La fonction est idempotente et ne lève jamais ; l'appelant est responsable du commit. Le signal current_price_recomputed(ingredientId) est émis puis la page ne rafraîchit ses cellules QUE si l'ingrédient concerné est bien celui affiché. Justification de la dénormalisation : le calcul du coût des recettes et l'agrégation de la liste de courses lisent ingredient.price_eur massivement.",
+      "sourceRefs": [
+        "app/services/pricing_history_service.py:37-67",
+        "app/ui/viewmodels/ingredient_vm.py:272-276",
+        "app/ui/qml/pages/IngredientsPage.qml:1105-1114",
+        "app/data/repositories/price_history.py:67-78"
+      ],
+      "vmMethods": [
+        "recompute_current_price",
+        "IngredientViewModel.current_price_recomputed"
+      ],
+      "dataOps": [
+        "SELECT ... ORDER BY recorded_at DESC, id DESC LIMIT 1",
+        "UPDATE ingredient SET price_eur = ?, price_quantity_g = ?"
+      ],
+      "proposedApi": [
+        "effet de bord de POST /api/ingredients/:id/prices et DELETE /api/price-entries/:id ; renvoyer l'ingrédient mis à jour dans la réponse"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Sans signal Qt en web, la réponse de l'API doit renvoyer le nouveau prix de référence pour éviter un second aller-retour."
+    },
+    {
+      "id": "ing-save",
+      "title": "Enregistrer l'ingrédient",
+      "userAction": "L'utilisateur clique sur « Enregistrer » (ou appuie sur Ctrl+S) ; le bouton devient vert et affiche « ✓ Enregistré » pendant 1,5 seconde.",
+      "behaviourDetails": "Bouton actif dès que selectedId ≠ -1. Le retour au libellé normal est piloté par un Timer de 1500 ms non répétitif. Ctrl+S passe volontairement par saveButton.clicked() pour bénéficier du même retour visuel que le clic souris. Le payload contient : id (null en création), name trimé, sourceRef, brand, les 8 macros, pieceWeightG, cookedWeightPer100gRaw, categoryL1 (trimé, null si vide), categoryL2 forcé à null, seasonMonths en CSV. Le save force toujours in_personal_library = True. En modification, le modèle de liste fait un dataChanged ciblé sur une seule ligne (pas de reset complet) pour éviter le scintillement ; en création, un refresh complet est nécessaire.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:979-1003",
+        "app/ui/qml/pages/IngredientsPage.qml:1050-1058",
+        "app/ui/qml/pages/IngredientsPage.qml:1233-1294",
+        "app/ui/viewmodels/ingredient_vm.py:534-559",
+        "app/ui/viewmodels/ingredient_vm.py:1012-1030"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.saveFromDict",
+        "IngredientViewModel.save",
+        "IngredientListModel.update_one"
+      ],
+      "dataOps": [
+        "INSERT INTO ingredient (...)",
+        "UPDATE ingredient SET ... WHERE id = :id"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients",
+        "PUT /api/ingredients/:id"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Pas d'enregistrement automatique aujourd'hui, et aucun avertissement si on quitte la fiche avec des modifications en cours : à traiter absolument en web (barre d'action collante + garde de navigation). Ctrl+S doit rester géré au clavier sur desktop."
+    },
+    {
+      "id": "ing-save-scroll-preserve",
+      "title": "Préservation du défilement et de la sélection après enregistrement",
+      "userAction": "Après un enregistrement, l'utilisateur retrouve la liste à la même position de défilement, avec la ligne enregistrée toujours sélectionnée.",
+      "behaviourDetails": "La position contentY est capturée AVANT l'appel au viewmodel, puis restaurée via Qt.callLater (le temps que la ListView finisse sa remise en page) en la bornant à contentHeight - height. La ligne est re-sélectionnée par recherche de son id à travers les rôles du modèle. Ce contournement existe parce qu'un refresh() Python déclenche beginResetModel/endResetModel qui remet la vue à zéro.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:1239-1291",
+        "app/ui/models/ingredient_list_model.py:94-119"
+      ],
+      "vmMethods": [
+        "IngredientListModel.set_items",
+        "IngredientListModel.update_one"
+      ],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "aucun (état client)"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Le problème disparaît en web si la liste est rendue en réactif par clé stable (id) — pas besoin de porter ce contournement."
+    },
+    {
+      "id": "ing-name-collision",
+      "title": "Détection de doublon de nom à la création",
+      "userAction": "L'utilisateur crée un ingrédient dont le nom existe déjà ; au lieu d'enregistrer, une boîte de dialogue « Ingrédient existant » propose « Éditer l'existant » ou « Annuler ».",
+      "behaviourDetails": "Contrôle effectué UNIQUEMENT en création (existing is None) et UNIQUEMENT contre les ingrédients de source « manual » — renommer un ingrédient existant ne déclenche donc jamais l'alerte, et un doublon avec une entrée CIQUAL ou OFF n'est pas détecté. Comparaison insensible à la casse via casefold() en Python (et non LOWER() SQL, qui ne gère pas l'Unicode : « Œufs » contre « œufs »), après strip. La comparaison est faite en itérant sur toutes les lignes de la source concernée. Texte : « Un ingrédient nommé « X » existe déjà dans ta bibliothèque. » + « Tu peux soit éditer l'ingrédient existant (recommandé pour ne pas créer de doublon), soit annuler et changer le nom. » « Éditer l'existant » sélectionne la ligne dans la liste et charge la fiche. saveFromDict retourne un dict vide, donc le bouton n'affiche pas « ✓ Enregistré ».",
+      "sourceRefs": [
+        "app/ui/viewmodels/ingredient_vm.py:277-281",
+        "app/ui/viewmodels/ingredient_vm.py:548-557",
+        "app/ui/qml/pages/IngredientsPage.qml:1115-1122",
+        "app/ui/qml/pages/IngredientsPage.qml:1125-1184",
+        "app/data/repositories/ingredient.py:60-83"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.saveFromDict",
+        "IngredientRepo.find_by_name",
+        "IngredientViewModel.name_collision_detected"
+      ],
+      "dataOps": [
+        "SELECT * FROM ingredient WHERE source = 'manual' (comparaison de nom en applicatif)"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients → 409 Conflict avec {existingId, name}"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Boîte de dialogue à deux actions : parfaitement portable. En revanche la comparaison ligne à ligne en Python devra être remplacée par une comparaison SQL avec collation NOCASE ou une colonne name_normalized indexée, sinon la latence explose sur D1."
+    },
+    {
+      "id": "ing-delete",
+      "title": "Retirer un ingrédient (suppression dure ou douce)",
+      "userAction": "L'utilisateur sélectionne un ingrédient et clique sur « Retirer » (ou appuie sur Suppr) ; l'ingrédient disparaît de la liste et le formulaire se vide.",
+      "behaviourDetails": "Le bouton et le raccourci ne sont actifs que si selectedId > 0 (donc jamais sur un nouvel ingrédient non enregistré). Deux comportements selon la source : source « manual » → DELETE physique de la ligne ; source CIQUAL / OFF / Lidl → simple bascule de in_personal_library à false (la ligne du catalogue reste en base et reste trouvable dans le dialogue d'import). Aucune confirmation préalable. Aucune vérification d'usage : un ingrédient utilisé dans une recette ou une entrée de calendrier peut être supprimé (le comportement en cascade dépend des clés étrangères, non vérifié ici). Un instantané est pris avant la mutation pour permettre l'annulation.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:247-252",
+        "app/ui/qml/pages/IngredientsPage.qml:1059-1064",
+        "app/ui/qml/pages/IngredientsPage.qml:1296-1301",
+        "app/ui/viewmodels/ingredient_vm.py:1032-1048"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.deleteIngredient",
+        "IngredientViewModel.delete",
+        "IngredientRepo.delete",
+        "IngredientRepo.mark_in_personal_library"
+      ],
+      "dataOps": [
+        "DELETE FROM ingredient WHERE id = :id (source manual)",
+        "UPDATE ingredient SET in_personal_library = 0 WHERE id = :id (autres sources)"
+      ],
+      "proposedApi": [
+        "DELETE /api/ingredients/:id (le serveur choisit suppression dure ou retrait de la bibliothèque selon la source)"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Suppression sans confirmation + raccourci Suppr : sur mobile, prévoir un balayage ou un menu contextuel long-press, avec le toast d'annulation comme filet de sécurité."
+    },
+    {
+      "id": "ing-undo-delete",
+      "title": "Annuler la dernière suppression",
+      "userAction": "Juste après un retrait, un bandeau sombre « « Nom » retiré » avec un bouton « Annuler » apparaît en bas de la page pendant 5 secondes ; un clic restaure l'ingrédient.",
+      "behaviourDetails": "Le viewmodel garde en tampon l'ingrédient supprimé et un indicateur du type de suppression. Restauration : pour CIQUAL/OFF, on rebascule simplement in_personal_library à true (l'id est préservé) ; pour un manuel supprimé physiquement, la ligne est RECRÉÉE avec un NOUVEL id — les références qui pointaient sur l'ancien id sont donc définitivement perdues. Le tampon ne conserve qu'une seule suppression (pas de pile) et est vidé après restauration ; appeler l'annulation sans suppression en attente ne fait rien. Le toast se ferme automatiquement au bout de 5 s (opacité 0,96, transition de 150 ms).",
+      "sourceRefs": [
+        "app/ui/viewmodels/ingredient_vm.py:337-342",
+        "app/ui/viewmodels/ingredient_vm.py:1040-1067",
+        "app/ui/qml/pages/IngredientsPage.qml:1102-1104",
+        "app/ui/qml/pages/IngredientsPage.qml:1186-1189",
+        "app/ui/qml/components/UndoToast.qml:22-61"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.undoLastDelete",
+        "IngredientViewModel.deletion_pending_undo"
+      ],
+      "dataOps": [
+        "UPDATE ingredient SET in_personal_library = 1",
+        "INSERT INTO ingredient (...) — nouvel id pour les manuels"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients/:id/restore",
+        "POST /api/ingredients (recréation à partir de l'instantané renvoyé par le DELETE)"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "blockers": "Le tampon vit dans la mémoire du viewmodel. En web sans état serveur, il faudra soit renvoyer l'instantané complet dans la réponse du DELETE et le rejouer, soit passer à une suppression logique (deleted_at) — plus robuste et compatible avec la synchronisation multi-appareils.",
+      "mobileNotes": "Le toast d'annulation est le bon pattern mobile ; le garder et lui donner une zone tactile confortable."
+    },
+    {
+      "id": "ing-error-toast",
+      "title": "Toast d'erreur",
+      "userAction": "Quand une opération échoue (nom vide, validation Pydantic, erreur OpenFoodFacts), un bandeau rouge apparaît en bas de la page pendant 4 secondes.",
+      "behaviourDetails": "Alimenté par le signal error_emitted du viewmodel. Fond rouge d'erreur, texte blanc, opacité 0,95, largeur ajustée au contenu, fermeture automatique au bout de 4000 ms. Messages connus : « Le nom de l'ingrédient est obligatoire. », les messages de validation Pydantic bruts (str(exc), donc peu lisibles pour un utilisateur final), et les messages réseau OFF traduits (« OpenFoodFacts est temporairement indisponible (HTTP 503). Réessaie dans quelques minutes. », « Trop de requêtes vers OpenFoodFacts (HTTP 429). Attends une minute avant de réessayer. », « OpenFoodFacts ne répond pas (timeout). Vérifie ta connexion. », « Impossible de joindre OpenFoodFacts. Vérifie ta connexion internet. »).",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:1010-1038",
+        "app/ui/qml/pages/IngredientsPage.qml:1096-1101",
+        "app/ui/viewmodels/ingredient_vm.py:270",
+        "app/services/openfoodfacts.py:43-62"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.error_emitted"
+      ],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "format d'erreur standardisé {code, message} sur toutes les routes"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Le toast en bas d'écran est masqué par le clavier virtuel lors d'une erreur de saisie : afficher les erreurs de validation au niveau du champ concerné, et réserver le toast aux erreurs réseau."
+    },
+    {
+      "id": "ing-shortcuts",
+      "title": "Raccourcis clavier de la page",
+      "userAction": "L'utilisateur utilise Ctrl+N (nouveau), Ctrl+S (enregistrer), Suppr (retirer), Ctrl+F (focus recherche).",
+      "behaviourDetails": "Tous les raccourcis sont conditionnés par enabled: page.visible pour éviter les collisions entre onglets. Conditions supplémentaires : Ctrl+S exige selectedId ≠ -1, Suppr exige selectedId > 0. Contexte Qt.WindowShortcut. À cela s'ajoutent les raccourcis globaux : Ctrl+1 pour venir sur l'onglet Ingrédients, Ctrl+Shift+D pour le mode sombre, Ctrl+/ pour la liste des raccourcis.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:1040-1070",
+        "app/ui/qml/Main.qml:127-160"
+      ],
+      "vmMethods": [],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "aucun"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Sans objet sur téléphone. À conserver sur la version desktop de la PWA — attention à ne pas intercepter Ctrl+F et Ctrl+N du navigateur sans raison valable (Ctrl+S est légitime à intercepter dans un formulaire)."
+    },
+    {
+      "id": "ing-multi-select",
+      "title": "Cases à cocher de multi-sélection dans la liste",
+      "userAction": "L'utilisateur coche les cases à gauche de plusieurs ingrédients de sa liste.",
+      "behaviourDetails": "État local à la page (tableau d'ids), indépendant de la sélection d'édition — cocher une case ne charge PAS le formulaire. La bascule reconstruit le tableau (immutabilité pour déclencher les liaisons QML). Ce mécanisme sert exclusivement à la recherche de recettes ; la sélection n'est pas persistée, n'est pas conservée à la sortie de l'onglet et n'ouvre aucune action groupée (pas de suppression multiple, pas d'attribution de rayon en masse).",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:24-37",
+        "app/ui/qml/pages/IngredientsPage.qml:368-373"
+      ],
+      "vmMethods": [],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "aucun (état client)"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Une checkbox permanente dans chaque ligne encombre une largeur de 360 px : passer en mode sélection déclenché par appui long, avec une barre d'action contextuelle en haut. Occasion d'ajouter les actions groupées manquantes (retirer plusieurs, affecter un rayon)."
+    },
+    {
+      "id": "ing-find-recipes",
+      "title": "Trouve-moi des recettes avec ces ingrédients",
+      "userAction": "Dès que 2 ingrédients ou plus sont cochés, un bandeau bleuté apparaît au-dessus de la liste : « N ingrédients sélectionnés » + lien « Désélectionner » + bouton « Trouver les recettes ». Le clic ouvre le dialogue de correspondance des recettes.",
+      "behaviourDetails": "Le bandeau est masqué (hauteur 0) tant qu'il y a moins de 2 sélections. Le pluriel est géré dans le texte. Appelle recipeListVM.findByIngredientsCategorized(ids, 3) — le second argument est max_missing = 3, le paramètre minMatch de la signature JavaScript n'est plus utilisé (héritage). Le résultat est un dictionnaire à 3 clés : `ready` (recettes réalisables tout de suite), `missing` (il manque ≤ 3 ingrédients, avec la liste des manquants) et `shopping` (top 5 des ingrédients à acheter pour débloquer le plus de recettes). Le lien « Désélectionner » vide la sélection.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:38-46",
+        "app/ui/qml/pages/IngredientsPage.qml:256-308",
+        "app/ui/qml/pages/IngredientsPage.qml:1080-1084",
+        "app/ui/viewmodels/recipe_vm.py:245-262"
+      ],
+      "vmMethods": [
+        "RecipeListViewModel.findByIngredientsCategorized",
+        "RecipeRepo.find_by_ingredient_ids_categorized"
+      ],
+      "dataOps": [
+        "SELECT sur recipe + recipe_ingredient pour calculer les correspondances par ingrédient"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/match-by-ingredients {ingredientIds:[...], maxMissing:3}"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Excellente fonctionnalité mobile (« qu'est-ce que je fais avec ce que j'ai ? ») : la rendre plus visible qu'un bandeau conditionnel, par exemple un bouton d'action flottant qui affiche le compteur."
+    },
+    {
+      "id": "ing-drag-to-pantry",
+      "title": "Glisser un ingrédient vers le Frigo / Cellier",
+      "userAction": "L'utilisateur attrape la poignée « ⠿ » à droite d'une ligne, glisse la pastille fantôme jusqu'à l'onglet « Frigo / Cellier », attend la bascule d'onglet, puis lâche sur la liste du frigo.",
+      "behaviourDetails": "Poignée de 28×28 px, curseur main ouverte puis fermée pendant le glissé, info-bulle après 600 ms : « Glisser vers l'onglet Frigo / Cellier pour ajouter au stock ». Seuil de déclenchement à 4 px. Le fantôme est une pastille de 220×32 px, fond primaire à 92 %, texte « 🛒 <nom> », vivant en surcouche du conteneur de page (z 1000) pour pouvoir sortir de la ListView qui est en clip. Il transporte ingredientId, ingredientName, pieceWeightG et sourceTag. À la dépose, la zone de dépôt du Frigo ignore un id absent ou ≤ 0, calcule une quantité par défaut = poids unitaire s'il existe, sinon 100 g, et ouvre la fenêtre d'ajout rapide pré-remplie ; la bordure de la liste cible passe à 2 px en couleur primaire avec une surcouche « ⬇ Lâche ici pour ajouter au frigo ».",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:48-94",
+        "app/ui/qml/pages/IngredientsPage.qml:469-529",
+        "app/ui/qml/pages/PantryPage.qml:190-240"
+      ],
+      "vmMethods": [
+        "PantryViewModel (ajout de stock via quickAddPopup)"
+      ],
+      "dataOps": [
+        "INSERT INTO pantry_stock (déclenché par la fenêtre d'ajout rapide)"
+      ],
+      "proposedApi": [
+        "POST /api/pantry/stock {ingredientId, quantityG, expiryDate}"
+      ],
+      "priority": "polish",
+      "complexity": "L",
+      "blockers": "Glisser-déposer fin entre deux onglets, avec bascule automatique au survol : impossible à reproduire correctement au doigt. Le geste repose entièrement sur des primitives Qt (Drag.active, DropArea).",
+      "mobileNotes": "À remplacer par une action explicite : un bouton « + Frigo » sur la ligne, ou une entrée « Ajouter au frigo » dans un menu contextuel. Le pré-remplissage de la quantité (poids unitaire, sinon 100 g) doit être conservé."
+    },
+    {
+      "id": "ing-deep-link",
+      "title": "Navigation vers un ingrédient depuis un autre onglet",
+      "userAction": "Depuis la page Recettes, l'utilisateur clique sur un ingrédient d'une recette ; l'application bascule sur l'onglet Ingrédients avec la fiche déjà chargée.",
+      "behaviourDetails": "Fonction globale window.navigateToIngredient(id) : force tabBar.currentIndex à 0 puis, via Qt.callLater (pour laisser le StackLayout finir sa bascule), appelle ingredientsPageRef._loadIngredient(id). Ne fait rien si l'id est ≤ 0. Remarque : la ligne correspondante n'est PAS mise en surbrillance dans la liste (seul le formulaire est chargé) et la liste n'est pas défilée jusqu'à elle.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:35-45",
+        "app/ui/qml/Main.qml:237"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.getAsDict"
+      ],
+      "dataOps": [
+        "SELECT * FROM ingredient WHERE id = :id"
+      ],
+      "proposedApi": [
+        "route /ingredients/:id"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Devient une vraie URL profonde, ce qui est un gain net : /ingredients/42 partageable et navigable avec le bouton retour. Penser à faire défiler jusqu'à la ligne et à la mettre en surbrillance au retour."
+    },
+    {
+      "id": "import-dialog-open",
+      "title": "Ouverture du dialogue d'import CIQUAL / OpenFoodFacts",
+      "userAction": "L'utilisateur clique sur « Importer (CIQUAL / OFF) » en haut de la page ; une fenêtre de 920×640 s'ouvre, centrée sur la fenêtre principale.",
+      "behaviourDetails": "Vraie fenêtre système : détachable, déplaçable hors de l'application, redimensionnable (min 720×480), NON modale — l'utilisateur peut continuer à travailler dans la page pendant que le dialogue est ouvert. Deux onglets : « CIQUAL (local) » (180 px) et « OpenFoodFacts (en ligne) » (220 px). L'état de chaque onglet (requête, filtres, tri, page, sélections) est conservé le temps de la session du dialogue mais PAS entre deux ouvertures. Le signal libraryChanged déclenche ingredientVM.refreshList() sur la page.",
+      "sourceRefs": [
+        "app/ui/qml/pages/IngredientsPage.qml:121-125",
+        "app/ui/qml/pages/IngredientsPage.qml:1072-1078",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:22-97"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.refreshList"
+      ],
+      "dataOps": [
+        "aucune à l'ouverture (la première recherche part au Component.onCompleted de l'onglet CIQUAL)"
+      ],
+      "proposedApi": [
+        "aucun (écran)"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Fenêtre détachable non modale : sur téléphone, un écran plein « Ajouter un ingrédient » avec sélecteur de segment CIQUAL / En ligne. Le multi-fenêtrage disparaît, ce qui simplifie le portage."
+    },
+    {
+      "id": "import-ciqual-search",
+      "title": "Recherche dans le catalogue CIQUAL",
+      "userAction": "Dans l'onglet CIQUAL, l'utilisateur tape dans le champ « Rechercher dans CIQUAL (~3 000 entrées)… » ; les résultats se rafraîchissent 250 ms après la dernière frappe, ou immédiatement s'il appuie sur Entrée.",
+      "behaviourDetails": "Debounce de 250 ms (contre 200 ms pour la recherche de la bibliothèque). Toute nouvelle recherche remet la page à 1. Recherche FTS5 avec préfixe, scope='all' (donc les entrées déjà importées apparaissent aussi, marquées d'une étoile), source restreinte à ciqual. Une recherche vide est autorisée : elle liste tout le catalogue filtré par la catégorie, paginé — c'est le mode « montre-moi tout ce rayon ».",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:429-447",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:223-261",
+        "app/ui/viewmodels/ingredient_vm.py:659-718",
+        "app/data/repositories/ingredient.py:163-253"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.searchCatalogPaged",
+        "IngredientRepo.search_fts"
+      ],
+      "dataOps": [
+        "SELECT COUNT(*) puis SELECT i.id FROM ingredient i JOIN ingredient_fts f ... WHERE i.source = 'ciqual' ... ORDER BY ... LIMIT 25 OFFSET ?"
+      ],
+      "proposedApi": [
+        "GET /api/catalog/search?source=ciqual&q=&page=1&pageSize=25"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Garder le debounce et la pagination ; sur mobile préférer un défilement infini au couple Précédent/Suivant."
+    },
+    {
+      "id": "import-ciqual-filters",
+      "title": "Panneau de filtres du catalogue CIQUAL",
+      "userAction": "Dans le panneau gauche de l'onglet CIQUAL (250 px de large), l'utilisateur choisit une catégorie et saisit des bornes min/max pour Énergie, Protéines, Glucides, Lipides.",
+      "behaviourDetails": "Le menu de catégories est alimenté par ingredientVM.categoriesL1('ciqual') — les valeurs distinctes non nulles de category_l1 pour cette source, triées alphabétiquement — avec « (toutes catégories) » en première position (index 0 = pas de filtre). Chaque paire min/max est un composant MacroRangeField (deux FixedUnitField séparés par un tiret) ; Énergie est bornée à 2000, les autres à 1000 par défaut. Toute modification d'un filtre remet la page à 1 et relance la recherche immédiatement. Les bornes sont converties par _pos_or_none : 0 et vide signifient « pas de contrainte », les valeurs négatives aussi. Les bornes sont inclusives et traduites en SQL (i.kcal_per_100g >= :min_kcal, etc.) — contrairement au filtre de la bibliothèque, ce filtrage-là est fait en base.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:296-370",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:856-904",
+        "app/ui/viewmodels/ingredient_vm.py:252-261",
+        "app/ui/viewmodels/ingredient_vm.py:685-695",
+        "app/data/repositories/ingredient.py:188-216"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.categoriesL1",
+        "IngredientViewModel.searchCatalogPaged",
+        "IngredientRepo.list_categories_l1"
+      ],
+      "dataOps": [
+        "SELECT DISTINCT category_l1 FROM ingredient WHERE category_l1 IS NOT NULL AND source = 'ciqual' ORDER BY category_l1",
+        "WHERE i.kcal_per_100g >= ? AND i.proteins_g <= ? ..."
+      ],
+      "proposedApi": [
+        "GET /api/catalog/categories?source=ciqual",
+        "GET /api/catalog/search?source=ciqual&categoryL1=&minKcal=&maxKcal=&minProteins=…"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Panneau latéral fixe de 250 px impossible : basculer en feuille de filtres avec un bouton portant le nombre de filtres actifs, comme sur la page principale."
+    },
+    {
+      "id": "import-ciqual-sort",
+      "title": "Tri des résultats du catalogue CIQUAL",
+      "userAction": "L'utilisateur choisit un critère dans « Trier par » (Pertinence, Nom, Énergie, Protéines, Glucides, Lipides) et peut cocher « Décroissant ».",
+      "behaviourDetails": "Codes : rank / name / kcal / proteins / carbs / fats. Défaut = rank (pertinence FTS5). Dès qu'un critère explicite est choisi, l'ordre SQL devient « (colonne IS NULL), colonne ASC|DESC, i.name ASC » — les valeurs nulles sont donc toujours reléguées en fin de liste, dans les deux directions, et le nom sert de départage. Tout changement de tri ou de sens remet la page à 1.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:372-410",
+        "app/ui/viewmodels/ingredient_vm.py:697-709",
+        "app/data/repositories/ingredient.py:118-126",
+        "app/data/repositories/ingredient.py:218-223"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.searchCatalogPaged"
+      ],
+      "dataOps": [
+        "ORDER BY (i.proteins_g IS NULL), i.proteins_g DESC, i.name ASC"
+      ],
+      "proposedApi": [
+        "GET /api/catalog/search?sortBy=proteins&sortDesc=true"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Fusionner critère et sens en une seule liste de choix (« Protéines ↓ ») comme sur la page principale, plutôt qu'un menu plus une case à cocher."
+    },
+    {
+      "id": "import-ciqual-reset",
+      "title": "Réinitialiser les filtres du catalogue",
+      "userAction": "L'utilisateur clique sur « Réinitialiser » en bas du panneau de filtres CIQUAL.",
+      "behaviourDetails": "Remet la catégorie à « (toutes catégories) », vide les 8 champs de bornes (via .clear() sur chaque FixedUnitField, donc la remise à zéro visuelle est bien faite ici, contrairement au dialogue de filtres de la page), remet le tri sur Pertinence, décoche « Décroissant », remet la page à 1 et relance la recherche. Ne touche PAS au texte de la requête ni à la sélection multiple en cours.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:263-281",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:412-419",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:866-869"
+      ],
+      "vmMethods": [],
+      "dataOps": [
+        "nouvelle recherche sans filtre"
+      ],
+      "proposedApi": [
+        "aucun"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Bouton « Tout effacer » dans l'en-tête de la feuille de filtres."
+    },
+    {
+      "id": "import-pagination",
+      "title": "Pagination des résultats du catalogue",
+      "userAction": "L'utilisateur navigue avec « ‹ Précédent » et « Suivant › » ; entre les deux s'affiche « Page X / Y · N résultats ».",
+      "behaviourDetails": "Taille de page fixée à 25 (non configurable). « Précédent » est désactivé sur la page 1, « Suivant » sur la dernière. Le nombre de pages est calculé côté serveur par arrondi supérieur (total + taille - 1) // taille, minimum 1. Si aucun résultat : « Aucun résultat ». Le pluriel de « résultat » est géré. La sélection multiple, elle, PERSISTE d'une page à l'autre et d'une requête à l'autre (voir import-multi-select).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:589-622",
+        "app/data/repositories/_search.py",
+        "app/ui/viewmodels/ingredient_vm.py:710-718"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.searchCatalogPaged",
+        "SearchPage.page_count"
+      ],
+      "dataOps": [
+        "SELECT COUNT(*) ... puis LIMIT 25 OFFSET (page-1)*25"
+      ],
+      "proposedApi": [
+        "GET /api/catalog/search?page=2&pageSize=25 → {matches, totalCount, page, pageSize, pageCount}"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Passer au défilement infini ou à un bouton « Charger plus » ; conserver l'affichage du total (« 312 résultats »), qui est une information utile."
+    },
+    {
+      "id": "import-add-one",
+      "title": "Ajouter un ingrédient du catalogue à la bibliothèque",
+      "userAction": "L'utilisateur double-clique sur une ligne de résultat, ou clique sur le bouton « + Ajouter » de la ligne.",
+      "behaviourDetails": "Bascule in_personal_library à true (aucune ligne n'est dupliquée — la ligne du catalogue est simplement marquée). Après succès, la ligne est marquée dans les DEUX onglets (CIQUAL et OFF) : l'étoile « 🌟 » apparaît, le bouton devient « Déjà ajouté » en variant ghost et désactivé, et la case à cocher de sélection disparaît (remplacée par un espace réservé de 28 px pour conserver l'alignement). La page principale est rafraîchie via le signal libraryChanged. Chaque ligne fait 56 px dans l'onglet CIQUAL et affiche « <kcal> kcal · P x g · G x g · L x g · <catégorie> » en sous-titre, chaque partie n'apparaissant que si la valeur est connue (sentinelle -1 pour distinguer l'absence de la valeur 0).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:121-129",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:214-221",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:467-528",
+        "app/ui/viewmodels/ingredient_vm.py:565-567",
+        "app/ui/viewmodels/ingredient_vm.py:1069-1076"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.importExisting",
+        "IngredientViewModel.import_existing",
+        "IngredientRepo.mark_in_personal_library"
+      ],
+      "dataOps": [
+        "UPDATE ingredient SET in_personal_library = 1 WHERE id = :id"
+      ],
+      "proposedApi": [
+        "PUT /api/ingredients/:id/library"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Le double-clic n'existe pas au doigt : ne garder que le bouton « + Ajouter », suffisamment grand, et un appui sur la ligne pour voir le détail nutritionnel."
+    },
+    {
+      "id": "import-multi-select",
+      "title": "Import groupé de plusieurs ingrédients",
+      "userAction": "L'utilisateur coche plusieurs résultats ; un bandeau apparaît avec « ✓ N sélectionnés », « Sélectionner la page », « Tout désélectionner » et « + Importer (N) ».",
+      "behaviourDetails": "Disponible dans les DEUX onglets avec la même mécanique. La sélection est un dictionnaire d'ids qui SURVIT aux changements de page et de requête : on peut chercher « tomate », cocher 3, chercher « carotte », cocher 2, puis importer les 5 d'un coup. « Sélectionner la page » n'ajoute que les lignes pas encore en bibliothèque. Les lignes déjà importées n'ont pas de case à cocher. Le bandeau de 44 px apparaît en animation dès la première sélection. L'import passe par un seul appel importMany qui ouvre UNE session, bascule chaque ligne et ne fait qu'un seul rafraîchissement à la fin ; il retourne le nombre de lignes réellement basculées (une ligne supprimée entre-temps ou déjà importée n'est pas comptée). Le message de confirmation affiche alors « N ingrédients » au lieu du nom.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:131-147",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:158-191",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:542-587",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:811-853",
+        "app/ui/viewmodels/ingredient_vm.py:569-593"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.importMany",
+        "IngredientRepo.mark_in_personal_library"
+      ],
+      "dataOps": [
+        "UPDATE ingredient SET in_personal_library = 1 WHERE id IN (...) — en une transaction"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients/library:bulk {ids:[...]} → {promoted: N}"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Très bien adapté au mobile ; garder impérativement la persistance de la sélection à travers les recherches, c'est ce qui rend l'ajout en lot supportable sur petit écran."
+    },
+    {
+      "id": "import-off-search",
+      "title": "Recherche en ligne sur OpenFoodFacts",
+      "userAction": "Dans l'onglet OpenFoodFacts, l'utilisateur saisit une requête (au moins 2 caractères) et clique sur « Chercher en ligne » (ou appuie sur Entrée) ; « Recherche en cours… » s'affiche puis les résultats apparaissent.",
+      "behaviourDetails": "Pas de debounce, volontairement : la requête n'est jamais déclenchée à la frappe car OpenFoodFacts limite le débit. Le bouton est désactivé tant que la requête fait moins de 2 caractères après strip. Limite de 30 résultats. Appel à Search-a-licious (search.openfoodfacts.org/search) et non aux anciens points d'entrée saturés ; en-tête User-Agent descriptif, langs=fr,en, timeout 10 s (5 s à la connexion). Si la requête ressemble à un code-barres (8, 12 ou 13 chiffres), la branche EAN est utilisée à la place (api/v2/product/{ean}). Les résultats sont mis en cache localement par upsert sur (source, source_ref) mais SANS être ajoutés à la bibliothèque personnelle. Le nom est pris dans product_name_fr, puis product_name, puis generic_name_fr / generic_name ; une entrée sans code ou sans nom est écartée. L'énergie est lue en kcal, à défaut convertie depuis les kJ (division par 4,184, arrondi à 1 décimale). La marque est extraite dans le champ dédié. Les lignes de résultat OFF font 50 px et n'affichent QUE le nom (pas de macros, contrairement à l'onglet CIQUAL).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:679-706",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:792-809",
+        "app/ui/viewmodels/ingredient_vm.py:627-633",
+        "app/ui/viewmodels/ingredient_vm.py:1078-1089",
+        "app/services/ingredient_search.py:86-147",
+        "app/services/openfoodfacts.py:252-309"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.fetchOnlineAndList",
+        "IngredientViewModel.fetch_online",
+        "ingredient_search.fetch_from_openfoodfacts_and_cache",
+        "openfoodfacts.search_by_name"
+      ],
+      "dataOps": [
+        "INSERT ou UPDATE ingredient (upsert sur source='openfoodfacts' + source_ref=EAN)",
+        "appel HTTP GET https://search.openfoodfacts.org/search"
+      ],
+      "proposedApi": [
+        "GET /api/catalog/off/search?q=&limit=30 (le Worker relaie l'appel et met en cache dans D1)"
+      ],
+      "priority": "important",
+      "complexity": "L",
+      "blockers": "Appel HTTP synchrone bloquant depuis le viewmodel (Qt.callLater masque juste le gel). En web, l'appel doit passer par un Worker Cloudflare (CORS, User-Agent, limitation de débit) et devenir asynchrone avec un vrai indicateur de chargement et une gestion d'annulation.",
+      "mobileNotes": "C'est ici que devrait arriver le scan de code-barres par la caméra : la branche EAN existe déjà côté service, il ne manque que le lecteur. Prévoir un état hors-ligne explicite (la PWA sera souvent utilisée en magasin avec un réseau médiocre)."
+    },
+    {
+      "id": "import-off-offline",
+      "title": "Indicateur OpenFoodFacts indisponible",
+      "userAction": "Quand le service OFF est injoignable, le bouton « Chercher en ligne » est grisé et le message « ⚠ OFF indisponible — réessaye plus tard » s'affiche à côté.",
+      "behaviourDetails": "Piloté par networkVM.online, alimenté par une sonde périodique (toutes les 5 minutes) : un GET sur search.openfoodfacts.org/ avec un timeout de 3 s, sans suivi de redirection ; alive = statut entre 200 et 399 (la racine renvoie une 302). GET et non HEAD car le service répond 405 sur HEAD. Le code QML est défensif : si networkVM n'est pas défini, le bouton reste actif.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:690-704",
+        "app/services/openfoodfacts.py:73-95"
+      ],
+      "vmMethods": [
+        "NetworkStatusViewModel.online",
+        "openfoodfacts.is_off_alive"
+      ],
+      "dataOps": [
+        "aucune (sonde HTTP)"
+      ],
+      "proposedApi": [
+        "GET /api/health/off"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "En PWA, s'appuyer d'abord sur navigator.onLine (l'appareil est hors-ligne bien plus souvent que le service OFF n'est en panne), puis afficher l'échec réel de la requête."
+    },
+    {
+      "id": "import-confirmation",
+      "title": "Message de confirmation d'ajout",
+      "userAction": "Après un import, l'utilisateur voit en bas du dialogue « ✓ Ajouté à ta bibliothèque : <nom> » en vert.",
+      "behaviourDetails": "Le message reste affiché jusqu'au prochain import (pas de disparition automatique) et n'est visible que si un import a déjà eu lieu dans cette session du dialogue. Pour un import groupé, il affiche « N ingrédients » au lieu d'un nom.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:99-108",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:121-147"
+      ],
+      "vmMethods": [],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "aucun"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Un toast temporaire est préférable à un message permanent qui grignote la hauteur d'écran."
+    },
+    {
+      "id": "import-empty-states",
+      "title": "États vides du dialogue d'import",
+      "userAction": "Selon la situation, l'utilisateur voit un message centré à la place de la liste de résultats.",
+      "behaviourDetails": "Onglet CIQUAL : « Tape une requête ou applique un filtre. » quand aucun résultat ET aucune requête ET aucune catégorie ; « Aucun résultat avec ces critères. » sinon. Onglet OFF : « Tape au moins 2 caractères et clique « Chercher ». » quand le champ est vide ; « Aucun résultat. » sinon ; « Recherche en cours… » pendant l'appel réseau (masque les deux autres).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:530-539",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:771-789"
+      ],
+      "vmMethods": [],
+      "dataOps": [
+        "aucune"
+      ],
+      "proposedApi": [
+        "aucun"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Ajouter dans l'état vide un raccourci « Créer cet ingrédient manuellement » pré-rempli avec la requête tapée — sur téléphone c'est souvent la sortie de secours la plus rapide."
+    },
+    {
+      "id": "rayon-picker",
+      "title": "Fenêtre Choisir un rayon",
+      "userAction": "Depuis le formulaire d'ingrédient, l'utilisateur voit la liste des rayons existants et clique sur l'un d'eux ; la fenêtre se ferme et le rayon est appliqué.",
+      "behaviourDetails": "Fenêtre modale à l'échelle de l'application (460×520, min 360×320) — c'est le seul dialogue modal de la zone. En-tête contextuel : « Rayon actuel : X » ou « Aucun rayon assigné. Sélectionne-en un dans la liste. ». Le rayon courant est mis en surbrillance et porte une coche « ✓ ». Chaque ligne fait 44 px avec une icône « 📁 ». Bouton « Aucun rayon » qui émet une chaîne vide (donc NULL en base) et bouton « Annuler » qui ferme sans rien changer. La liste se recharge automatiquement si l'éditeur de rayons des Paramètres est ouvert en parallèle et qu'un rayon y est ajouté ou renommé (écoute du signal tree_changed). État vide : « Aucun rayon configuré. Ouvre Fichier → Paramètres → Rayons d'ingrédients pour en créer. » Le second argument du signal categorySelected est toujours vide (compatibilité avec l'ancienne hiérarchie L1/L2).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/CategoryPickerDialog.qml:25-178",
+        "app/ui/viewmodels/category_vm.py:60-67"
+      ],
+      "vmMethods": [
+        "CategoryViewModel.flatL1",
+        "CategoryViewModel.tree_changed"
+      ],
+      "dataOps": [
+        "SELECT * FROM category_definition WHERE parent_id IS NULL ORDER BY ordinal, name"
+      ],
+      "proposedApi": [
+        "GET /api/rayons"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Un <select> natif ou une feuille de liste ; garder l'option « Aucun rayon » explicite et ajouter « + Créer un rayon » sur place."
+    },
+    {
+      "id": "rayon-settings-list",
+      "title": "Éditeur de rayons d'ingrédients (Paramètres)",
+      "userAction": "L'utilisateur ouvre Fichier → « Paramètres → Rayons d'ingrédients… » ; une fenêtre liste les rayons existants avec un bouton Renommer et un bouton Supprimer sur chaque ligne.",
+      "behaviourDetails": "Fenêtre non modale de 640×600 (min 480×380). Texte d'explication permanent : « Liste plate de rayons type supermarché (Fruits & légumes, Viandes, Produits laitiers, etc.). Sert à grouper tes ingrédients dans la liste de courses et le frigo. Au renommage, les ingrédients existants sont mis à jour automatiquement. À la suppression, ils perdent leur rayon. » Lignes de 44 px, icône « 📁 », surbrillance au survol, séparateur fin. Décision produit : la hiérarchie L1/L2 est abandonnée côté interface ; la table category_definition conserve son schéma hiérarchique (parent_id) pour ne pas casser les seeds CIQUAL, mais seuls les nœuds racine (parent_id IS NULL) sont exposés. État vide : « Aucun rayon configuré. Ajoutes-en avec le champ ci-dessus. »",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/SettingsCategoriesDialog.qml:25-235",
+        "app/ui/qml/Main.qml:112-116",
+        "app/data/repositories/category.py:46-78"
+      ],
+      "vmMethods": [
+        "CategoryViewModel.flatL1",
+        "CategoryViewModel.tree"
+      ],
+      "dataOps": [
+        "SELECT * FROM category_definition ORDER BY ordinal, name"
+      ],
+      "proposedApi": [
+        "GET /api/rayons"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Une page de réglages simple ; deux boutons texte par ligne est trop dense au doigt — préférer un menu « … » par ligne ou un balayage."
+    },
+    {
+      "id": "rayon-add",
+      "title": "Ajouter un rayon",
+      "userAction": "Dans l'éditeur de rayons, l'utilisateur saisit un nom (placeholder « Nouveau rayon (ex: Fruits & légumes, Viandes…) ») et clique sur « + Ajouter » ou appuie sur Entrée.",
+      "behaviourDetails": "Le bouton n'est actif que si le champ contient autre chose que des espaces. Le nom est trimé. Unicité vérifiée par niveau : un nom déjà pris parmi les racines lève « La catégorie « X » existe déjà à ce niveau. », affiché dans un bandeau d'erreur rouge auto-masqué au bout de 5 s. Un nom vide lève « Le nom de la catégorie ne peut pas être vide. ». Le nouvel ordinal est max(ordinaux existants) + 1 (ajout en fin de liste). En cas de violation d'unicité en base, la session est annulée et l'erreur est convertie en ValueError. Le champ n'est vidé qu'en cas de succès (retour d'id > 0).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/SettingsCategoriesDialog.qml:114-134",
+        "app/ui/qml/dialogs/SettingsCategoriesDialog.qml:87-112",
+        "app/ui/viewmodels/category_vm.py:80-92",
+        "app/data/repositories/category.py:92-113"
+      ],
+      "vmMethods": [
+        "CategoryViewModel.addL1",
+        "CategoryRepo.add"
+      ],
+      "dataOps": [
+        "INSERT INTO category_definition (name, parent_id NULL, ordinal)"
+      ],
+      "proposedApi": [
+        "POST /api/rayons {name}"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Champ + bouton en haut d'écran : bien adapté. Attention au clavier virtuel qui masque le bandeau d'erreur — l'afficher sous le champ."
+    },
+    {
+      "id": "rayon-rename",
+      "title": "Renommer un rayon (avec mise à jour en cascade)",
+      "userAction": "L'utilisateur clique sur « Renommer » sur une ligne ; une petite fenêtre modale s'ouvre avec le nom actuel présélectionné ; il saisit le nouveau nom et valide (bouton « Renommer » ou Entrée).",
+      "behaviourDetails": "Le champ est pré-rempli, focus forcé et texte entièrement sélectionné à l'ouverture. Le bouton de validation est désactivé si le champ est vide après trim. Renommer avec le nom identique est un no-op silencieux. Un nom déjà utilisé par un frère lève une erreur affichée dans le bandeau. Mise à jour en cascade AVANT la modification de la ligne (pour pouvoir encore matcher l'ancien nom) : UPDATE ingredient SET category_l1 = :new WHERE category_l1 = :old. Le rapprochement se fait par NOM, pas par clé étrangère — c'est un choix assumé pour rester compatible avec CIQUAL et les imports qui utilisent des noms.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/SettingsCategoriesDialog.qml:189-194",
+        "app/ui/qml/dialogs/SettingsCategoriesDialog.qml:237-298",
+        "app/ui/viewmodels/category_vm.py:108-122",
+        "app/data/repositories/category.py:115-140"
+      ],
+      "vmMethods": [
+        "CategoryViewModel.rename",
+        "CategoryRepo.rename"
+      ],
+      "dataOps": [
+        "UPDATE ingredient SET category_l1 = :new WHERE category_l1 = :old",
+        "UPDATE category_definition SET name = :new WHERE id = :id"
+      ],
+      "proposedApi": [
+        "PATCH /api/rayons/:id {name}"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "blockers": "Le rapprochement par nom rend le renommage non atomique du point de vue de la synchronisation : deux appareils qui renomment en même temps peuvent diverger. À sécuriser dans une transaction côté Worker."
+    },
+    {
+      "id": "rayon-delete",
+      "title": "Supprimer un rayon (avec effacement en cascade)",
+      "userAction": "L'utilisateur clique sur « Supprimer » (bouton rouge) sur une ligne ; une confirmation modale demande « Supprimer le rayon « X » ? » avec la mention « Les ingrédients qui y pointaient perdront leur rayon. »",
+      "behaviourDetails": "Seule action destructrice de la zone à demander une confirmation explicite (contrairement à la suppression d'ingrédient et à celle d'une observation de prix). À la validation : UPDATE ingredient SET category_l1 = NULL, category_l2 = NULL WHERE category_l1 = <nom>, puis DELETE de la ligne (les enfants éventuels partent en cascade via ON DELETE CASCADE). Pas d'annulation possible.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/SettingsCategoriesDialog.qml:195-200",
+        "app/ui/qml/dialogs/SettingsCategoriesDialog.qml:300-362",
+        "app/ui/viewmodels/category_vm.py:124-134",
+        "app/data/repositories/category.py:142-163"
+      ],
+      "vmMethods": [
+        "CategoryViewModel.delete",
+        "CategoryRepo.delete"
+      ],
+      "dataOps": [
+        "UPDATE ingredient SET category_l1 = NULL, category_l2 = NULL WHERE category_l1 = :name",
+        "DELETE FROM category_definition WHERE id = :id"
+      ],
+      "proposedApi": [
+        "DELETE /api/rayons/:id"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Confirmation modale : à conserver. Y afficher le nombre d'ingrédients impactés (« 12 ingrédients perdront leur rayon »), information dont l'utilisateur ne dispose pas aujourd'hui."
+    },
+    {
+      "id": "ing-search-once-api",
+      "title": "API de recherche ponctuelle pour les sélecteurs",
+      "userAction": "Indirectement : quand l'utilisateur tape dans un sélecteur d'ingrédient de la page Recettes ou du calendrier, c'est cette API de la zone Ingrédients qui répond.",
+      "behaviourDetails": "searchOnce(query, scope, limit) — scope par défaut 'personal', limite 25. Retourne une liste de dictionnaires sans perturber la liste filtrée de la page. Une requête vide ou blanche renvoie une liste vide sans requête SQL. Aucun appel réseau n'est fait depuis ce chemin (volontaire : OFF limite le débit et serait trop lent à la frappe). Variante searchBySource(query, source, limit=50) avec scope='all' et une source imposée, utilisée par le dialogue d'import ; une source inconnue renvoie une liste vide.",
+      "sourceRefs": [
+        "app/ui/viewmodels/ingredient_vm.py:601-625",
+        "app/services/ingredient_search.py:49-70"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.searchOnce",
+        "IngredientViewModel.searchBySource",
+        "ingredient_search.search_local"
+      ],
+      "dataOps": [
+        "SELECT via FTS5 avec scope et source"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/search?q=&scope=personal&limit=25"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Point d'entrée le plus sollicité de l'application : à optimiser (cache HTTP, réponses courtes) car il sera appelé à chaque frappe sur un réseau mobile."
+    },
+    {
+      "id": "ing-barcode-lookup",
+      "title": "Recherche OpenFoodFacts par code-barres (EAN)",
+      "userAction": "Indirectement : lors de l'import d'un ticket de caisse, un code-barres est résolu en fiche produit pour pré-remplir le mini-formulaire de création d'ingrédient.",
+      "behaviourDetails": "lookupBarcodeAsDict(ean) valide localement avant tout appel : chiffres uniquement et au moins 8 caractères, sinon retour d'un dictionnaire vide sans requête réseau. Appel GET world.openfoodfacts.org/api/v2/product/{ean} avec une liste de champs restreinte. Un statut 404 ou un champ status différent de 1 renvoie None. En cas d'erreur réseau, le message traduit est journalisé ET émis vers le toast d'erreur. La base locale n'est PAS modifiée : c'est une lecture indicative que l'interface projette dans les champs, l'utilisateur reste libre de tout garder ou tout effacer avant de valider. À noter : le service de recherche unifié considère qu'une requête « ressemble à un code-barres » quand elle est composée de 8, 12 ou 13 chiffres — seuil différent de celui du viewmodel (≥ 8).",
+      "sourceRefs": [
+        "app/ui/viewmodels/ingredient_vm.py:635-657",
+        "app/services/openfoodfacts.py:157-182",
+        "app/services/ingredient_search.py:44-46"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.lookupBarcodeAsDict",
+        "openfoodfacts.lookup_barcode"
+      ],
+      "dataOps": [
+        "aucune écriture ; appel HTTP GET /api/v2/product/{ean}"
+      ],
+      "proposedApi": [
+        "GET /api/catalog/off/barcode/:ean"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "blockers": "Appel HTTP direct depuis le client : en web il faut passer par un Worker (CORS + User-Agent imposé par OFF).",
+      "mobileNotes": "C'est la brique qui permettra le scan par la caméra du téléphone, identifié comme un objectif du portage. Harmoniser au passage les deux règles de validation d'EAN (≥ 8 chiffres contre 8/12/13 exactement)."
+    },
+    {
+      "id": "ing-categories-l1-api",
+      "title": "Liste des catégories d'une source de catalogue",
+      "userAction": "Indirectement : alimente le menu déroulant « Catégorie » du panneau de filtres du dialogue d'import.",
+      "behaviourDetails": "categoriesL1(source) renvoie les valeurs distinctes non nulles de ingredient.category_l1 pour une source donnée, triées alphabétiquement, les chaînes vides étant écartées. Une source inconnue renvoie une liste vide. Attention à ne pas confondre avec la liste des « rayons » : ici il s'agit des groupes CIQUAL hérités du seed ANSES (alim_grp_nom_fr), stockés dans la même colonne que les rayons de l'utilisateur — la colonne category_l1 porte donc deux sémantiques selon la source de la ligne.",
+      "sourceRefs": [
+        "app/ui/viewmodels/ingredient_vm.py:796-807",
+        "app/data/repositories/ingredient.py:255-265",
+        "app/ui/qml/dialogs/ImportIngredientDialog.qml:285-294"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.categoriesL1",
+        "IngredientRepo.list_categories_l1"
+      ],
+      "dataOps": [
+        "SELECT DISTINCT category_l1 FROM ingredient WHERE category_l1 IS NOT NULL AND source = :source ORDER BY category_l1"
+      ],
+      "proposedApi": [
+        "GET /api/catalog/categories?source=ciqual"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "blockers": "Ambiguïté sémantique de category_l1 (catégorie CIQUAL pour les lignes du catalogue, rayon supermarché pour les lignes de l'utilisateur) : c'est une dette à trancher au moment du portage, idéalement en séparant les deux colonnes."
+    }
+  ]
+}

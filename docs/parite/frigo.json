@@ -1,0 +1,1057 @@
+{
+  "page": "Frigo / garde-manger",
+  "summary": "L'onglet \"Frigo / Cellier\" (5e onglet, Ctrl+5) liste l'inventaire physique du foyer : une ligne par LOT (plusieurs lots possibles pour un même ingrédient, avec des DLC differentes), avec quantite en grammes, date de peremption optionnelle et notes libres. La liste se trie/groupe/filtre (5 tris, 3 groupements, filtre texte) et derive automatiquement 3 niveaux d'urgence a partir de la DLC (<=5 j = \"a consommer vite\", <=14 j = \"a surveiller\", reste = \"en stock\"). La saisie se fait par un dialogue complet, par glisser-deposer depuis un panneau lateral de bibliotheque (mini-popup quantite+DLC), ou automatiquement lors de l'import d'un ticket de caisse ; le stock alimente en retour la liste de courses qui pre-coche les ingredients deja couverts.",
+  "features": [
+    {
+      "id": "pantry-tab-navigation",
+      "title": "Acceder a l'onglet Frigo / Cellier",
+      "userAction": "L'utilisateur clique sur l'onglet \"Frigo / Cellier\" (5e onglet, largeur 180 px) dans la barre d'onglets, ou utilise le raccourci Ctrl+5, ou passe par le menu Navigation > \"5. Frigo / Cellier\".",
+      "behaviourDetails": "L'onglet est le 5e d'un StackLayout (index 4) : les pages restent instanciees en permanence, l'etat (scroll, filtre, panneau lateral ouvert) est donc conserve quand on change d'onglet. Une animation d'opacite 0.55 -> 1.0 sur 250 ms (Easing.OutCubic) joue a chaque changement d'onglet. Le raccourci Ctrl+5 est aussi liste dans le dialogue d'aide Ctrl+/.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:206",
+        "app/ui/qml/Main.qml:157-160",
+        "app/ui/qml/Main.qml:225-241",
+        "app/ui/qml/dialogs/ShortcutsDialog.qml:45"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Sur telephone, 5 onglets ne tiennent pas dans une TabBar horizontale : passer a une bottom-nav avec icones (ou un menu \"plus\"). Pas de raccourci clavier : prevoir une route /frigo et un lien direct. Attention a l'etat conserve : sur web, une navigation par route re-monte le composant, il faut persister le tri/filtre en localStorage ou en query params pour reproduire le comportement du StackLayout."
+    },
+    {
+      "id": "pantry-header-counters",
+      "title": "Compteur d'articles et alerte de peremption dans l'en-tete",
+      "userAction": "L'utilisateur lit le sous-titre sous le titre \"Frigo / Cellier\" : il indique le nombre d'articles et, le cas echeant, combien sont a consommer rapidement.",
+      "behaviourDetails": "Trois etats exacts : (1) totalCount === 0 -> \"Aucun stock enregistre — clique sur Ajouter pour demarrer.\" ; (2) totalCount > 0 sans urgence -> \"N article\" + \"s\" si N > 1 ; (3) totalCount > 0 avec soonExpiringCount > 0 -> on concatene \"  ·  (warning) N a consommer rapidement\". La couleur du texte passe de colorTextSecondary a colorError des que soonExpiringCount > 0. IMPORTANT : totalCount = rowCount du modele APRES filtre texte (le compteur reflete donc la liste filtree, pas le stock total). soonExpiringCount compte les lignes dont days_until_expiry n'est pas None ET <= 5 — les articles DEJA PERIMES (jours negatifs) sont donc comptes dedans.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:51-72",
+        "app/ui/viewmodels/pantry_vm.py:273-285"
+      ],
+      "dataOps": [
+        "SELECT COUNT(*) / agregat sur pantry_stock (ici calcule en memoire sur les lignes deja chargees)"
+      ],
+      "vmMethods": [
+        "PantryViewModel.totalCount",
+        "PantryViewModel.soonExpiringCount"
+      ],
+      "proposedApi": [
+        "GET /api/pantry/summary -> { totalCount, soonExpiringCount, watchCount }"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Le sous-titre est long sur ecran etroit : le couper en deux lignes ou en faire deux pastilles (\"12 articles\" / badge rouge \"3 urgents\"). Le badge d'urgence merite d'etre remonte sur l'icone d'onglet de la bottom-nav."
+    },
+    {
+      "id": "pantry-empty-state",
+      "title": "Etat vide de la liste",
+      "userAction": "Quand le frigo ne contient aucun article (ou qu'aucun ne passe le filtre), l'utilisateur voit un message centre au milieu de la zone de liste.",
+      "behaviourDetails": "Texte exact sur 3 lignes, centre horizontalement, en colorTextDisabled : \"(emoji conserve) / Votre frigo est vide. / Clique « + Ajouter au stock » pour commencer.\" Condition d'affichage : list.count === 0 — donc il s'affiche aussi quand le filtre texte ne matche rien, ce qui est trompeur (le message parle d'un frigo vide alors que c'est le filtre qui masque tout).",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:411-420"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Prevoir DEUX etats vides distincts sur le web : \"frigo vide\" (avec CTA d'ajout) et \"aucun resultat pour ce filtre\" (avec bouton \"effacer le filtre\") — le bug de confusion actuel est facile a corriger au portage."
+    },
+    {
+      "id": "pantry-add-stock-button",
+      "title": "Bouton \"+ Ajouter au stock\"",
+      "userAction": "L'utilisateur clique le bouton primaire \"+ Ajouter au stock\" en haut a droite ; le dialogue d'ajout s'ouvre, centre sur la fenetre principale.",
+      "behaviourDetails": "Variante \"primary\" (fond plein couleur). Appelle addDialog.openCentered(Window.window) qui reinitialise tous les champs puis positionne la fenetre au centre du parent.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:112-116",
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:40-56"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Remplacer par un FAB (bouton flottant rond en bas a droite) — l'en-tete contient deja 4 boutons qui ne tiendront jamais sur une largeur de telephone."
+    },
+    {
+      "id": "pantry-add-dialog-window",
+      "title": "Dialogue d'ajout : fenetre detachable et reinitialisation",
+      "userAction": "A chaque ouverture, l'utilisateur retrouve un formulaire vierge dans une fenetre systeme independante qu'il peut deplacer hors de l'application, redimensionner ou minimiser.",
+      "behaviourDetails": "Vrai QtQuick.Window (pas un Dialog in-window) : titre \"Ajouter au stock\", 580x360 px, minimum 480x320, flags Qt.Dialog | CloseButtonHint | TitleHint | MinMaxButtonsHint, modality NonModal (l'app reste utilisable derriere). openCentered() reinitialise systematiquement : picker vide (ingPicker.clear()), _ingredientId = -1, _ingredientName = \"\", _ingredientPieceWeight = 0, qtyField.grams = 0, dateField.text = \"\", notesField.text = \"\". Puis centrage sur le parent (x = parent.x + (parent.width - width)/2), show() + raise(). Aucune persistance entre deux ouvertures : pas de \"dernier ingredient saisi\".",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:19-56"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "M",
+      "blockers": "Le caractere \"fenetre systeme detachable / non modale\" est impossible a reproduire sur le web (hors window.open, a proscrire en PWA). Il faut arbitrer : modale plein ecran sur mobile, panneau lateral (drawer) ou modale centree sur desktop.",
+      "mobileNotes": "Sur telephone : feuille modale plein ecran remontant du bas, avec une croix de fermeture et un bouton \"Enregistrer\" colle en bas au-dessus du clavier. Le non-modal n'a aucun sens tactile."
+    },
+    {
+      "id": "pantry-add-dialog-ingredient-picker",
+      "title": "Dialogue d'ajout : recherche et selection de l'ingredient",
+      "userAction": "L'utilisateur tape dans le champ \"Tape pour chercher dans ta bibliotheque…\", une liste de suggestions apparait sous le champ ; il navigue avec Haut/Bas, valide avec Entree, ferme avec Echap, ou clique une suggestion.",
+      "behaviourDetails": "Composant IngredientSearch : debounce de 200 ms sur chaque frappe (Timer restart), scope \"personal\" par defaut (seuls les ingredients de la bibliotheque personnelle sont proposes — pas le catalogue CIQUAL/OFF brut), maxResults = 12. Requete < 1 caractere -> popup ferme et resultats vides. Cote Python, searchOnce() renvoie [] si la requete est vide apres strip. Chaque suggestion affiche : le nom (elide a droite), une pastille de source coloree (\"CIQUAL\" vert #15803d, \"OFF\" bleu #1d4ed8, \"perso\" orange #c2410c sur fond a 12 % d'opacite) et, si pieceWeightG > 0, un indicateur \"(point) 1 pc = X g\". La premiere suggestion est presurlignee (currentIndex = 0) ; le survol souris deplace la surbrillance. Apres selection, le champ texte est vide et le popup ferme. Le popup se ferme aussi a la perte de focus du champ.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:85-100",
+        "app/ui/qml/components/IngredientSearch.qml:1-184",
+        "app/ui/viewmodels/ingredient_vm.py:601-610"
+      ],
+      "dataOps": [
+        "SELECT via FTS5 ingredient_fts, scope = bibliotheque personnelle (in_personal_library = 1), LIMIT 12"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.searchOnce(query, scope, limit)"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/search?q=<texte>&scope=personal&limit=12"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Pas de survol : la surbrillance clavier disparait, chaque suggestion doit etre une cible tactile de 44 px minimum. Sur telephone, ouvrir la recherche en plein ecran (pattern \"search overlay\") plutot qu'un popup ancre, car le clavier virtuel mange la moitie de l'ecran. Garder le debounce 200 ms (important sur reseau mobile)."
+    },
+    {
+      "id": "pantry-add-dialog-piece-weight-lookup",
+      "title": "Dialogue d'ajout : bascule automatique en unite \"piece\"",
+      "userAction": "Des que l'utilisateur choisit un ingredient qui a un poids unitaire connu (oeuf, oignon, gousse d'ail), le champ quantite propose et selectionne automatiquement l'unite \"piece (X g)\".",
+      "behaviourDetails": "Au signal ingredientPicked, on rappelle ingredientVM.getAsDict(id) pour lire pieceWeightG (0 si absent/null), qu'on pousse dans qtyField.pieceWeightG. Le QuantityField reconstruit alors sa liste d'unites en inserant { code: '_piece', label: 'piece (X g)', factor: X } en TETE de liste et bascule dessus (unitIndex = 0), tout en preservant la valeur en grammes. Le libelle du poids est formate sans decimale si entier, sinon 1 decimale avec virgule francaise (ex : \"piece (60 g)\", \"piece (5,5 g)\"). Si pieceWeightG repasse a 0, l'entree disparait et on retombe sur \"g\".",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:90-99",
+        "app/ui/qml/components/QuantityField.qml:60-142"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE id = ? (lecture de piece_weight_g)"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.getAsDict(id)"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/:id"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Eviter l'appel HTTP supplementaire : renvoyer pieceWeightG directement dans le payload de chaque suggestion de recherche (searchOnce le renvoie deja) au lieu de refaire un GET par ingredient."
+    },
+    {
+      "id": "pantry-add-dialog-quantity-field",
+      "title": "Dialogue d'ajout : saisie de la quantite avec conversion d'unites",
+      "userAction": "L'utilisateur saisit un nombre dans le spinbox et choisit son unite dans la liste deroulante a droite (g, kg, mg, ml, cl, dl, L, c. a cafe, c. a soupe, tasse, pincee, plus \"piece\" si applicable).",
+      "behaviourDetails": "Table d'unites statique (miroir exact de app/domain/units.py) avec facteurs de conversion vers le gramme : g=1, kg=1000, mg=0.001, ml=1, cl=10, dl=100, L=1000, c. a cafe=5, c. a soupe=15, tasse=250, pincee=1. La verite interne est TOUJOURS en grammes (property grams). Changer d'unite PRESERVE la masse en grammes et recalcule l'affichage (1000 g -> kg affiche 1.0). decimals = 1 dans ce dialogue. Borne haute realTo = maxGrams * 1000 (soit 10^9), borne basse 0, pas de 1.0. Valeur initiale 0 a chaque ouverture. La largeur est plafonnee a 320 px.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:108-113",
+        "app/ui/qml/components/QuantityField.qml:45-192",
+        "app/domain/units.py"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Le spinbox avec fleches +/- est inutilisable au doigt : utiliser <input type=number inputmode=decimal> + un <select> natif pour l'unite (le select natif iOS ouvre une roulette, parfait). Attention au separateur decimal francais (virgule) sur clavier numerique iOS."
+    },
+    {
+      "id": "pantry-add-dialog-expiry-text",
+      "title": "Dialogue d'ajout : saisie manuelle de la date de peremption",
+      "userAction": "L'utilisateur tape une date dans le champ \"Perime le :\" dont le placeholder indique \"YYYY-MM-DD (optionnel)\".",
+      "behaviourDetails": "ATTENTION — format different de celui du mini-popup de drop : ici c'est de l'ISO brut YYYY-MM-DD, envoye tel quel dans payload.expiryIso sans aucune validation ni parsing cote QML (juste un .trim()). C'est le backend Python qui parse : chaine vide -> None (pas de DLC suivie) ; longueur 10 -> datetime.fromisoformat(s + 'T00:00:00') ; sinon fromisoformat apres nettoyage du 'Z' et suppression de la timezone ; en cas de ValueError -> log warning \"Invalid expiry ISO date\" et retour None — la date invalide est SILENCIEUSEMENT ignoree, l'article est enregistre sans DLC et l'utilisateur n'est jamais averti.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:124-129",
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:188",
+        "app/ui/viewmodels/pantry_vm.py:36-54"
+      ],
+      "dataOps": [
+        "INSERT pantry_stock.expiry_date (DATETIME nullable)"
+      ],
+      "vmMethods": [
+        "_parse_expiry_iso(s)"
+      ],
+      "proposedApi": [
+        "POST /api/pantry (champ expiryIso: string|null)"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Sur telephone, remplacer par <input type=\"date\"> natif : il gere le format local, le clavier adapte et rend impossible la saisie invalide. Cela supprime du meme coup l'incoherence YYYY-MM-DD ici / JJ-MM-AAAA dans le mini-popup, et la perte silencieuse des dates mal saisies."
+    },
+    {
+      "id": "pantry-add-dialog-datepicker",
+      "title": "Mini-calendrier de selection de date",
+      "userAction": "L'utilisateur clique le bouton carre \"(calendrier)\" a droite du champ date ; un mini-calendrier s'ouvre sous le bouton, il navigue de mois en mois et clique un jour.",
+      "behaviourDetails": "DatePickerPopup, 280 px de large, non modal, se ferme sur Echap / clic exterieur. En-tete \"‹ Mois Annee ›\" (nom du mois localise et capitalise) ; navigation +/-1 mois par les chevrons ou les touches PageUp/PageDown. Bandeau des jours localise, semaine commencant le LUNDI. Grille fixe 6x7 = 42 cellules de 32 px : jours hors mois en colorTextDisabled, aujourd'hui entoure d'un anneau primary de 1.5 px, jour selectionne en pastille primary pleine. Pied de page a deux actions : \"Aujourd'hui\" (saute a la date systeme, EMET la selection et ferme) et \"Fermer\" (ferme sans emettre). Le clic sur une cellule emet dateSelected(iso) et ferme. Ouverture initialisee sur la date deja saisie, ou sur aujourd'hui si le champ est vide/invalide. Le popup est repositionne dans les bornes de la fenetre (marge 8 px). Ici, le retour ecrit directement l'ISO dans le champ texte.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:130-150",
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:198-201",
+        "app/ui/qml/components/DatePickerPopup.qml:1-371"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Ne pas reimplementer : <input type=\"date\"> donne le calendrier natif iOS/Android, deja localise, deja accessible. Si un calendrier custom est retenu, cellules de 44 px minimum et navigation par balayage horizontal entre mois."
+    },
+    {
+      "id": "pantry-add-dialog-notes",
+      "title": "Dialogue d'ajout : champ notes libre",
+      "userAction": "L'utilisateur saisit une note optionnelle, avec pour exemple \"Ex : promo Lidl, ouvert hier… (optionnel)\".",
+      "behaviourDetails": "Champ texte simple, largeur max 380 px. Envoye .trim() dans le payload. Cote Python : chaine vide apres strip -> None en base (pas de chaine vide stockee). Colonne SQL String(500) — la limite de 500 caracteres n'est PAS appliquee cote UI, aucun compteur ni troncature.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:160-165",
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:189",
+        "app/ui/viewmodels/pantry_vm.py:210",
+        "app/data/orm.py:242"
+      ],
+      "dataOps": [
+        "INSERT pantry_stock.notes (VARCHAR(500) nullable)"
+      ],
+      "vmMethods": [],
+      "proposedApi": [
+        "POST /api/pantry (champ notes: string|null)"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Ajouter maxlength=500 cote client (absent aujourd'hui) pour eviter un rejet serveur apres coup. Une ligne suffit, pas besoin de textarea."
+    },
+    {
+      "id": "pantry-add-dialog-submit-guard",
+      "title": "Dialogue d'ajout : bouton Enregistrer conditionnel",
+      "userAction": "Le bouton \"Enregistrer\" reste grise tant que l'utilisateur n'a pas choisi un ingredient ET saisi une quantite strictement positive.",
+      "behaviourDetails": "Condition exacte : enabled = root._ingredientId > 0 && qtyField.grams > 0. La date et les notes sont donc bien optionnelles. Aucun message d'erreur n'est affiche — le bouton est simplement inactif (AppButton gere l'etat disabled visuellement). Au clic : emission de submitted({ ingredientId, quantityG, expiryIso, notes }) puis fermeture immediate de la fenetre (root.close()) — la fermeture ne depend PAS du succes de l'enregistrement.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:180-193"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Un bouton grise sans explication est frustrant au doigt : garder le bouton actif et afficher l'erreur au tap (\"Choisis un ingredient\"), ou afficher un texte d'aide sous le bouton. Corriger aussi la fermeture optimiste : sur web, la requete peut echouer et l'utilisateur perdrait sa saisie."
+    },
+    {
+      "id": "pantry-add-dialog-cancel",
+      "title": "Dialogue d'ajout : annulation",
+      "userAction": "L'utilisateur clique \"Annuler\" (variante secondaire) ou ferme la fenetre par la croix du systeme.",
+      "behaviourDetails": "Ferme la fenetre sans rien enregistrer et sans demande de confirmation, meme si le formulaire est rempli. Les champs seront de toute facon reinitialises a la prochaine ouverture.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/AddPantryStockDialog.qml:175-179"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Sur mobile, le geste \"retour\" (bouton systeme Android / swipe iOS) doit fermer la feuille : cabler l'evenement popstate."
+    },
+    {
+      "id": "pantry-add-commit",
+      "title": "Enregistrement d'un article au stock",
+      "userAction": "Apres validation du dialogue, l'article apparait immediatement dans la liste, positionne selon le tri courant.",
+      "behaviourDetails": "PantryPage relaie submitted vers pantryVM.addStock(payload). Cote Python : conversion ingredientId en int (0 si absent), quantityG en float (0 si absent), construction d'un PantryStock Pydantic. La validation quantity_g > 0 (Field(gt=0)) leve si la quantite est nulle ou negative -> log warning + emission de error_emitted + retour {} (aucun enregistrement). Sinon : PantryRepo.add() (INSERT avec added_at et updated_at en server_default now()), commit, refresh() complet de la liste, emission de stock_changed, et retour du dict { id, ingredientId, quantityG, expiryIso, notes }. Si le retour contient un id, la page declenche en plus shoppingVM.refreshList() pour que la liste de courses recalcule ses pre-coches \"deja au frigo\". AUCUNE deduplication : ajouter deux fois le meme ingredient cree deux lots distincts.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:753-764",
+        "app/ui/viewmodels/pantry_vm.py:196-222",
+        "app/data/repositories/pantry.py:64-73",
+        "app/domain/models.py:344-366"
+      ],
+      "dataOps": [
+        "INSERT INTO pantry_stock (ingredient_id, quantity_g, expiry_date, notes)",
+        "re-SELECT complet de pantry_stock + ingredients associes (refresh)",
+        "recalcul de l'agregat pantry pour la liste de courses"
+      ],
+      "vmMethods": [
+        "PantryViewModel.addStock(payload)",
+        "PantryRepo.add(stock)"
+      ],
+      "proposedApi": [
+        "POST /api/pantry  body { ingredientId, quantityG, expiryIso?, notes? } -> 201 { id, ... }"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Faire un ajout optimiste (insertion locale immediate) pour masquer la latence reseau, avec rollback si le POST echoue. Le refresh integral de la liste apres chaque ajout est acceptable en local mais couteux en HTTP : renvoyer la ligne creee et l'inserer cote client."
+    },
+    {
+      "id": "pantry-multi-batch",
+      "title": "Gestion multi-lots d'un meme ingredient",
+      "userAction": "L'utilisateur ajoute plusieurs fois le meme ingredient avec des DLC differentes (ex : \"yaourts qui periment dans 3 j\" et \"yaourts achetes hier\") et voit deux lignes distinctes.",
+      "behaviourDetails": "Regle metier structurante : pantry_stock accepte N lignes par ingredient_id, chacune etant un LOT avec sa propre quantite, sa propre DLC et ses propres notes. Aucune contrainte d'unicite. La consolidation ne se fait qu'a la lecture pour la liste de courses, via un SUM(quantity_g) GROUP BY ingredient_id. Aucun ecran ne regroupe visuellement les lots d'un meme ingredient : ils apparaissent comme des lignes independantes, potentiellement dispersees dans la liste selon le tri.",
+      "sourceRefs": [
+        "app/data/orm.py:224-251",
+        "app/data/repositories/pantry.py:27-31",
+        "app/data/repositories/pantry.py:95-103",
+        "tests/test_pantry.py:89-100"
+      ],
+      "dataOps": [
+        "SELECT ingredient_id, SUM(quantity_g) FROM pantry_stock GROUP BY ingredient_id"
+      ],
+      "vmMethods": [
+        "PantryRepo.aggregate_quantity_by_ingredient()",
+        "PantryRepo.list_for_ingredient(id)"
+      ],
+      "proposedApi": [
+        "GET /api/pantry/aggregate -> { ingredientId: totalG }",
+        "GET /api/pantry?ingredientId=<id>"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Sur ecran etroit, des lots disperses sont illisibles. Proposer un regroupement visuel par ingredient (une carte parente \"Yaourt — 500 g au total\" depliable en 2 lots) : c'est l'amelioration la plus rentable du portage."
+    },
+    {
+      "id": "pantry-row-quantity-format",
+      "title": "Affichage formate de la quantite d'un lot",
+      "userAction": "L'utilisateur lit la quantite sous le nom de l'article, exprimee en g ou kg, avec un equivalent approximatif en pieces le cas echeant.",
+      "behaviourDetails": "Regles exactes de _formatQty(g, pieceWeight) : quantite nulle/negative -> chaine vide ; g >= 1000 -> conversion en kg avec 2 decimales si kg < 10, sinon 1 decimale, suffixe \" kg\" ; 10 <= g < 1000 -> 0 decimale + \" g\" ; g < 10 -> 1 decimale + \" g\". Formatage locale-aware (virgule decimale en francais). Si pieceWeight > 0, on ajoute \" · ≈ X piece(s)\" avec X = g / pieceWeight, affiche avec 1 decimale si X < 10 sinon 0 decimale, et un \"s\" de pluriel si X > 1. Exemples : 1500 g -> \"1,50 kg\" ; 250 g -> \"250 g\" ; 5,5 g -> \"5,5 g\" ; 180 g avec piece de 60 g -> \"180 g · ≈ 3,0 pieces\".",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:333-338",
+        "app/ui/qml/pages/PantryPage.qml:533-550"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "PantryListModel role quantityG",
+        "PantryListModel role pieceWeightG"
+      ],
+      "proposedApi": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Fonction de formatage pure, portable telle quelle en JS avec Intl.NumberFormat('fr-FR'). Sur ecran etroit, l'equivalent pieces peut passer sur une seconde ligne ou etre masque sous 360 px."
+    },
+    {
+      "id": "pantry-row-expiry-format",
+      "title": "Affichage formate de la date de peremption",
+      "userAction": "L'utilisateur lit, a cote de la quantite, une phrase en clair sur l'echeance : \"Perime depuis 3j\", \"Perime aujourd'hui\", \"Dans 12 jours\", \"Pas de date\"…",
+      "behaviourDetails": "Six cas exacts dans _formatExpiry(days, iso), dans cet ordre : (1) days null/undefined OU iso vide -> \"Pas de date\" ; (2) days < 0 -> \"(stop) Perime depuis Nj\" avec N = valeur absolue ; (3) days === 0 -> \"(warning) Perime aujourd'hui\" ; (4) days === 1 -> \"(warning) Perime demain\" ; (5) days <= 5 -> \"(warning) Dans N jours\" ; (6) sinon -> \"Dans N jours\" sans emoji. La couleur suit le bucket d'urgence : colorError pour \"soon\", colorWarning pour \"watch\", colorTextSecondary pour \"stock\". La graisse passe en Medium des que le bucket n'est pas \"stock\". Incoherence a connaitre : entre 6 et 14 jours le texte est neutre (\"Dans 10 jours\") mais s'affiche en orange car le bucket est \"watch\".",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:339-351",
+        "app/ui/qml/pages/PantryPage.qml:552-559"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "PantryListModel role daysUntilExpiry",
+        "PantryListModel role expiryIso"
+      ],
+      "proposedApi": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Portable en JS sans dependance. Sur telephone, prevoir aussi la date absolue en tooltip/appui long car \"Dans 12 jours\" seul ne permet pas de verifier l'etiquette du produit."
+    },
+    {
+      "id": "pantry-row-urgency-dot",
+      "title": "Pastille de couleur d'urgence par ligne",
+      "userAction": "L'utilisateur repere d'un coup d'oeil l'urgence d'un article grace a une pastille ronde de 8 px a gauche de son nom.",
+      "behaviourDetails": "Trois couleurs mappees sur urgencyBucket : \"soon\" -> colorError (rouge), \"watch\" -> colorWarning (orange), tout le reste (\"stock\") -> colorSuccess (vert). La pastille est donc VERTE pour les articles sans DLC du tout (bucket \"stock\"), ce qui les presente comme sains plutot que comme \"non suivis\".",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:306-315",
+        "app/ui/models/pantry_list_model.py:125-133"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "PantryListModel role urgencyBucket"
+      ],
+      "proposedApi": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "La couleur seule ne suffit pas (accessibilite / daltonisme) : doubler d'une icone ou d'un motif. C'est aussi le meilleur candidat pour une bordure gauche coloree de 4 px sur la carte, plus lisible qu'une pastille de 8 px au doigt."
+    },
+    {
+      "id": "pantry-row-notes-display",
+      "title": "Affichage des notes sur la ligne",
+      "userAction": "Quand un lot porte une note, l'utilisateur la voit affichee prefixee d'une icone bloc-notes a la suite de la DLC.",
+      "behaviourDetails": "visible uniquement si model.notes !== \"\" (le role renvoie \"\" quand la note est NULL). Texte prefixe de l'emoji bloc-notes + espace, en colorTextSecondary, taille Xs, tronque a droite avec une largeur maximale de 240 px. Non modifiable depuis la liste, non affichable en entier (pas de tooltip).",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:352-360",
+        "app/ui/models/pantry_list_model.py:145"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "PantryListModel role notes"
+      ],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "240 px de note ne tiennent pas a cote de la quantite et de la DLC sur telephone : passer la note sur une 3e ligne de la carte, ou la reduire a une icone qui developpe au tap."
+    },
+    {
+      "id": "pantry-row-hover",
+      "title": "Survol d'une ligne",
+      "userAction": "Le fond de la ligne survolee passe en colorSurfaceHover.",
+      "behaviourDetails": "MouseArea plein-ligne avec hoverEnabled et propagateComposedEvents ; onClicked force m.accepted = false pour ne pas capturer le clic. Consequence importante : CLIQUER SUR UNE LIGNE NE FAIT RIEN — il n'y a ni selection, ni ouverture de detail, ni edition. Le seul geste actionnable d'une ligne est la croix de suppression.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:294-298",
+        "app/ui/qml/pages/PantryPage.qml:392-398"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Le survol n'existe pas au doigt : le supprimer et, surtout, donner enfin une action au tap sur la ligne (ouvrir la fiche du lot pour editer quantite / DLC / notes — voir la fonctionnalite d'edition manquante)."
+    },
+    {
+      "id": "pantry-urgency-buckets",
+      "title": "Calcul des trois niveaux d'urgence",
+      "userAction": "L'utilisateur voit ses articles automatiquement classes en \"a consommer vite\", \"a surveiller\" et \"en stock\" sans rien parametrer.",
+      "behaviourDetails": "days_until_expiry = (expiry_date.date() - date du jour).days, en jours entiers, negatif si deja perime, None si pas de DLC. Buckets (constantes SOON_THRESHOLD_DAYS = 5, WATCH_THRESHOLD_DAYS = 14) : None -> \"stock\" ; days <= 5 -> \"soon\" (inclut donc TOUS les perimes) ; days <= 14 -> \"watch\" ; sinon \"stock\". Les seuils sont codes en dur, non parametrables par l'utilisateur. Le calcul se fait a chaque acces au role, donc relatif au jour courant du client — une session laissee ouverte plusieurs jours n'est PAS recalculee tant qu'aucun refresh n'a lieu.",
+      "sourceRefs": [
+        "app/ui/models/pantry_list_model.py:47-54",
+        "app/ui/models/pantry_list_model.py:84-85",
+        "app/ui/models/pantry_list_model.py:125-133"
+      ],
+      "dataOps": [
+        "lecture de pantry_stock.expiry_date"
+      ],
+      "vmMethods": [
+        "PantryRow.days_until_expiry",
+        "_urgency_bucket(row)"
+      ],
+      "proposedApi": [
+        "GET /api/pantry (le serveur calcule et renvoie daysUntilExpiry + urgencyBucket)"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "blockers": "Le calcul depend de la date du jour : si le serveur le fait, attention au fuseau (le serveur Workers est en UTC, l'utilisateur en Europe/Paris) — un article \"perime aujourd'hui\" peut basculer de bucket a 2 h du matin. Le plus sur est de renvoyer expiryIso et de calculer daysUntilExpiry cote client avec la date locale, comme aujourd'hui.",
+      "mobileNotes": "Sur une PWA laissee en arriere-plan plusieurs jours, recalculer les buckets au retour au premier plan (evenement visibilitychange), sinon les urgences seront fausses."
+    },
+    {
+      "id": "pantry-group-by-urgency",
+      "title": "Groupement par urgence (mode par defaut)",
+      "userAction": "Par defaut, la liste est decoupee en sections avec des en-tetes explicites : \"A consommer vite (<= 5 jours)\", \"A surveiller (<= 14 jours)\", \"En stock\".",
+      "behaviourDetails": "section.property = \"urgencyBucket\", critere FullString. Libelles exacts avec emoji : \"(feu) A consommer vite (≤ 5 jours)\" en colorError, \"(sablier) A surveiller (≤ 14 jours)\" en colorWarning, \"(conserve) En stock\" en colorText. En-tete de 36 px de haut, fond colorBackground, texte SemiBold taille Md, indente de spaceLg. Les sections apparaissent dans l'ordre ou les lignes arrivent : le groupement etant purement visuel cote QML, l'ordre des sections DEPEND du tri actif. Un tri par nom melangera donc les buckets et fera reapparaitre plusieurs fois la meme section.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:251-292",
+        "app/ui/viewmodels/pantry_vm.py:116-125"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "PantryViewModel.groupBy"
+      ],
+      "proposedApi": [
+        "GET /api/pantry?group=urgency"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Sur telephone, transformer les sections en accordeons repliables (garder \"A consommer vite\" toujours ouvert) pour eviter un scroll interminable. Les en-tetes doivent etre collants (position: sticky) — le ListView Qt ne le fait pas aujourd'hui, c'est un gain gratuit sur le web."
+    },
+    {
+      "id": "pantry-group-by-category",
+      "title": "Groupement par rayon",
+      "userAction": "L'utilisateur choisit \"Rayon\" dans la liste \"Grouper :\" ; les sections deviennent les categories d'ingredients (\"Legumes\", \"Produits laitiers\"…).",
+      "behaviourDetails": "section.property = \"categoryL1\" ; l'en-tete affiche brut la valeur du champ, en colorText (pas de couleur d'urgence). Le role categoryL1 renvoie ingredient.category_l1 ou la chaine \"Non categorise\" quand la colonne est NULL (cas des ingredients OpenFoodFacts et manuels). A noter : le groupement ne change PAS le tri — si le tri actif n'est pas \"Rayon\", les sections se repeteront. Le combo \"Grouper\" declenche quand meme un refresh complet en base alors qu'un simple re-rendu suffirait.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:255-292",
+        "app/ui/models/pantry_list_model.py:146",
+        "app/ui/viewmodels/pantry_vm.py:116-125"
+      ],
+      "dataOps": [
+        "lecture de ingredient.category_l1 via la jointure du refresh"
+      ],
+      "vmMethods": [
+        "PantryViewModel.setGroupBy(field)"
+      ],
+      "proposedApi": [
+        "GET /api/pantry?group=category"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Le groupement par rayon est le plus utile en mobilite (ranger les courses). Coupler automatiquement groupBy=category et sortBy=category au web pour eviter les sections dupliquees, defaut visible aujourd'hui."
+    },
+    {
+      "id": "pantry-group-none",
+      "title": "Desactivation du groupement",
+      "userAction": "L'utilisateur choisit \"Aucun\" dans la liste \"Grouper :\" ; les en-tetes de section disparaissent et la liste devient plate.",
+      "behaviourDetails": "section.property = \"\" ; le delegate de section a alors une hauteur de 0 et visible = false. Le combo mappe l'index 0/1/2 vers \"urgency\"/\"category\"/\"none\" ; setGroupBy ignore toute valeur hors de GROUP_FIELDS et ne fait rien si la valeur est inchangee.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:148-162",
+        "app/ui/qml/pages/PantryPage.qml:262-266",
+        "app/ui/viewmodels/pantry_vm.py:72",
+        "app/ui/viewmodels/pantry_vm.py:116-125"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "PantryViewModel.setGroupBy(field)"
+      ],
+      "proposedApi": [
+        "GET /api/pantry?group=none"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Persister le choix (localStorage) : aujourd'hui il repart sur \"Urgence\" a chaque redemarrage de l'app."
+    },
+    {
+      "id": "pantry-sort-selector",
+      "title": "Tri de la liste (5 criteres)",
+      "userAction": "L'utilisateur choisit un critere dans la liste \"Trier :\" : \"Urgence (DLC)\", \"Nom (A-Z)\", \"Quantite (decroissant)\", \"Date peremption\" ou \"Rayon\".",
+      "behaviourDetails": "Tri effectue en Python en memoire apres chargement, pas en SQL. Regles exactes : (1) \"urgency\" (defaut) -> cle ((1,0) si pas de DLC sinon (0, jours), puis nom en casefold) : les lots sans DLC finissent en dernier, les plus urgents (y compris perimes, jours negatifs) en premier, egalites departagees par le nom ; (2) \"name\" -> nom en casefold, insensible a la casse ; (3) \"quantity\" -> -quantity_g, donc du plus gros au plus petit, sans departage secondaire ; (4) \"expiry\" -> meme cle d'echeance que \"urgency\" mais SANS departage par nom (l'ordre du repo sert de secours, tri stable) ; (5) \"category\" -> (category_l1 en casefold avec la sentinelle \"~~~\" pour les NULL, puis nom) : les non-categorises finissent donc en dernier. setSortBy ignore toute valeur hors de SORT_FIELDS et ne fait rien si inchange ; sinon il emet view_options_changed puis relit toute la base.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:171-184",
+        "app/ui/viewmodels/pantry_vm.py:71",
+        "app/ui/viewmodels/pantry_vm.py:108-114",
+        "app/ui/viewmodels/pantry_vm.py:171-194"
+      ],
+      "dataOps": [
+        "SELECT * FROM pantry_stock ORDER BY expiry_date IS NULL, expiry_date ASC, id ASC (ordre de base du repo)",
+        "re-tri applicatif ensuite"
+      ],
+      "vmMethods": [
+        "PantryViewModel.setSortBy(field)",
+        "PantryViewModel._apply_sort(rows)",
+        "PantryRepo.list_all()"
+      ],
+      "proposedApi": [
+        "GET /api/pantry?sort=urgency|name|quantity|expiry|category"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Cinq options dans un <select> natif passent tres bien sur telephone. Comme la liste d'un foyer est petite (dizaines de lignes), trier cote client evite un aller-retour reseau a chaque changement de tri — c'est preferable au rechargement complet actuel."
+    },
+    {
+      "id": "pantry-text-filter",
+      "title": "Filtre texte par nom",
+      "userAction": "L'utilisateur tape dans le champ \"Filtrer par nom…\" (240 px) et la liste se restreint aux articles dont le nom contient le texte saisi.",
+      "behaviourDetails": "setFilter(text) : strip + casefold, no-op si identique a la valeur courante. Le filtrage est une simple recherche de sous-chaine sur le nom de l'ingredient (pas de FTS, pas d'insensibilite aux accents, pas de recherche dans les notes ni la categorie). AUCUN DEBOUNCE : chaque frappe declenche un refresh() complet (SELECT de tout pantry_stock + SELECT des ingredients + re-tri). Subtilite QML : le champ a a la fois un binding text: pantryVM.filterText et un handler onTextChanged qui ecrit dans le VM ; comme le VM stocke la version casefold, la valeur affichee peut differer de la frappe. Le filtre n'est pas persiste et n'est pas remis a zero en changeant d'onglet.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:134-139",
+        "app/ui/viewmodels/pantry_vm.py:127-134",
+        "app/ui/viewmodels/pantry_vm.py:160-163"
+      ],
+      "dataOps": [
+        "SELECT complet de pantry_stock a chaque frappe (a corriger au portage)"
+      ],
+      "vmMethods": [
+        "PantryViewModel.setFilter(text)",
+        "PantryViewModel.filterText"
+      ],
+      "proposedApi": [
+        "GET /api/pantry?q=<texte>"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Indispensable de filtrer cote client (ou de debouncer a 200-300 ms) : une requete HTTP par frappe est inacceptable en 4G. Ajouter une croix d'effacement dans le champ et normaliser les accents (\"creme\" doit matcher \"creme\"), ce qui n'est pas le cas aujourd'hui."
+    },
+    {
+      "id": "pantry-delete-row-button",
+      "title": "Bouton de retrait d'un lot",
+      "userAction": "L'utilisateur clique la croix a droite de la ligne ; une infobulle \"Retirer du stock\" apparait au survol apres 400 ms.",
+      "behaviourDetails": "Zone de 32 px de large, centree. Couleur au repos : colorTextSecondary a 55 % d'opacite ; au survol : colorError, avec une transition de couleur animee (durationFast). Curseur main. Toujours visible (pas de revelation au survol de la ligne). Au clic, on stocke le contexte { stockId, name } dans le payload du dialogue de confirmation, on compose le message et on ouvre.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:365-389"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Une cible de 32 px est sous le minimum tactile de 44 px. Deux options : agrandir la cible, ou passer au geste natif mobile (swipe-to-delete vers la gauche revelant une action rouge), avec une infobulle remplacee par un libelle visible."
+    },
+    {
+      "id": "pantry-delete-confirm",
+      "title": "Confirmation de suppression",
+      "userAction": "Une modale s'affiche : \"Retirer « <nom de l'article> » du stock ?\" avec deux boutons, \"Annuler\" et \"Retirer\" (rouge).",
+      "behaviourDetails": "AppConfirmDialog en mode \"destroy\" : titre \"Retirer du stock\", confirmLabel \"Retirer\", cancelLabel \"Annuler\", largeur 480 px. Le message interpole le nom avec des guillemets francais. Echap ferme sans rien emettre (equivaut a annuler). Le bouton de confirmation utilise la variante \"danger\". Aucune mention de la quantite ou de la DLC dans le message — uniquement le nom, ce qui est ambigu quand plusieurs lots portent le meme nom.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:383-387",
+        "app/ui/qml/pages/PantryPage.qml:766-780",
+        "app/ui/qml/components/AppConfirmDialog.qml:33-113"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Enrichir le message avec la quantite et la DLC pour lever l'ambiguite entre lots homonymes. Alternative plus fluide au doigt : supprimer immediatement avec un toast \"Annuler\" de 5 s (pattern mobile standard) plutot qu'une modale bloquante."
+    },
+    {
+      "id": "pantry-delete-commit",
+      "title": "Suppression effective d'un lot",
+      "userAction": "Apres confirmation, la ligne disparait de la liste et la liste de courses est recalculee.",
+      "behaviourDetails": "deleteStock(stockId) : retourne false immediatement si l'id est <= 0 ou si le contexte est absent ; sinon DELETE de la ligne (retourne false si l'id n'existe pas), commit uniquement en cas de succes, puis refresh() + emission de stock_changed. La page ne rafraichit shoppingVM que si deleteStock a retourne true. Suppression DEFINITIVE : aucun mecanisme d'annulation, aucune corbeille, alors que le projet dispose pourtant d'un composant UndoToast utilise ailleurs.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:772-779",
+        "app/ui/viewmodels/pantry_vm.py:258-269",
+        "app/data/repositories/pantry.py:87-93"
+      ],
+      "dataOps": [
+        "DELETE FROM pantry_stock WHERE id = ?",
+        "re-SELECT complet de la liste",
+        "recalcul de l'agregat pantry pour la liste de courses"
+      ],
+      "vmMethods": [
+        "PantryViewModel.deleteStock(stockId)",
+        "PantryRepo.delete(stockId)"
+      ],
+      "proposedApi": [
+        "DELETE /api/pantry/:id -> 204"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Ajouter un vrai \"Annuler\" (soft delete cote serveur pendant quelques secondes, ou re-POST du lot supprime) : sur telephone, les suppressions accidentelles par faux contact sont frequentes."
+    },
+    {
+      "id": "pantry-update-stock-missing-ui",
+      "title": "Modification d'un lot existant (API presente, interface ABSENTE)",
+      "userAction": "Aucune : l'utilisateur ne peut PAS modifier la quantite, la DLC ou les notes d'un lot deja enregistre. Il doit le supprimer et le recreer.",
+      "behaviourDetails": "Trou fonctionnel important a combler au portage. Le viewmodel expose bien un slot updateStock(payload) complet — id obligatoire, retour {} si l'id est <= 0 ou introuvable, mise a jour partielle champ par champ (quantityG retombe sur la valeur existante si absente ; expiryIso et notes ne sont modifies que si la CLE est presente dans le payload, ce qui permet de distinguer \"effacer la DLC\" de \"ne pas y toucher\"), validation Pydantic, commit, refresh, stock_changed — mais AUCUN fichier QML ne l'appelle. Le commentaire d'en-tete de PantryPage.qml annonce pourtant des \"icones inline (croix) et (crayon)\" : le crayon n'existe pas dans le code. La colonne updated_at existe en base avec onupdate = now() mais n'est jamais alimentee via l'interface.",
+      "sourceRefs": [
+        "app/ui/viewmodels/pantry_vm.py:224-256",
+        "app/data/repositories/pantry.py:75-85",
+        "app/ui/qml/pages/PantryPage.qml:9-10",
+        "app/data/orm.py:244-246"
+      ],
+      "dataOps": [
+        "UPDATE pantry_stock SET quantity_g = ?, expiry_date = ?, notes = ? WHERE id = ?"
+      ],
+      "vmMethods": [
+        "PantryViewModel.updateStock(payload)",
+        "PantryRepo.update(stock)",
+        "PantryRepo.get(stockId)"
+      ],
+      "proposedApi": [
+        "PATCH /api/pantry/:id  body { quantityG?, expiryIso?, notes? } -> 200",
+        "GET /api/pantry/:id"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "C'est LE geste manquant en mobilite : \"j'ai utilise la moitie du paquet\". Prevoir un tap sur la ligne qui ouvre une feuille d'edition avec la quantite, la DLC et les notes, plus des raccourcis \"-25 %\", \"-50 %\", \"tout consommer\" (qui supprime le lot). La semantique partielle du payload (cle absente = ne pas toucher) se traduit naturellement en PATCH JSON."
+    },
+    {
+      "id": "pantry-side-panel-toggle",
+      "title": "Panneau lateral \"Bibliotheque\" (ouverture / fermeture)",
+      "userAction": "L'utilisateur clique le bouton fantome \"(classeur) Bibliotheque\" ; un panneau de 240 px s'ouvre a droite en animation. Le libelle devient \"(classeur) ‹\" pour le refermer.",
+      "behaviourDetails": "Bascule de sidePanelOpen. Largeur animee de 0 a 240 px sur durationNormal (250 ms) en Easing.OutCubic, avec clip et visible lie a une largeur > 0. Au premier ouvert seulement (si la liste de chips est encore vide), on declenche le chargement des ingredients. Une infobulle \"Glisse un ingredient depuis ce panneau vers le frigo\" apparait apres 600 ms, uniquement quand le panneau est FERME. Le panneau contient un titre \"Drag -> Frigo\" et un texte d'aide explicitant l'astuce de la touche Entree.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:118-125",
+        "app/ui/qml/pages/PantryPage.qml:426-461",
+        "app/ui/qml/pages/PantryPage.qml:497-502"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "M",
+      "blockers": "Toute la raison d'etre de ce panneau est le glisser-deposer a la souris. Sur telephone, il n'a plus de sens.",
+      "mobileNotes": "Ne pas porter le panneau tel quel. Le remplacer par un bouton \"Ajout rapide\" ouvrant une feuille de recherche : on tape, on tape sur un ingredient, le mini-formulaire quantite+DLC s'ouvre. Meme resultat, zero glisser-deposer. Sur desktop web, le panneau peut etre conserve."
+    },
+    {
+      "id": "pantry-side-panel-search",
+      "title": "Filtre du panneau lateral",
+      "userAction": "L'utilisateur tape dans le champ \"Filtrer…\" du panneau ; les chips d'ingredients se rechargent.",
+      "behaviourDetails": "onTextChanged declenche immediatement _refreshSidePanel(), SANS debounce. Deux chemins distincts : (a) requete non vide -> ingredientVM.searchOnce(q, \"personal\", 100), soit une recherche FTS5 limitee a 100 resultats dans la bibliotheque personnelle ; (b) requete VIDE -> searchOnce(\"\", ...) qui renvoie [] (garde-fou Python sur les requetes vides), donc on tombe sur un chemin de secours qui parcourt le modele de l'onglet Ingredients ligne par ligne (m.rowCount(), m.index(i,0), m.data(idx, role)) pour reconstruire { id, name, source, pieceWeightG }. Effet de bord notable : la liste par defaut du panneau est celle de l'onglet Ingredients, elle-meme deja filtree par le filtre de CET autre onglet.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:463-468",
+        "app/ui/qml/pages/PantryPage.qml:503-529",
+        "app/ui/viewmodels/ingredient_vm.py:601-610"
+      ],
+      "dataOps": [
+        "SELECT via FTS5 sur ingredient, scope personnel, LIMIT 100"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.searchOnce(query, scope, limit)"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients?scope=personal&limit=100",
+        "GET /api/ingredients/search?q=<texte>&scope=personal&limit=100"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "Sur le web, un seul endpoint doit servir les deux cas (requete vide = liste paginee) : le chemin de secours qui lit le modele d'un autre onglet est un bricolage a ne pas reproduire."
+    },
+    {
+      "id": "pantry-side-panel-chips",
+      "title": "Chips d'ingredients du panneau lateral",
+      "userAction": "L'utilisateur voit les ingredients de sa bibliotheque sous forme de pastilles arrondies disposees en flux, dans une zone scrollable.",
+      "behaviourDetails": "Chaque chip (28 px de haut, rayon plein) affiche : une pastille de source de 6 px (CIQUAL vert #15803d, OpenFoodFacts bleu #1d4ed8, manuel orange #c2410c), le nom tronque a 160 px maximum, et la mention \"(point) 1pc\" si l'ingredient a un poids unitaire. Fond colorSurface, passant en colorSurfaceHover au survol, et en primary a 18 % avec bordure primary pendant le glissement. Les chips sont disposees dans un Flow avec un espacement de spaceXs a l'interieur d'un ScrollView. Le signal clicked de la chip N'EST PAS connecte dans cette page : taper/cliquer une chip ne fait rien, seul le glisser fonctionne.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:470-490",
+        "app/ui/qml/components/DraggableIngredientChip.qml:21-158"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Le clic mort sur une chip est un piege classique au doigt (l'utilisateur va taper avant de comprendre qu'il faut glisser). Sur le web, cabler le tap pour ouvrir directement le mini-formulaire d'ajout — c'est le chemin naturel en tactile."
+    },
+    {
+      "id": "pantry-drag-chip",
+      "title": "Glisser une chip depuis le panneau",
+      "userAction": "L'utilisateur appuie sur une chip et la fait glisser vers la liste ; une pastille fantome bleue \"(caddie) <nom>\" suit le curseur pendant que la chip d'origine reste en place.",
+      "behaviourDetails": "Implementation en deux couches pour contourner un bug : la chip ne bouge JAMAIS (sinon le Flow parent ne recalcule pas sa disposition au relachement et la chip se figeait en chevauchant ses voisines) ; c'est un Item \"ghost\" separe (z = 1000, Drag.dragType Internal, hotSpot au centre) qui est la cible du glissement. Seuil de declenchement : 6 px. Le ghost porte les proprietes ingredientId / ingredientName / pieceWeightG / sourceTag afin que la zone de depot puisse les lire via drop.source. Curseur main ouverte au repos, main fermee pendant l'appui. Au relachement : Drag.drop(), desactivation et remise a zero des coordonnees du ghost.",
+      "sourceRefs": [
+        "app/ui/qml/components/DraggableIngredientChip.qml:85-158"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "L",
+      "blockers": "Le glisser-deposer HTML5 natif ne fonctionne pas sur iOS Safari tactile ; il faudrait une implementation par evenements pointeur (pointerdown/move/up) avec un fantome positionne en absolu. Cout eleve pour un benefice quasi nul sur telephone.",
+      "mobileNotes": "A ne pas porter sur mobile. Sur desktop web uniquement, si porte : utiliser l'API Pointer Events plutot que le DnD HTML5 (meilleur controle du fantome, meme code pour souris et stylet)."
+    },
+    {
+      "id": "pantry-droparea-visual",
+      "title": "Retour visuel de la zone de depot",
+      "userAction": "Pendant qu'il survole la liste avec une chip, l'utilisateur voit le cadre de la liste s'epaissir et un voile s'afficher avec le message \"Lache ici pour ajouter au frigo\".",
+      "behaviourDetails": "Bordure du conteneur : 1 px colorBorder au repos, 2 px colorPrimary pendant le survol de glissement. Superposition d'un rectangle plein a 10 % de la couleur primaire (z = 10) avec le texte centre \"(fleche bas)  Lache ici pour ajouter au frigo\" en colorPrimary, taille Lg, SemiBold.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:190-240"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Sans glisser-deposer, ce retour visuel disparait. En revanche, garder le principe pour un eventuel depot de FICHIER (ticket PDF) sur la zone en version desktop web — ce serait un ajout coherent avec les boutons d'import de l'en-tete."
+    },
+    {
+      "id": "pantry-drop-handler",
+      "title": "Depot d'un ingredient sur la liste",
+      "userAction": "L'utilisateur relache la chip au-dessus de la liste ; un mini-popup s'ouvre, pre-rempli.",
+      "behaviourDetails": "Garde-fou : si drop.source est absent, ou si son ingredientId est undefined ou <= 0, on sort sans rien faire et SANS accepter le depot. Sinon on calcule la quantite par defaut : le poids unitaire de l'ingredient s'il est > 0 (donc 1 piece), sinon 100,0 g en dur. On ouvre le mini-popup avec (id, nom ou \"Ingredient\" par defaut, quantite, poids unitaire) puis on accepte le depot en Qt.CopyAction. La zone de depot couvre TOUT le conteneur de liste, y compris l'etat vide — on peut donc remplir un frigo vide par glisser-deposer.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:204-222"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "La regle metier a conserver quel que soit le geste : quantite par defaut = 1 piece si poids unitaire connu, sinon 100 g. Elle doit s'appliquer aussi a l'ajout rapide tactile."
+    },
+    {
+      "id": "pantry-tab-magnetic-drop",
+      "title": "Onglets magnetiques pendant un glissement",
+      "userAction": "Depuis l'onglet Ingredients, l'utilisateur commence a glisser un ingredient, s'arrete au-dessus de l'onglet \"Frigo / Cellier\" ; apres un court instant l'application bascule toute seule sur cet onglet, ou il peut alors lacher.",
+      "behaviourDetails": "Chaque AppTabButton porte une DropArea sans gestionnaire de depot : elle ne sert qu'a basculer d'onglet. Temporisation de 300 ms (non repetitive) demarree a l'entree du glissement, annulee a la sortie ; au declenchement, on re-verifie que le glissement est toujours au-dessus avant de changer currentIndex. Retour visuel : fond primary a 20 % et barre primary de 2 px en HAUT de l'onglet (a distinguer de la barre de selection, en bas). Le depot final n'est jamais recu par l'onglet.",
+      "sourceRefs": [
+        "app/ui/qml/components/AppTabButton.qml:47-108"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "M",
+      "blockers": "Depend entierement du glisser-deposer souris.",
+      "mobileNotes": "Sans objet en tactile. L'equivalent mobile utile est plutot une action \"Ajouter au frigo\" directement dans la fiche d'un ingredient, ce qui evite toute navigation."
+    },
+    {
+      "id": "pantry-quickadd-popup",
+      "title": "Mini-popup d'ajout rapide au depot",
+      "userAction": "Au depot, une petite fenetre modale de 380 px s'ouvre au centre : \"Ajouter au frigo : <nom>\", avec la quantite deja remplie et une DLC vide. L'utilisateur peut simplement appuyer sur Entree pour valider.",
+      "behaviourDetails": "Popup modal, focus, centre sur la page, bordure colorPrimary. Ferme sur Echap ou clic exterieur. openFor() reinitialise : quantite = valeur calculee au depot, champ DLC vide (texte ET iso). Le focus est place SUR LE BOUTON \"Ajouter\" pour que la touche Entree valide immediatement — les gestionnaires Keys.onReturnPressed / onEnterPressed appellent commit(). Un texte d'aide en italique rappelle : \"Astuce : appuie sur Entree pour valider sans toucher aux champs.\" Deux boutons en pied : \"Annuler\" (fantome, ferme sans rien faire) et \"(coche) Ajouter\" (primaire). Le bouton n'est PAS desactive quand la quantite est nulle, contrairement au dialogue complet.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:595-751"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "Excellent modele a garder pour le tactile : une feuille legere pre-remplie ou l'action par defaut est a un seul geste. Remplacer \"Entree\" par un gros bouton \"Ajouter\" par defaut et proposer des raccourcis de quantite (1 piece / 100 g / 500 g)."
+    },
+    {
+      "id": "pantry-quickadd-quantity",
+      "title": "Mini-popup : champ quantite pre-rempli",
+      "userAction": "L'utilisateur voit la quantite deja saisie (1 piece si l'ingredient a un poids unitaire, sinon 100 g) et peut la corriger avec l'unite de son choix.",
+      "behaviourDetails": "Meme QuantityField que le dialogue complet (11 unites statiques + eventuelle unite \"piece\"), decimals = 1, initialise via les proprietes defaultQtyG et pieceWeightG du popup. La bascule automatique en unite \"piece\" s'applique ici aussi puisque pieceWeightG est transmis depuis la chip.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:671-683",
+        "app/ui/qml/pages/PantryPage.qml:617-628"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Idem champ quantite du dialogue : input number + select natif."
+    },
+    {
+      "id": "pantry-quickadd-expiry-parse",
+      "title": "Mini-popup : saisie de DLC au format JJ/MM/AAAA",
+      "userAction": "L'utilisateur saisit une date de peremption au format francais JJ/MM/AAAA (le placeholder l'indique), avec / - ou . comme separateur.",
+      "behaviourDetails": "INCOHERENCE avec le dialogue principal, qui attend du YYYY-MM-DD. Ici le parsing se fait cote QML a la fin de l'edition, via l'expression reguliere ^(\\d{1,2})[/\\-.](\\d{1,2})[/\\-.](\\d{4})$ : jour et mois sur 1 ou 2 chiffres, annee sur 4, separateurs / - ou . acceptes indifferemment. On reconstruit alors l'ISO avec un remplissage de zeros (\"3/7/2026\" -> \"2026-07-03\"), stocke dans une propriete iso separee du texte affiche. Champ vide -> iso remis a \"\". Si l'expression ne matche pas (texte parasite, annee sur 2 chiffres), l'ancienne valeur iso est CONSERVEE telle quelle et aucune erreur n'est signalee. Aucune validation de la validite reelle de la date (le 31/02/2026 passe).",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:695-711"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Unifier les deux formats de saisie sur <input type=\"date\"> resout d'un coup l'incoherence, l'absence de validation calendaire et l'echec silencieux. C'est le correctif le plus rentable de la zone."
+    },
+    {
+      "id": "pantry-quickadd-datepicker",
+      "title": "Mini-popup : bouton calendrier",
+      "userAction": "L'utilisateur clique le petit bouton calendrier (32x32) a droite du champ date et choisit un jour dans le mini-calendrier.",
+      "behaviourDetails": "Meme composant DatePickerPopup, ouvert ancre sur le bouton et initialise avec l'iso courant. Difference avec le dialogue principal : au retour, on stocke l'ISO dans la propriete iso ET on RECONVERTIT pour l'affichage au format francais JJ/MM/AAAA en decoupant sur les tirets — le champ texte reste donc coherent avec son placeholder.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:712-718",
+        "app/ui/qml/pages/PantryPage.qml:740-750"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Remplace par le selecteur de date natif."
+    },
+    {
+      "id": "pantry-quickadd-commit",
+      "title": "Validation du mini-popup et toast de confirmation",
+      "userAction": "L'utilisateur valide ; l'article apparait dans la liste et un bandeau vert de confirmation s'affiche en bas pendant environ 2,5 s.",
+      "behaviourDetails": "commit() appelle pantryVM.addStock({ ingredientId, quantityG, expiryIso, notes: \"\" }) — les notes sont toujours vides par ce chemin. Si le retour contient un id : message du toast \"(coche) <nom> ajoute au frigo (N g)\" avec N = quantite ARRONDIE a l'entier (Math.round), puis affichage. Le popup se ferme dans TOUS les cas, y compris en cas d'echec de validation. DIFFERENCE avec le chemin du dialogue complet : ici on NE rafraichit PAS shoppingVM — la liste de courses reste donc avec des pre-coches \"deja au frigo\" perimes jusqu'a son prochain rafraichissement. A porter comme un comportement unifie, pas comme deux chemins distincts.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:630-643",
+        "app/ui/qml/pages/PantryPage.qml:564-587"
+      ],
+      "dataOps": [
+        "INSERT INTO pantry_stock (...)",
+        "re-SELECT complet de la liste"
+      ],
+      "vmMethods": [
+        "PantryViewModel.addStock(payload)"
+      ],
+      "proposedApi": [
+        "POST /api/pantry"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Le toast est le bon retour tactile. Le placer au-dessus de la bottom-nav pour qu'il ne soit pas masque, et y ajouter une action \"Annuler\" pour compenser l'absence d'edition."
+    },
+    {
+      "id": "pantry-toast",
+      "title": "Bandeau de confirmation ephemere",
+      "userAction": "L'utilisateur voit un bandeau vert arrondi apparaitre en bas au centre de la page apres un ajout par glisser-deposer, puis disparaitre seul.",
+      "behaviourDetails": "Rectangle de couleur colorSuccess, rayon Md, opacite 0,95, z = 100, ancre en bas au centre avec une marge de spaceXxl. Largeur et hauteur calees sur le texte plus des marges (spaceXl x 2 horizontal, spaceMd x 2 vertical). Texte blanc, taille Md, graisse Medium. Un Timer actif tant que le bandeau est visible le masque au bout de 2500 ms. Pas d'animation d'entree ni de sortie, pas de bouton de fermeture, pas de file d'attente : deux ajouts rapproches ecrasent le message precedent et redemarrent le compte a rebours.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:563-587"
+      ],
+      "dataOps": [],
+      "vmMethods": [],
+      "proposedApi": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Ajouter un fondu d'entree/sortie et une pile de toasts. Sur telephone, envisager plutot une notification legere en haut pour ne pas gener les gestes du bas d'ecran."
+    },
+    {
+      "id": "pantry-silent-validation-errors",
+      "title": "Erreurs de validation silencieuses",
+      "userAction": "Rien ne se passe : si la quantite est invalide ou la date mal formee, l'article n'est pas enregistre et l'utilisateur n'est averti d'aucune facon.",
+      "behaviourDetails": "Defaut a corriger au portage. Le viewmodel expose un signal error_emitted(str), emis quand la construction du PantryStock echoue (typiquement quantity_g <= 0, Field(gt=0)) — mais AUCUN fichier QML ne s'y connecte : ni PantryPage, ni le dialogue. addStock renvoie alors {} : le dialogue complet est deja ferme et ignore le retour, le mini-popup ne montre pas de toast (sa condition est result && result.id) et se ferme quand meme. En parallele, une date invalide est absorbee par _parse_expiry_iso qui se contente d'un log warning et renvoie None : l'article est enregistre SANS DLC, silencieusement. Le mini-popup ne verifie pas non plus que la quantite est > 0, contrairement au dialogue complet.",
+      "sourceRefs": [
+        "app/ui/viewmodels/pantry_vm.py:63",
+        "app/ui/viewmodels/pantry_vm.py:212-215",
+        "app/ui/viewmodels/pantry_vm.py:36-54",
+        "app/ui/qml/pages/PantryPage.qml:630-643"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "PantryViewModel.error_emitted"
+      ],
+      "proposedApi": [
+        "POST /api/pantry -> 422 { field, message } en cas de payload invalide"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Sur le web, renvoyer un 422 avec le champ fautif et l'afficher sous le champ concerne. En mobilite (utilisateur debout dans sa cuisine), un echec silencieux est particulierement penalisant : il croira avoir enregistre."
+    },
+    {
+      "id": "pantry-shopping-coverage",
+      "title": "Alimentation de la liste de courses (\"deja au frigo\")",
+      "userAction": "L'utilisateur constate que, dans la liste de courses, les ingredients qu'il possede deja en quantite suffisante arrivent deja coches.",
+      "behaviourDetails": "Couplage metier central entre les deux zones. aggregate_shopping_list precharge les totaux du frigo en UNE requete SUM(quantity_g) GROUP BY ingredient_id, et estampille chaque ligne de courses avec in_pantry_g (0.0 par defaut). La propriete calculee is_covered_by_pantry vaut vrai si et seulement si in_pantry_g >= quantity_g ET quantity_g > 0. Le modele de la liste de courses initialise l'etat coche de chaque ligne a partir de cette valeur. Le total agrege TOUS les lots, y compris ceux deja PERIMES (aucun filtre sur expiry_date) : un yaourt perime depuis 3 jours compte encore comme couverture. Le rafraichissement est declenche explicitement par la page apres un ajout via le dialogue ou apres une suppression, mais PAS apres un ajout par glisser-deposer.",
+      "sourceRefs": [
+        "app/services/shopping_service.py:83-108",
+        "app/domain/shopping.py:37-50",
+        "app/ui/models/shopping_list_model.py:51-60",
+        "app/data/repositories/pantry.py:95-103",
+        "tests/test_pantry.py:150-211"
+      ],
+      "dataOps": [
+        "SELECT ingredient_id, SUM(quantity_g) FROM pantry_stock GROUP BY ingredient_id"
+      ],
+      "vmMethods": [
+        "PantryRepo.aggregate_quantity_by_ingredient()",
+        "ShoppingViewModel.refreshList()"
+      ],
+      "proposedApi": [
+        "GET /api/shopping-list?week=2026-W18 (chaque ligne porte inPantryG et isCoveredByPantry)"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Sur le web, cette couverture peut etre recalculee cote serveur a chaque GET de la liste de courses, ce qui supprime les rafraichissements manuels croises (et le bug du chemin glisser-deposer). Envisager d'exclure les lots perimes du total — comportement actuel discutable."
+    },
+    {
+      "id": "pantry-receipt-import-button",
+      "title": "Bouton \"Importer un ticket (PDF)\"",
+      "userAction": "De retour des courses, l'utilisateur clique \"Importer un ticket (PDF)\" depuis l'onglet Frigo ; le dialogue global d'import de ticket s'ouvre, centre.",
+      "behaviourDetails": "Bouton de variante secondaire. Le dialogue vit dans Main.qml (accessible via l'alias window.receiptImportDialog) et est ouvert par openCentered(win) apres un controle d'existence. Ce bouton a ete DEPLACE depuis l'onglet Liste de courses vers l'onglet Frigo, avec pour justification explicite dans le code que c'est ici, au retour des courses, qu'on remplit le frigo.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:77-89",
+        "app/ui/qml/Main.qml:30",
+        "app/ui/qml/Main.qml:516-518",
+        "app/ui/qml/pages/ShoppingPage.qml:52-54"
+      ],
+      "dataOps": [],
+      "vmMethods": [
+        "ReceiptImportViewModel"
+      ],
+      "proposedApi": [
+        "POST /api/receipts/import (multipart PDF)"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Sur telephone, le geste naturel n'est pas le PDF mais la PHOTO du ticket : <input type=\"file\" accept=\"image/*\" capture=\"environment\">. C'est le point d'entree ideal pour l'appareil photo de la PWA."
+    },
+    {
+      "id": "pantry-lidl-sync-button",
+      "title": "Bouton Lidl Plus a cinq etats",
+      "userAction": "L'utilisateur clique le bouton Lidl ; selon l'etat de la configuration, soit le dialogue de configuration s'ouvre, soit une synchronisation demarre.",
+      "behaviourDetails": "Le libelle reflete exactement l'etat : viewmodel absent -> \"Lidl Plus…\" ; bibliotheque non installee -> \"Lidl Plus (lib manquante)\" ; non connecte -> \"Configurer Lidl Plus…\" ; synchronisation en cours -> \"Sync Lidl… (sablier)\" ; sinon -> \"Synchroniser Lidl\". Comportement au clic : si le viewmodel est absent, on sort ; si la bibliotheque est absente OU si l'utilisateur n'est pas connecte, on ouvre le dialogue de configuration ; sinon on appelle syncNow(). Le bouton n'est jamais desactive — meme sans bibliotheque installee, il ouvre le dialogue. isConnected ne verifie que la presence d'un jeton stocke, sans validation reseau : seule une synchronisation peut reveler un jeton expire.",
+      "sourceRefs": [
+        "app/ui/qml/pages/PantryPage.qml:90-110",
+        "app/ui/viewmodels/lidl_plus_vm.py:91-142",
+        "app/ui/qml/Main.qml:31",
+        "app/ui/qml/Main.qml:521-523"
+      ],
+      "dataOps": [
+        "lecture des reglages Lidl Plus (lidl_plus_settings)"
+      ],
+      "vmMethods": [
+        "LidlPlusViewModel.isAvailable",
+        "LidlPlusViewModel.isConnected",
+        "LidlPlusViewModel.isSyncing",
+        "LidlPlusViewModel.syncNow()"
+      ],
+      "proposedApi": [
+        "GET /api/integrations/lidl/status",
+        "POST /api/integrations/lidl/sync"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "blockers": "Depend d'une bibliotheque Python tierce (lidl-plus) et d'un trousseau systeme (keyring) pour stocker le jeton — rien de tout cela n'existe en PWA. Il faudrait deporter la synchronisation vers un Worker planifie et stocker le jeton chiffre cote serveur.",
+      "mobileNotes": "Le libelle a cinq etats tient mal sur une largeur de telephone : reduire a une icone plus un badge d'etat, avec le detail dans un ecran de reglages."
+    },
+    {
+      "id": "pantry-receipt-creates-stock",
+      "title": "Alimentation automatique du frigo depuis un ticket de caisse",
+      "userAction": "Apres avoir valide l'import d'un ticket, l'utilisateur retrouve les produits achetes directement dans son frigo, avec la note d'origine et la DLC eventuellement saisie ligne par ligne.",
+      "behaviourDetails": "Second chemin de creation de stock, entierement hors PantryPage. Au commit de l'import, pour chaque ligne ayant un ingredient choisi et un prix valide, si add_to_pantry est vrai, on cree un PantryStock avec : quantity_g issue d'une cascade de secours (1. la quantite saisie explicitement dans le dialogue si > 0 ; 2. ingredient.price_quantity_g ; 3. ingredient.piece_weight_g x quantite du ticket ; 4. defaut 1000 g), expiry_date = la DLC saisie sur la ligne (colonne dediee avec calendrier partage), notes = \"Importe depuis ticket <enseigne>\". add_to_pantry vaut vrai par defaut pour les lignes identifiees comme alimentaires ; la refonte a supprime la case a cocher au profit d'un bouton de mise a l'ecart de ligne. Le message final indique \"+ N ajout(s) au frigo\". Consequence : des lots peuvent apparaitre avec une quantite fictive de 1000 g.",
+      "sourceRefs": [
+        "app/ui/viewmodels/receipt_import_vm.py:521-658",
+        "app/ui/viewmodels/receipt_import_vm.py:593-600",
+        "app/services/receipt_matcher.py:104-121",
+        "app/domain/receipt.py:118-128",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:636-645"
+      ],
+      "dataOps": [
+        "INSERT INTO pantry_stock (...) x N, dans la meme transaction que les INSERT ingredient_price_history"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.commitImport()",
+        "PantryRepo.add(stock)"
+      ],
+      "proposedApi": [
+        "POST /api/receipts/:id/commit -> { priceCount, pantryCount }"
+      ],
+      "priority": "important",
+      "complexity": "L",
+      "mobileNotes": "C'est le chemin de remplissage massif du frigo, donc le plus precieux en mobilite. La cascade de secours doit rester identique cote serveur. Le defaut de 1000 g merite un signalement visuel dans la liste (\"quantite estimee\") pour que l'utilisateur puisse la corriger — ce qui suppose d'implementer d'abord l'edition d'un lot."
+    },
+    {
+      "id": "pantry-cascade-delete",
+      "title": "Suppression en cascade avec l'ingredient",
+      "userAction": "Quand l'utilisateur supprime un ingredient depuis l'onglet Ingredients, tous ses lots au frigo disparaissent automatiquement.",
+      "behaviourDetails": "Contrainte de cle etrangere pantry_stock.ingredient_id -> ingredient.id ON DELETE CASCADE, avec index sur la colonne. Comportement couvert par un test dedie. Nuance importante : la page Frigo n'est PAS notifiee de cette suppression, sa liste reste donc affichee telle quelle jusqu'au prochain refresh.",
+      "sourceRefs": [
+        "app/data/orm.py:236-250",
+        "tests/test_pantry.py:118-128"
+      ],
+      "dataOps": [
+        "DELETE FROM ingredient -> CASCADE sur pantry_stock"
+      ],
+      "vmMethods": [],
+      "proposedApi": [
+        "DELETE /api/ingredients/:id (cascade documentee dans la reponse)"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "blockers": "Cloudflare D1 est bien SQLite, mais les cles etrangeres n'y sont pas toujours actives par defaut selon le mode d'execution : verifier PRAGMA foreign_keys, sans quoi la cascade ne s'appliquera pas et laissera des lots orphelins.",
+      "mobileNotes": "Avertir l'utilisateur avant la suppression d'un ingredient present au frigo (\"3 lots seront aussi supprimes\") — aujourd'hui c'est totalement silencieux."
+    },
+    {
+      "id": "pantry-orphan-skip",
+      "title": "Ignorance defensive des lots orphelins",
+      "userAction": "Invisible pour l'utilisateur : un lot dont l'ingredient n'existe plus n'apparait tout simplement pas dans la liste.",
+      "behaviourDetails": "Au refresh, on collecte les ingredient_id des lots puis on charge les ingredients correspondants ; si un identifiant est introuvable dans le dictionnaire, la ligne est ignoree (avec un commentaire indiquant que la cascade aurait du s'en charger). Consequence : ces lots restent invisibles ET indestructibles depuis l'interface, tout en continuant de compter dans l'agregat de la liste de courses (qui, lui, ne fait aucune jointure).",
+      "sourceRefs": [
+        "app/ui/viewmodels/pantry_vm.py:140-163",
+        "app/data/repositories/pantry.py:95-103"
+      ],
+      "dataOps": [
+        "SELECT * FROM pantry_stock",
+        "SELECT * FROM ingredient WHERE id IN (...)"
+      ],
+      "vmMethods": [
+        "PantryViewModel.refresh()",
+        "IngredientRepo.list_by_ids(ids)"
+      ],
+      "proposedApi": [
+        "GET /api/pantry (jointure INNER sur ingredient cote SQL)"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Sur le web, faire une jointure INNER JOIN en SQL plutot qu'un filtrage applicatif : une seule requete au lieu de deux, et l'incoherence avec l'agregat disparait."
+    },
+    {
+      "id": "pantry-refresh-lifecycle",
+      "title": "Cycle de rafraichissement de la liste",
+      "userAction": "L'utilisateur ne declenche jamais de rafraichissement explicite : la liste se met a jour seule apres chaque ajout ou suppression.",
+      "behaviourDetails": "refresh() est appele : au constructeur du viewmodel (donc une fois au demarrage de l'application), apres setSortBy, setGroupBy et setFilter, et apres chaque addStock / updateStock / deleteStock reussi. Chaque refresh est un rechargement INTEGRAL : SELECT de tout pantry_stock, SELECT des ingredients associes, reconstruction des lignes, filtre, tri, puis set_items() qui fait un beginResetModel/endResetModel complet (pas de mise a jour granulaire). Aucun rafraichissement a l'activation de l'onglet, ni de rechargement periodique : la liste peut donc etre perimee (ingredient supprime ailleurs, stock cree par un import de ticket, changement de jour qui modifie les buckets d'urgence). Un slot refreshList() existe mais n'est appele depuis aucun QML de cette page.",
+      "sourceRefs": [
+        "app/ui/viewmodels/pantry_vm.py:74-82",
+        "app/ui/viewmodels/pantry_vm.py:104-135",
+        "app/ui/viewmodels/pantry_vm.py:136-169",
+        "app/ui/models/pantry_list_model.py:91-95"
+      ],
+      "dataOps": [
+        "SELECT * FROM pantry_stock ORDER BY expiry_date IS NULL, expiry_date, id",
+        "SELECT * FROM ingredient WHERE id IN (...)"
+      ],
+      "vmMethods": [
+        "PantryViewModel.refresh()",
+        "PantryViewModel.refreshList()",
+        "PantryListModel.set_items(rows)"
+      ],
+      "proposedApi": [
+        "GET /api/pantry?sort=&group=&q= -> { items: [...], totalCount, soonExpiringCount }"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Sur PWA, prevoir : rafraichissement a la reprise au premier plan (visibilitychange), geste \"tirer pour rafraichir\", et surtout un cache local (IndexedDB) avec revalidation, puisque le frigo doit rester consultable hors ligne dans un magasin sans reseau. Le reset integral du modele est acceptable pour quelques dizaines de lignes."
+    },
+    {
+      "id": "pantry-expiring-notifications-gap",
+      "title": "Requete des peremptions imminentes (disponible, non exploitee)",
+      "userAction": "Aucune aujourd'hui : l'utilisateur n'est averti d'une peremption imminente que s'il ouvre lui-meme l'onglet Frigo.",
+      "behaviourDetails": "Le repository expose deja expiring_before(deadline) qui renvoie les lots dont expiry_date n'est pas nul et est anterieure ou egale a une echeance, tries par date croissante. Aucun appelant dans l'application : ni notification, ni badge sur l'onglet, ni rappel. Le seul signalement existant est le compteur textuel de l'en-tete, visible uniquement sur la page elle-meme.",
+      "sourceRefs": [
+        "app/data/repositories/pantry.py:105-114",
+        "app/ui/qml/pages/PantryPage.qml:58-72"
+      ],
+      "dataOps": [
+        "SELECT * FROM pantry_stock WHERE expiry_date IS NOT NULL AND expiry_date <= ? ORDER BY expiry_date ASC"
+      ],
+      "vmMethods": [
+        "PantryRepo.expiring_before(deadline)"
+      ],
+      "proposedApi": [
+        "GET /api/pantry/expiring?before=2026-08-09",
+        "POST /api/notifications/subscribe (Web Push)"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "C'est LA fonctionnalite que le portage mobile rend enfin possible : un Worker planifie (cron) interroge les peremptions et envoie une notification Web Push \"3 articles perimen dans 2 jours\". Ajouter aussi un badge de compteur sur l'icone d'onglet de la bottom-nav."
+    }
+  ]
+}

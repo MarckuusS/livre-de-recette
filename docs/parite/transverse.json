@@ -1,0 +1,1272 @@
+{
+  "page": "Transverse (shell, recherche, sauvegarde, tickets)",
+  "summary": "La zone transverse regroupe la coquille de l'application (fenêtre unique, barre de menus à 4 menus, TabBar à 5 onglets, barre de statut avec 3 indicateurs live), la recherche unifiée Ctrl+K qui interroge en parallèle ingrédients / recettes / calendrier, la sauvegarde automatique de la base à chaque lancement avec un dialogue de restauration réversible, et tout le pipeline d'import de tickets de caisse (surveillance d'un dossier de dépôt, parsing PDF Intermarché, matching en 3 niveaux avec alias appris, tableau de révision éditable ligne à ligne, commit transactionnel vers l'historique de prix + le frigo). S'y ajoutent l'intégration expérimentale Lidl Plus (credentials en keyring OS, polling configurable), le dialogue de référence des raccourcis clavier, le toast d'annulation partagé et le dialogue « recettes possibles ». Toute cette zone est fortement couplée au poste local : système de fichiers, keyring Windows, watchdog, fenêtres système détachables — c'est la partie la moins portable telle quelle.",
+  "features": [
+    {
+      "id": "shell-fenetre-principale",
+      "title": "Fenêtre principale de l'application",
+      "userAction": "L'utilisateur lance l'app ; une fenêtre unique s'ouvre, titrée « Livre de recettes », redimensionnable, avec barre de menus en haut, onglets sous le menu, contenu au centre et barre de statut en bas.",
+      "behaviourDetails": "Taille initiale 1280×800, taille minimale imposée 980×600 (en dessous, Qt refuse le redimensionnement). Fond = Theme.colorBackground (clair #f8fafc / sombre #0f172a). Une seule fenêtre principale : pas de multi-fenêtres de document. Le style Qt Quick est forcé sur `Basic` au démarrage car le style natif Windows FluentWinUI3 refuse la personnalisation.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:15-24",
+        "app/main.py:54-62"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "La contrainte de largeur minimale 980 px n'a aucun sens sur téléphone : la mise en page doit devenir mono-colonne et fluide dès 360 px. La barre de menus disparaît au profit d'un menu latéral / bouton « … ».",
+      "blockers": "ApplicationWindow Qt, dimensions en pixels physiques, QQuickStyle."
+    },
+    {
+      "id": "shell-barre-onglets",
+      "title": "Barre de 5 onglets avec conservation d'état",
+      "userAction": "L'utilisateur clique un onglet (Ingrédients / Recettes / Calendrier / Liste de courses / Frigo·Cellier) ; le contenu change, avec un léger fondu.",
+      "behaviourDetails": "Largeurs fixes : 160 px pour les 3 premiers, 180 px pour les 2 derniers. Implémenté en StackLayout : les 5 pages restent instanciées, donc la sélection courante, la position de scroll et un formulaire en cours d'édition sont préservés quand on revient sur l'onglet. Au changement d'index, animation d'opacité de 0.55 → 1.0 en 250 ms (courbe OutCubic) ; pas de glissement latéral (décision explicite pour ne pas désorienter). Onglet actif signalé par une bordure basse (AppTabButton). Séparateur 1 px sous la barre.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:187-243"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "5 onglets à largeur fixe ne tiennent pas sur un écran de téléphone : passer à une barre de navigation basse (4 items + « Plus ») ou à des onglets scrollables. La préservation d'état devient une vraie contrainte de routing (garder les composants montés ou restaurer l'état depuis l'URL / un store).",
+      "blockers": "StackLayout Qt ; sur le web il faut choisir explicitement entre démonter les routes (état perdu) et les garder montées."
+    },
+    {
+      "id": "shell-menu-fichier",
+      "title": "Menu Fichier",
+      "userAction": "L'utilisateur ouvre le menu « Fichier » (clic ou Alt+F) et choisit une des 4 entrées séparées par des traits.",
+      "behaviourDetails": "Contenu exact et dans cet ordre : « Restaurer une sauvegarde… » → séparateur → entrée Lidl Plus dont le libellé est dynamique (voir lidl-libelle-menu-dynamique) → séparateur → « Paramètres → Rayons d'ingrédients… » → séparateur → « Quitter » (raccourci StandardKey.Quit = Ctrl+Q sous Windows/Linux, Cmd+Q sur macOS) qui appelle Qt.quit() sans aucune confirmation ni sauvegarde du travail en cours.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:91-123"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Pas de barre de menus sur mobile : ces entrées vont dans une page « Réglages ». « Quitter » n'existe pas dans une PWA — l'entrée disparaît purement et simplement."
+    },
+    {
+      "id": "shell-menu-affichage-mode-sombre",
+      "title": "Bascule mode clair / mode sombre",
+      "userAction": "L'utilisateur ouvre le menu « Affichage » et clique « Mode sombre » (ou « Mode clair » si déjà en sombre), ou tape Ctrl+Shift+D depuis n'importe où.",
+      "behaviourDetails": "Le libellé de l'entrée change selon l'état courant : affiche l'action à faire, pas l'état actuel. Bascule instantanée `Theme.darkMode = !Theme.darkMode` — toutes les couleurs du singleton Theme sont des expressions ternaires sur `darkMode`, donc tout se repeint d'un coup. **Le choix n'est PAS persisté** : `property bool darkMode: false` sans QSettings ni écriture DB — au prochain lancement, retour au mode clair. Le menu Affichage ne contient que cette entrée (l'ancienne option d'affichage des en-cas du calendrier a été retirée, les 5 créneaux sont désormais toujours visibles).",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:125-137",
+        "app/ui/qml/Theme.qml:17"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "GET /api/preferences",
+        "PATCH /api/preferences"
+      ],
+      "vmMethods": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Sur le web, ajouter le respect de `prefers-color-scheme` par défaut et persister le choix explicite (localStorage ou préférences serveur pour que le réglage suive entre téléphone et bureau). L'absence de persistance actuelle est un bug à ne pas reporter."
+    },
+    {
+      "id": "shell-menu-navigation-raccourcis",
+      "title": "Navigation clavier entre onglets (Ctrl+1 à Ctrl+5)",
+      "userAction": "L'utilisateur tape Ctrl+1…Ctrl+5, ou passe par le menu « Navigation » qui liste les 5 onglets numérotés.",
+      "behaviourDetails": "Correspondance figée : Ctrl+1 Ingrédients, Ctrl+2 Recettes, Ctrl+3 Calendrier, Ctrl+4 Liste de courses, Ctrl+5 Frigo / Cellier. Les entrées du menu portent les mnémoniques &1…&5. Ces raccourcis sont globaux à la fenêtre (contexte WindowShortcut), donc actifs quel que soit l'onglet courant.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:139-161"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Aucun clavier physique sur téléphone : ces raccourcis disparaissent, mais restent utiles sur la version bureau du web (à réimplémenter avec des écouteurs clavier, en veillant à ne pas écraser Ctrl+1..9 du navigateur qui sert déjà à changer d'onglet — il faudra probablement une autre combinaison)."
+    },
+    {
+      "id": "shell-menu-aide",
+      "title": "Menu Aide (raccourcis + dossier de logs)",
+      "userAction": "L'utilisateur ouvre « Aide » et clique soit « Raccourcis clavier » (ou tape Ctrl+/), soit « Ouvrir le dossier de logs ».",
+      "behaviourDetails": "« Ouvrir le dossier de logs » appelle Qt.openUrlExternally sur `file:///` + le chemin exposé par Python en propriété de contexte `logDirPath` (chemin normalisé, antislashs → slashs). Les logs vivent dans `~/.livre-de-recettes/logs/app.log`, rotation à 5 Mo × 5 sauvegardes (~25 Mo max). Console en INFO, ou DEBUG si la variable d'environnement LIVRE_DEBUG=1. Un excepthook capture toute exception non rattrapée avec traceback complet avant de laisser le processus mourir.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:163-179",
+        "app/main.py:140",
+        "app/logging_setup.py:26-121"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "GET /api/diagnostics/logs"
+      ],
+      "vmMethods": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Ouvrir un dossier local est impossible depuis une PWA. Remplacer par une page « Diagnostic » qui affiche les N dernières lignes de log côté serveur, avec un bouton de copie.",
+      "blockers": "Qt.openUrlExternally sur un chemin de système de fichiers local ; rotation de fichiers via logging.handlers."
+    },
+    {
+      "id": "shell-mnemoniques-alt",
+      "title": "Mnémoniques Alt+lettre sur la barre de menus",
+      "userAction": "L'utilisateur maintient Alt : les lettres soulignées apparaissent dans les titres de menus (&Fichier, &Affichage, &Navigation, &Aide) et Alt+F ouvre Fichier.",
+      "behaviourDetails": "Le préfixe `&` de Qt est converti à l'affichage en HTML `<u>lettre</u>` par le helper `Theme.formatMnemonic`, rendu via `textFormat: Text.RichText`. Le libellé du MenuBarItem change de couleur (Theme.colorPrimary) et de graisse (Medium) quand il est survolé/ouvert, avec une transition de couleur de 150 ms ; le fond passe à colorSurfaceHover.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:48-89"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Aucune traduction mobile — convention purement desktop Windows. À abandonner."
+    },
+    {
+      "id": "shell-navigation-cross-onglet",
+      "title": "Navigation croisée vers un ingrédient",
+      "userAction": "Depuis une autre page (ex. le dialogue « Recettes possibles »), l'utilisateur clique un ingrédient ; l'app bascule sur l'onglet Ingrédients avec cet ingrédient déjà chargé dans le formulaire.",
+      "behaviourDetails": "Contrat exposé par la fenêtre principale : `navigateToIngredient(ingredientId)`. Bascule `tabBar.currentIndex = 0` puis, via `Qt.callLater` (pour laisser la page se monter), appelle `_loadIngredient(id)` sur la page Ingrédients. Ne fait rien si l'id est ≤ 0.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:38-45",
+        "app/ui/qml/dialogs/RecipeMatchDialog.qml:367-373"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE id = ?"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/{id}"
+      ],
+      "vmMethods": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Sur le web cela devient une simple navigation d'URL : /ingredients/{id}. Plus simple et plus robuste que le mécanisme actuel."
+    },
+    {
+      "id": "statusbar-indicateur-openfoodfacts",
+      "title": "Indicateur de disponibilité OpenFoodFacts",
+      "userAction": "L'utilisateur voit en bas à droite une pastille verte ou rouge avec le texte « OpenFoodFacts en ligne » / « OpenFoodFacts indisponible » ; il survole pour connaître l'heure de la dernière vérification, et clique n'importe où sur la barre de statut pour forcer une re-vérification immédiate.",
+      "behaviourDetails": "Barre de statut de 22 px de haut, filet de 1 px en haut. Pastille de 8 px, transition de couleur de 150 ms. État initial optimiste (`online = True`) pour ne pas clignoter « hors ligne » pendant les 2 premières secondes. Premier ping 2 s après le démarrage, puis toutes les 5 minutes. Le ping HTTP tourne dans un thread démon nommé « off-ping » avec un timeout de 3 s pour ne jamais bloquer l'interface ; un garde `_inflight` empêche l'empilement de pings si l'un traîne. Infobulle : « Dernière vérification : HH:MM:SS » (ou « jamais vérifié ») + « Clique pour re-vérifier maintenant. », délai d'apparition 400 ms. Le curseur devient une main sur toute la barre. Cet état pilote aussi le grisage du bouton « Chercher en ligne » du dialogue d'import d'ingrédients.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:357-390",
+        "app/ui/viewmodels/network_vm.py:27-101"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "GET /api/health/openfoodfacts"
+      ],
+      "vmMethods": [
+        "NetworkStatusViewModel.checkNow",
+        "NetworkStatusViewModel.online",
+        "NetworkStatusViewModel.lastCheckedHuman"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Sur mobile, la question pertinente n'est pas « OFF répond-il ? » mais « ai-je du réseau ? » : combiner navigator.onLine + un ping serveur. Toute la surface de la barre est cliquable aujourd'hui, ce qui est une cible tactile involontaire — restreindre le tap à la pastille."
+    },
+    {
+      "id": "statusbar-badge-tickets-en-attente",
+      "title": "Badge « X tickets en attente » dans la barre de statut",
+      "userAction": "Quand des fichiers de tickets attendent dans le dossier surveillé, un badge bleu « 📥 N ticket(s) en attente » apparaît en bas à gauche ; l'utilisateur clique dessus et le plus ancien ticket s'ouvre directement dans le dialogue d'import.",
+      "behaviourDetails": "Visible uniquement si pendingFileCount > 0. Fond = couleur primaire à 18 % d'opacité, bordure 1 px de couleur primaire, hauteur 18 px, largeur auto. Pluriel géré (« ticket » / « tickets »). Infobulle « Cliquer pour importer le prochain ticket en attente » après 400 ms. Au clic : `loadNextPending()` charge le fichier le plus ancien (tri par date de modification croissante) puis ouvre le dialogue en mode « pending » (pas de reset, pas de sélecteur de fichier). Si le fichier a disparu entre-temps, il est retiré de la liste et rien ne s'ouvre ; si le parsing échoue, il est également retiré pour ne pas bloquer la file.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:267-306",
+        "app/ui/viewmodels/receipt_import_vm.py:670-717"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "GET /api/receipts/pending",
+        "POST /api/receipts/pending/next/open"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.pendingFileCount",
+        "ReceiptImportViewModel.loadNextPending",
+        "ReceiptImportViewModel.rescanPending"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Il n'y a pas de « dossier surveillé » sur téléphone. L'équivalent naturel : une file d'attente côté serveur alimentée par l'upload (partage depuis l'app mail / photos), matérialisée par une pastille sur l'onglet Frigo. Le badge lui-même se traduit bien en badge de notification.",
+      "blockers": "Dépend du watcher de système de fichiers local (watchdog) — non portable."
+    },
+    {
+      "id": "statusbar-badge-tickets-lidl",
+      "title": "Badge « Lidl · N tickets » dans la barre de statut",
+      "userAction": "Quand la synchronisation Lidl Plus a ramené de nouveaux tickets, un badge ambre « 🛒 Lidl · N ticket(s) » apparaît ; l'utilisateur clique et le premier ticket est récupéré puis ouvert dans le dialogue d'import.",
+      "behaviourDetails": "Badge volontairement distinct du badge fichiers (icône et couleur accent différentes) pour ne pas confondre les deux files. Au clic : prend le premier id de `pendingTicketIds()`, appelle `fetchTicketDetailAsDict(id)` (appel réseau synchrone dans le fil de l'interface — peut figer brièvement), et si le détail contient un `id`, passe le JSON à `loadFromLidlJson`, ouvre le dialogue et retire l'id de la file. Si le fetch échoue, un message d'erreur est émis et rien ne s'ouvre. Une `Connections` sur le signal `new_tickets_pending` se contente de journaliser en console — il n'y a volontairement pas de chargement automatique de tous les tickets.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:311-353",
+        "app/ui/qml/Main.qml:540-547",
+        "app/ui/viewmodels/lidl_plus_vm.py:284-306"
+      ],
+      "dataOps": [
+        "SELECT imported_receipt WHERE ticket_id = ?"
+      ],
+      "proposedApi": [
+        "GET /api/lidl/pending-tickets",
+        "GET /api/lidl/tickets/{ticketId}"
+      ],
+      "vmMethods": [
+        "LidlPlusViewModel.pendingTicketCount",
+        "LidlPlusViewModel.pendingTicketIds",
+        "LidlPlusViewModel.fetchTicketDetailAsDict",
+        "LidlPlusViewModel.removePendingTicketId"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "Sur mobile, cet appel réseau doit impérativement être asynchrone avec un indicateur de chargement — un gel d'interface est bien plus visible sur téléphone.",
+      "blockers": "Dépend de la bibliothèque `lidl-plus` installée localement et de credentials dans le keyring OS."
+    },
+    {
+      "id": "recherche-unifiee-ouverture",
+      "title": "Ouverture de la recherche unifiée (Ctrl+K)",
+      "userAction": "Depuis n'importe quel onglet, l'utilisateur tape Ctrl+K ; une palette modale de 640×520 apparaît, centrée horizontalement et positionnée au quart supérieur de la fenêtre, champ de saisie déjà focalisé.",
+      "behaviourDetails": "Raccourci enregistré au niveau de la fenêtre (Qt.WindowShortcut) donc jamais capté par un onglet. À l'ouverture : le champ est vidé, les résultats sont vidés, l'index sélectionné remis à 0, puis le focus est forcé sur le champ. Animation d'entrée : opacité 0→1 et échelle 0.96→1.0 en 150 ms. Voile modal semi-transparent (Theme.colorOverlay) avec fondu. Fermeture par Échap ou clic en dehors.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:549-553",
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:25-71"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Ctrl+K n'existe pas sur téléphone : l'entrée devient une icône loupe permanente en en-tête. La palette doit occuper tout l'écran en plein écran modal plutôt qu'une boîte de 640 px, et le clavier virtuel réduit la hauteur disponible de moitié — prévoir un défilement des résultats sous le champ."
+    },
+    {
+      "id": "recherche-unifiee-execution",
+      "title": "Recherche en 3 sections avec anti-rebond de 200 ms",
+      "userAction": "L'utilisateur tape sa requête ; après 200 ms sans frappe, les résultats s'affichent groupés en trois sections : 🥕 Ingrédients, 🍽 Recettes, 📅 Calendrier · semaine courante.",
+      "behaviourDetails": "Anti-rebond de 200 ms redémarré à chaque frappe. La requête est trimée ; si elle est vide, les résultats sont vidés sans requête. Trois appels séquentiels, 12 résultats maximum chacun : ingrédients via recherche plein texte FTS5 limitée au périmètre « personal » (la bibliothèque personnelle, jamais le catalogue CIQUAL/OFF brut) ; recettes par sous-chaîne insensible à la casse (casefold, donc Œ/œ correctement gérés) sur le nom, en chargeant TOUTES les recettes puis en filtrant en Python ; calendrier en parcourant les entrées déjà chargées de la semaine courante uniquement (aucune requête, aucun accès aux autres semaines). Une section n'est affichée que si elle a au moins un résultat. Les en-têtes de section font 28 px, les items 44 px.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:83-95",
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:219-291",
+        "app/ui/viewmodels/ingredient_vm.py:602-610",
+        "app/ui/viewmodels/recipe_vm.py:170-186",
+        "app/ui/viewmodels/calendar_vm.py:183-208"
+      ],
+      "dataOps": [
+        "SELECT via ingredient_fts (scope=personal, limit 12)",
+        "SELECT * FROM recipe (liste complète puis filtre en mémoire)",
+        "lecture du modèle en mémoire des entrées de la semaine courante"
+      ],
+      "proposedApi": [
+        "GET /api/search?q=&limit=12"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.searchOnce",
+        "RecipeListViewModel.searchOnce",
+        "CalendarViewModel.searchOnce"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Sur mobile, 3 requêtes séparées = 3 allers-retours réseau : les fusionner en un seul endpoint qui renvoie les trois sections. L'anti-rebond devrait passer à ~300 ms sur réseau mobile.",
+      "blockers": "La recherche de recettes charge toute la table puis filtre en mémoire — inacceptable au-delà de quelques centaines de recettes, à remplacer par un LIKE/FTS côté SQL. La recherche calendrier ne couvre que la semaine affichée, ce qui est une limitation à assumer ou à corriger côté serveur."
+    },
+    {
+      "id": "recherche-unifiee-libelles-resultats",
+      "title": "Libellés et sous-libellés des résultats de recherche",
+      "userAction": "L'utilisateur lit chaque résultat : une icône, le nom en gras, une ligne d'information secondaire, et une flèche ↩ sur la ligne sélectionnée.",
+      "behaviourDetails": "Ingrédient : icône 🥕, sous-libellé = source traduite (« CIQUAL » / « OpenFoodFacts » / « perso ») suivie, si l'ingrédient est de saison, de « · 🌱 de saison ». Recette : icône 🍽, sous-libellé = « N portion(s) · M ingrédient(s) » avec pluriels gérés. Entrée calendrier : icône 📅, libellé = la description telle qu'affichée dans la grille, sous-libellé = jour en toutes lettres (Lundi…Dimanche) + créneau traduit (matin / 10 h / midi / 16 h / soir). Les libellés trop longs sont tronqués avec des points de suspension à droite.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:135-173",
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:231-280"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Deux lignes de texte par résultat sur 44 px de haut : passer à ~56 px minimum pour respecter la cible tactile de 44 pt."
+    },
+    {
+      "id": "recherche-unifiee-navigation-clavier",
+      "title": "Navigation clavier dans les résultats",
+      "userAction": "L'utilisateur presse ↑ / ↓ pour se déplacer dans la liste, Entrée pour ouvrir le résultat sélectionné, Échap pour fermer.",
+      "behaviourDetails": "Les trois sections sont aplaties en une seule liste avec les en-têtes intercalés. **Défaut connu** : ↑/↓ bornent l'index entre 0 et longueur-1 mais ne sautent pas les en-têtes de section — on peut donc sélectionner un en-tête, auquel cas Entrée ne fait rien. Après chaque recherche, le curseur est placé automatiquement sur le premier item non-en-tête. La ligne sélectionnée est peinte en couleur primaire à 12 % d'opacité et affiche « ↩ » à droite. Un pied de page rappelle en permanence : « ↑ / ↓ pour naviguer · Entrée pour ouvrir · Esc pour fermer ».",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:84-87",
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:282-299",
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:206-214"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Sans intérêt sur téléphone (tap direct), mais indispensable à conserver sur la version bureau du web. Corriger au passage le saut des en-têtes."
+    },
+    {
+      "id": "recherche-unifiee-activation",
+      "title": "Activation d'un résultat (routage vers le bon onglet)",
+      "userAction": "L'utilisateur valide un résultat (Entrée ou clic) ; la palette se ferme et l'app bascule sur l'onglet correspondant, l'élément déjà chargé.",
+      "behaviourDetails": "Routage exact : ingrédient → onglet Ingrédients (index 0) — **mais l'ingrédient n'est PAS pré-sélectionné**, seul l'onglet change (l'id du payload n'est pas exploité) ; recette → onglet Recettes (index 1) + `recipeEditorVM.loadById(id)` si id > 0 ; entrée de repas → onglet Calendrier (index 2) + `calendarVM.setIsoWeek(isoWeek)` si la semaine est fournie (le jour et le créneau du payload ne sont pas utilisés pour surligner la case). Le clic souris positionne d'abord l'index sélectionné puis active. Les en-têtes de section ne sont pas cliquables (survol et curseur main désactivés).",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:496-507",
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:175-185",
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:293-299"
+      ],
+      "dataOps": [
+        "SELECT recipe + recipe_ingredient WHERE recipe.id = ?",
+        "SELECT meal_plan_entry WHERE iso_week = ?"
+      ],
+      "proposedApi": [
+        "GET /api/recipes/{id}",
+        "GET /api/calendar/{isoWeek}"
+      ],
+      "vmMethods": [
+        "RecipeEditorViewModel.loadById",
+        "CalendarViewModel.setIsoWeek"
+      ],
+      "priority": "core",
+      "complexity": "S",
+      "mobileNotes": "Chaque type devient une URL : /ingredients/{id}, /recipes/{id}, /calendar/{isoWeek}?day=&slot=. Au passage, corriger les deux régressions : pré-sélectionner l'ingrédient et surligner la case de repas."
+    },
+    {
+      "id": "recherche-unifiee-etats-vides",
+      "title": "États vides de la recherche unifiée",
+      "userAction": "À l'ouverture, l'utilisateur lit une invitation ; s'il tape une requête sans résultat, il lit « Aucun résultat. »",
+      "behaviourDetails": "Deux messages distincts, selon que le champ est vide ou non : champ vide → « Tape pour chercher dans tout — Ctrl+K depuis n'importe quel onglet. » ; champ rempli sans résultat → « Aucun résultat. ». Zone de 80 px de haut, texte en couleur désactivée, centré.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/UnifiedSearchDialog.qml:189-202"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Le message d'accueil mentionne Ctrl+K, à reformuler sur mobile."
+    },
+    {
+      "id": "dialog-raccourcis-clavier",
+      "title": "Fenêtre de référence des raccourcis clavier",
+      "userAction": "L'utilisateur tape Ctrl+/ ou passe par Aide → « Raccourcis clavier » ; une fenêtre détachable de 540×580 s'ouvre, centrée sur la fenêtre principale, listant les raccourcis groupés par catégorie avec des touches stylisées.",
+      "behaviourDetails": "Vraie fenêtre système (non modale, détachable, déplaçable hors de l'app), taille minimale 420×400, défilement vertical. Contenu **statique et codé en dur** dans le QML — il doit être tenu synchrone à la main avec les vrais raccourcis. 5 catégories : Navigation (Ctrl+1..5, Ctrl+K, Ctrl+/, Échap), Actions globales (Ctrl+N, Ctrl+S, Suppr, Ctrl+F), Calendrier (Ctrl+←, Ctrl+→, Ctrl+T), Affichage (Ctrl+Shift+D), Diagnostic (Menu Aide → dossier de logs, variable d'environnement LIVRE_DEBUG=1). Chaque raccourci est présenté dans une pastille de 130×24 px en police à chasse fixe. Un texte d'introduction explique que les raccourcis sont contextuels (Ctrl+N crée un ingrédient sur l'onglet Ingrédients, une recette sur l'onglet Recettes). **Incohérence réelle du code** : Ctrl+F n'existe QUE sur la page Ingrédients, pas sur Recettes ni ailleurs, alors que la liste le présente comme global.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ShortcutsDialog.qml:14-166",
+        "app/ui/qml/pages/IngredientsPage.qml:1044-1068",
+        "app/ui/qml/pages/RecipesPage.qml:930-947",
+        "app/ui/qml/pages/CalendarPage.qml:617-633"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Une page d'aide de raccourcis clavier n'a aucun sens sur téléphone : la masquer sous mobile, ou la remplacer par une page d'aide gestuelle (glisser pour supprimer, appui long pour le menu, etc.).",
+      "blockers": "Fenêtre système détachable ; sur le web ce sera une modale ou une route /aide/raccourcis."
+    },
+    {
+      "id": "backup-automatique-au-demarrage",
+      "title": "Sauvegarde automatique de la base à chaque lancement",
+      "userAction": "L'utilisateur ne fait rien : à chaque démarrage, une copie horodatée de la base est créée silencieusement avant même l'ouverture de la connexion.",
+      "behaviourDetails": "Fichier créé sous `~/.livre-de-recettes/backups/db-AAAA-MM-JJ_HHMMSS.db` (surchargeable par la variable LIVRE_BACKUP_DIR ; dossier volontairement hors de l'arborescence du projet pour survivre à un déplacement/suppression). Utilise l'API de sauvegarde en ligne de SQLite (pas une copie brute de fichier) afin de gérer proprement le WAL et d'obtenir un instantané cohérent même avec des écrivains ouverts. **Sans effet au tout premier lancement** (base inexistante). Toute erreur est journalisée et avalée : une sauvegarde ratée ne doit jamais empêcher l'app de démarrer.",
+      "sourceRefs": [
+        "app/main.py:67",
+        "app/data/db.py:58-92"
+      ],
+      "dataOps": [
+        "copie intégrale du fichier SQLite via sqlite3.Connection.backup"
+      ],
+      "proposedApi": [
+        "POST /api/backups"
+      ],
+      "vmMethods": [],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Notion sans équivalent direct sur une base hébergée : à remplacer par des instantanés côté serveur (export journalier planifié) ou par l'export d'un fichier téléchargeable. Le déclencheur « à chaque lancement du client » n'a plus de sens quand plusieurs clients se connectent.",
+      "blockers": "Dépend de sqlite3 local et d'un chemin de fichier ; sur D1 il faut une stratégie d'export/snapshot entièrement différente."
+    },
+    {
+      "id": "backup-rotation-retention",
+      "title": "Rotation des sauvegardes (7 jours + 6 mois)",
+      "userAction": "L'utilisateur ne fait rien ; le nombre de fichiers de sauvegarde reste borné automatiquement.",
+      "behaviourDetails": "Politique de rétention exacte : on garde TOUTES les sauvegardes de moins de 7 jours ; entre 8 et 180 jours, on ne garde QUE la plus récente de chaque mois calendaire ; au-delà de 180 jours, tout est supprimé. Résultat : ~13 fichiers maximum (7 quotidiens + ~6 mensuels). Les fichiers `db-*.db` dont l'horodatage ne se décode pas sont laissés intacts (pour ne pas perdre un fichier renommé par l'utilisateur). Le nombre de fichiers supprimés est journalisé. Une suppression qui échoue est journalisée en avertissement sans interrompre la rotation.",
+      "sourceRefs": [
+        "app/data/db.py:94-137"
+      ],
+      "dataOps": [
+        "suppression de fichiers dans le dossier de sauvegardes"
+      ],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Sans objet côté client ; à porter comme tâche planifiée serveur si on garde des instantanés."
+    },
+    {
+      "id": "backup-liste-sauvegardes",
+      "title": "Liste des sauvegardes disponibles",
+      "userAction": "L'utilisateur ouvre Fichier → « Restaurer une sauvegarde… » ; une fenêtre de 580×480 liste les sauvegardes, la plus récente en haut, avec la date en clair, le nom de fichier et la taille.",
+      "behaviourDetails": "Fenêtre système détachable, non modale, taille minimale 480×360. Le chemin du dossier de sauvegardes est affiché en sous-titre, tronqué au milieu s'il est trop long. Chaque ligne fait 56 px : première ligne = date au format « JJ/MM/AAAA à HHhMM », deuxième ligne = « nom_du_fichier · taille ». Formatage de taille : « N o » sous 1 Ko, « N,N Ko » sous 1 Mo, sinon « N,N Mo ». Tri décroissant par horodatage. Les fichiers dont le nom ne correspond pas au motif `db-<horodatage>.db` sont ignorés. Aucune sélection par défaut (index -1), donc le bouton « Restaurer la sélection » est grisé à l'ouverture.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/RestoreBackupDialog.qml:15-121",
+        "app/ui/viewmodels/backup_vm.py:40-85",
+        "app/data/db.py:140-163"
+      ],
+      "dataOps": [
+        "lecture du répertoire de sauvegardes + stat de chaque fichier"
+      ],
+      "proposedApi": [
+        "GET /api/backups"
+      ],
+      "vmMethods": [
+        "BackupViewModel.listBackups",
+        "BackupViewModel.backupDirectory"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Liste simple qui se porte bien en mobile ; supprimer l'affichage du chemin de dossier local (inutile) et remplacer le double-clic par un simple appui."
+    },
+    {
+      "id": "backup-restauration",
+      "title": "Restauration d'une sauvegarde (avec sauvegarde de sécurité)",
+      "userAction": "L'utilisateur sélectionne une sauvegarde puis clique « Restaurer la sélection » (ou double-clique la ligne) ; une confirmation apparaît, il valide, et un bandeau vert lui indique de relancer l'application.",
+      "behaviourDetails": "Confirmation modale de 480 px de large, boutons OK / Annuler, texte : « Restaurer la sauvegarde du <date en gras> ? » plus une explication rassurante : « L'état actuel sera lui-même sauvegardé avant l'écrasement, donc cette opération est réversible. Tu devras relancer l'application après la restauration. » À la validation : une sauvegarde de sécurité `db-pre-restore-<horodatage>.db` est prise de la base courante, puis le fichier de sauvegarde écrase la base en place (copie avec métadonnées). Le chemin de la sauvegarde de sécurité arrive par le signal `restored` et est affiché dans le bandeau vert : « ✓ Restauration effectuée. L'état précédent a été sauvegardé dans : <chemin> — Ferme et relance l'application pour appliquer la restauration. » **L'application ne se relance pas et ne se ferme pas toute seule** ; le moteur SQLAlchemy en cours pointe alors vers un fichier remplacé. Après un succès, le bouton « Restaurer la sélection » est grisé définitivement pour la session du dialogue.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/RestoreBackupDialog.qml:149-250",
+        "app/ui/viewmodels/backup_vm.py:57-71",
+        "app/data/db.py:166-186"
+      ],
+      "dataOps": [
+        "copie de fichier sur la base vive",
+        "sauvegarde SQLite de la base vive vers db-pre-restore-*.db"
+      ],
+      "proposedApi": [
+        "POST /api/backups/{backupId}/restore"
+      ],
+      "vmMethods": [
+        "BackupViewModel.restoreFromPath",
+        "BackupViewModel.restored (signal)"
+      ],
+      "priority": "important",
+      "complexity": "L",
+      "mobileNotes": "« Relance l'application » n'existe pas en PWA : une restauration serveur doit invalider les caches clients et recharger la page. Prévoir aussi un verrouillage : si deux appareils sont connectés, une restauration doit avertir/déconnecter l'autre.",
+      "blockers": "Écrasement d'un fichier de base sur disque pendant que le moteur est ouvert ; modèle inapplicable tel quel à D1."
+    },
+    {
+      "id": "backup-gestion-erreurs",
+      "title": "Messages d'erreur de restauration",
+      "userAction": "Si la restauration échoue, l'utilisateur voit un bandeau rouge en bas de la fenêtre pendant 5 secondes.",
+      "behaviourDetails": "Deux cas distingués : fichier introuvable → « Sauvegarde introuvable : <détail> » ; toute autre exception → « Erreur lors de la restauration : <détail> », avec journalisation complète du traceback côté Python. Le toast est un rectangle rouge ancré en bas, centré, largeur adaptative bornée à la largeur de la fenêtre moins 2×32 px, auto-masqué après 5000 ms. En cas d'échec, le bandeau vert de succès n'apparaît pas et le bouton reste actif.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/RestoreBackupDialog.qml:253-284",
+        "app/ui/viewmodels/backup_vm.py:62-69"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [
+        "BackupViewModel.error_emitted (signal)"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Toast en bas d'écran : attention à ne pas le placer sous la barre de navigation iOS (respecter safe-area-inset-bottom)."
+    },
+    {
+      "id": "backup-ouvrir-dossier",
+      "title": "Bouton « Ouvrir le dossier » des sauvegardes",
+      "userAction": "L'utilisateur clique « Ouvrir le dossier » en bas à gauche de la fenêtre de restauration ; l'explorateur de fichiers s'ouvre sur le dossier de sauvegardes.",
+      "behaviourDetails": "Bouton de variante « ghost », grisé tant que le chemin du dossier est vide. Appelle Qt.openUrlExternally sur `file:///` + chemin avec antislashs convertis en slashs.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/RestoreBackupDialog.qml:177-182"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [
+        "BackupViewModel.backupDirectory"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Impossible en PWA. À remplacer par un bouton « Télécharger cette sauvegarde ».",
+      "blockers": "Ouverture d'un explorateur de fichiers local."
+    },
+    {
+      "id": "backup-etat-vide",
+      "title": "État vide de la liste de sauvegardes",
+      "userAction": "Si aucune sauvegarde n'existe (premier lancement), l'utilisateur lit un message centré à la place de la liste.",
+      "behaviourDetails": "Titre « Aucune sauvegarde » puis, sur 320 px de large, texte centré : « Les sauvegardes sont créées automatiquement à chaque lancement de l'application. Reviens ici après quelques sessions. »",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/RestoreBackupDialog.qml:123-145"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Le texte devra être réécrit : « à chaque lancement de l'application » ne décrit plus le mécanisme serveur."
+    },
+    {
+      "id": "tickets-dossier-surveille",
+      "title": "Surveillance du dossier de dépôt des tickets",
+      "userAction": "L'utilisateur télécharge un ticket PDF depuis le site de son enseigne dans le dossier « Tickets de caisse » ; l'app le détecte en moins d'une seconde et le badge de la barre de statut s'incrémente.",
+      "behaviourDetails": "Dossier par défaut `~/Downloads/Tickets de caisse/` (surchargeable par LIVRE_RECEIPT_DIR), créé automatiquement au démarrage de manière idempotente. Surveillance non récursive via watchdog (pas de scrutation périodique). Extensions acceptées : .pdf, .html, .htm — tout le reste est ignoré. Deux événements captés : création de fichier, ET renommage/déplacement (cas typique du téléchargement Chrome qui écrit un `.crdownload` puis renomme). Délai de stabilisation de 250 ms avant notification, pour laisser le fichier finir de s'écrire (sinon on parse un PDF incomplet). Sécurité explicite : on ne surveille jamais `~/Downloads` directement, uniquement le sous-dossier dédié. Le watcher est arrêté proprement à la fermeture de l'app (join avec timeout de 2 s).",
+      "sourceRefs": [
+        "app/services/receipt_watcher.py:32-185",
+        "app/main.py:71",
+        "app/main.py:115-118",
+        "app/main.py:150-152"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "POST /api/receipts/upload"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.onWatcherDetectedFile"
+      ],
+      "priority": "important",
+      "complexity": "L",
+      "mobileNotes": "Il n'y a pas de dossier de téléchargement surveillable en PWA. Le remplacement naturel : un bouton d'upload + l'API Web Share Target (le PDF reçu par mail peut être « partagé vers » l'app installée), ou l'appareil photo pour un ticket papier. C'est le point le plus impacté par le portage.",
+      "blockers": "watchdog, système de fichiers local, chemin utilisateur — totalement non portable."
+    },
+    {
+      "id": "tickets-scan-au-demarrage",
+      "title": "Rattrapage des tickets déposés app fermée",
+      "userAction": "L'utilisateur a déposé des tickets pendant que l'app était fermée ; au lancement suivant, le badge affiche déjà le bon nombre.",
+      "behaviourDetails": "Au démarrage, `rescanPending()` liste tous les fichiers du dossier filtrés sur les extensions valides, triés du plus ancien au plus récent (par date de modification). Le nombre est journalisé. La même méthode peut être rappelée si l'utilisateur déplace des fichiers manuellement. Le watcher, lui, ne détecte que les NOUVEAUX fichiers — d'où la nécessité de ce scan.",
+      "sourceRefs": [
+        "app/main.py:118",
+        "app/services/receipt_watcher.py:60-76",
+        "app/ui/viewmodels/receipt_import_vm.py:676-684"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "GET /api/receipts/pending"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.rescanPending"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Devient trivial côté serveur : une file d'attente persistée, listée à chaque ouverture de l'app."
+    },
+    {
+      "id": "tickets-choisir-fichier",
+      "title": "Sélection manuelle d'un fichier ticket",
+      "userAction": "Depuis l'onglet Frigo / Cellier, l'utilisateur clique « 📥 Importer un ticket (PDF) » ; la fenêtre d'import s'ouvre et le sélecteur de fichiers système s'ouvre automatiquement dans la foulée.",
+      "behaviourDetails": "Filtres du sélecteur : « Tickets PDF (*.pdf) » puis « Tous (*) », mode ouverture d'un seul fichier. Le dialogue est déclaré globalement dans la fenêtre principale et exposé par un alias pour être atteignable depuis n'importe quelle page. `openCentered()` remet le ViewModel à zéro, vide les lignes affichées, centre la fenêtre sur la fenêtre parente, l'affiche, la met au premier plan, puis ouvre le sélecteur via Qt.callLater. Deux boutons dans l'en-tête selon l'état : « 📥 Choisir un fichier… » (primaire, visible tant qu'aucun ticket n'est chargé) et « Changer de ticket » (ghost, visible une fois un ticket chargé). L'URL renvoyée par le sélecteur est nettoyée de ses préfixes `file:///` et `file://` côté Python.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:66-92",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:172-183",
+        "app/ui/qml/pages/PantryPage.qml:80-89",
+        "app/ui/viewmodels/receipt_import_vm.py:159-184"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "POST /api/receipts/parse (multipart)"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.loadFromPath",
+        "ReceiptImportViewModel.reset"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "`<input type=\"file\" accept=\"application/pdf\">` marche sur iOS et Android et donne accès à Fichiers / iCloud. Ajouter `capture` pour la photo d'un ticket papier serait une extension naturelle."
+    },
+    {
+      "id": "tickets-parsing-intermarche",
+      "title": "Analyse d'un ticket PDF Intermarché",
+      "userAction": "L'utilisateur choisit un PDF Intermarché ; le tableau se remplit avec une ligne par article, et l'en-tête affiche « Ticket intermarche · JJ/MM/AAAA HH:MM ».",
+      "behaviourDetails": "Détection de l'enseigne : lecture des 500 premiers caractères de la première page en majuscules, recherche de « INTERMARCH » ou « FONTAINE-LES-DIJON ». Extraction du texte natif par pdfplumber (pas d'OCR — un PDF scanné échoue). Motif de ligne d'article : `<NOM 2-40 car.> <prix avec virgule> EUR <code TVA une lettre majuscule>` en fin de ligne. La date vient du pied de page au format `HH:MM:SS J/M/AAAA`. L'identifiant du ticket est la suite de 18 à 24 chiffres seule sur sa ligne (le code-barres). Le total vient de « MONTANT DU <prix> EUR » (insensible à la casse). Chaque ligne est créée avec quantité = 1 (vrai sur l'échantillon de référence), prix unitaire = prix total = le prix lu. La clé de magasin (`store_key`) utilisée pour les alias est le nom normalisé : espaces compactés + casefold. Si aucune ligne n'est trouvée, une erreur explicite est levée avec les 300 premiers caractères extraits pour le diagnostic. Limitations documentées et non couvertes : multi-quantité, vrac au poids, promotions/remises.",
+      "sourceRefs": [
+        "app/services/receipt_parser/__init__.py:29-66",
+        "app/services/receipt_parser/intermarche_parser.py:54-155"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "POST /api/receipts/parse"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.loadFromPath"
+      ],
+      "priority": "core",
+      "complexity": "L",
+      "mobileNotes": "Le parsing doit rester côté serveur (Worker) — pdfplumber est du Python. Sur Cloudflare il faudra soit un service Python séparé, soit réécrire l'extraction en JS (pdf.js) avec les mêmes expressions régulières.",
+      "blockers": "pdfplumber (dépendance Python native) ; à réimplémenter ou à isoler dans un service dédié."
+    },
+    {
+      "id": "tickets-formats-non-supportes",
+      "title": "Messages d'erreur sur format de ticket non reconnu",
+      "userAction": "L'utilisateur choisit un fichier qui n'est pas un ticket Intermarché ; un bandeau rouge explique précisément pourquoi.",
+      "behaviourDetails": "Trois messages distincts. Carrefour détecté → « Carrefour n'est pas encore supporté (Phase 3 du plan). » (le parser n'existe pas). PDF ni Intermarché ni Carrefour → « PDF non reconnu : ni Intermarché ni Carrefour. En-tête extrait : <120 premiers caractères> ». Extension autre que .pdf → « Extension non supportée : <ext>. Formats acceptés : .pdf » — noter que le watcher accepte .html/.htm mais que le parser les refuse, incohérence réelle du code. Toute autre exception de parsing → « Erreur de parsing : <détail> » avec traceback journalisé. Tous ces messages passent par le signal `error_emitted` et s'affichent dans le toast rouge du dialogue pendant 5 s.",
+      "sourceRefs": [
+        "app/services/receipt_parser/__init__.py:52-66",
+        "app/ui/viewmodels/receipt_import_vm.py:168-177",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:1196-1220"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [
+        "ReceiptImportViewModel.error_emitted (signal)"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Messages à conserver tels quels — ils sont bons. Corriger l'incohérence .html au passage."
+    },
+    {
+      "id": "tickets-matching-3-niveaux",
+      "title": "Rapprochement automatique des lignes avec les ingrédients",
+      "userAction": "L'utilisateur n'agit pas : à l'ouverture du ticket, chaque ligne affiche soit un ingrédient déjà associé (avec une coche verte), soit un nombre de suggestions, soit « à créer ».",
+      "behaviourDetails": "Cascade en 4 niveaux, du plus déterministe au plus permissif. (1) Pour Lidl uniquement : recherche d'un ingrédient de source LIDL avec `source_ref` = l'identifiant d'article — si trouvé, association immédiate, score 1.0, origine « source_ref », badge « ID ». (2) Alias appris : si le couple (enseigne, clé de magasin) existe dans `receipt_alias`, association immédiate, score 1.0, origine « alias », badge « appris ». (3) Rapprochement approximatif par rapidfuzz avec le scoreur `token_set_ratio` et normalisation `casefold` des deux côtés, contre les noms de la bibliothèque personnelle chargée en une seule requête. Seuil de suggestion : 70/100 ; on garde les 3 meilleurs au-dessus du seuil. Seuil de pré-cochage automatique : 90/100 — au-dessus, le meilleur candidat est directement associé (l'utilisateur peut le changer) ; entre 70 et 90, on suggère sans associer. Badge affiché : pourcentage arrondi, vert si ≥ 90 %, ambre sinon. (4) Sinon origine « none », badge rouge « à créer ». Par défaut chaque ligne est marquée « à mettre au frigo » si elle est jugée alimentaire.",
+      "sourceRefs": [
+        "app/services/receipt_matcher.py:44-177",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:583-613"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE in_personal_library = 1 (une seule requête)",
+        "SELECT ingredient WHERE source = 'lidl' AND source_ref = ?",
+        "SELECT receipt_alias WHERE store = ? AND source_key = ?"
+      ],
+      "proposedApi": [
+        "POST /api/receipts/parse (renvoie les lignes déjà rapprochées)"
+      ],
+      "vmMethods": [
+        "match_receipt",
+        "ReceiptImportViewModel.linesAsList"
+      ],
+      "priority": "core",
+      "complexity": "L",
+      "mobileNotes": "Rien à changer sur le fond, mais l'affichage du badge de score dans une cellule de tableau ne tiendra pas : sur mobile, chaque ligne devient une carte empilée avec le badge en coin.",
+      "blockers": "rapidfuzz est une bibliothèque Python native ; sur Workers il faut un équivalent JS (fuse.js, ou une implémentation de token_set_ratio) — les scores ne seront pas identiques, donc les seuils 70/90 seront à recalibrer."
+    },
+    {
+      "id": "tickets-anti-doublon",
+      "title": "Détection de ticket déjà importé et import forcé",
+      "userAction": "L'utilisateur ouvre un ticket déjà importé ; un bandeau ambre l'avertit et il doit cocher « Forcer » pour pouvoir quand même enregistrer.",
+      "behaviourDetails": "Le rapprochement marque le ticket comme doublon si son identifiant existe déjà dans la table `imported_receipt`. Bandeau ambre (couleur d'avertissement à 15 % d'opacité, bordure pleine), hauteur d'au moins 36 px : « ⚠️ Ce ticket a déjà été importé. Active 'Forcer' pour ré-importer (crée des doublons d'historique de prix). » avec une case à cocher « Forcer » à droite. Sans cocher, un clic sur « Tout enregistrer » échoue avec le message « Ticket déjà importé. Active 'Forcer' pour ré-importer. » et rien n'est écrit. Le drapeau force est remis à faux à chaque nouveau chargement de ticket. Quand on force, le ticket n'est PAS ré-ajouté dans `imported_receipt` (l'insertion est conditionnée à `not is_duplicate`), donc l'historique de prix se duplique mais pas la trace d'import. Un ticket sans identifiant n'est jamais considéré comme doublon et n'est jamais enregistré comme importé.",
+      "sourceRefs": [
+        "app/services/receipt_matcher.py:89-92",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:186-225",
+        "app/ui/viewmodels/receipt_import_vm.py:387-393",
+        "app/ui/viewmodels/receipt_import_vm.py:537-540",
+        "app/ui/viewmodels/receipt_import_vm.py:611-619"
+      ],
+      "dataOps": [
+        "SELECT imported_receipt WHERE ticket_id = ?",
+        "INSERT INTO imported_receipt"
+      ],
+      "proposedApi": [
+        "POST /api/receipts/{id}/commit?force=true"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.isDuplicate",
+        "ReceiptImportViewModel.setForceImport",
+        "ReceiptImportViewModel.forceImport"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Le bandeau + case à cocher fonctionne bien en mobile. Prévoir un enchaînement clair : le bouton d'enregistrement devrait afficher « Forcer l'enregistrement » plutôt que d'échouer silencieusement."
+    },
+    {
+      "id": "tickets-filtre-non-alimentaires",
+      "title": "Filtre « Masquer les non-alimentaires (TVA B) »",
+      "userAction": "L'utilisateur voit une case cochée par défaut « Masquer les non-alimentaires (TVA B) » ; en la décochant, les lignes non-alimentaires réapparaissent dans le tableau.",
+      "behaviourDetails": "Coché par défaut (`hideNonFood: true`). Heuristique : une ligne est jugée alimentaire si son code TVA est « A » (taux réduit 5,5 % en France) OU vide ; tout autre code (B = 20 %, C = 10 %) est jugé non alimentaire. Les lignes masquées le sont par une hauteur de 0 dans le délégué (elles restent dans le modèle). Les lignes non alimentaires affichées portent la mention « TVA <code> · non-alim. » en couleur d'avertissement sous leur nom. Cette même heuristique fixe la valeur par défaut de « mettre au frigo » sur chaque ligne.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:37",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:233-237",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:334-335",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:380-388",
+        "app/domain/receipt.py:58-64"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Case à cocher classique, se porte directement. Sur mobile, la placer dans un bandeau de filtres repliable au-dessus de la liste de cartes."
+    },
+    {
+      "id": "tickets-compteur-lignes-mappees",
+      "title": "Compteur « N / M lignes mappées »",
+      "userAction": "L'utilisateur suit sa progression : en haut à droite du tableau, un compteur indique combien de lignes visibles ont déjà un ingrédient associé.",
+      "behaviourDetails": "Recalculé à chaque changement. Ne compte QUE les lignes actuellement visibles : si le filtre non-alimentaires est actif, les lignes TVA B ne sont comptées ni au numérateur ni au dénominateur. Une ligne est « mappée » si son id d'ingrédient choisi est > 0. Pluriels gérés séparément pour « ligne(s) » et « mappée(s) ».",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:239-256"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Excellente affordance à conserver ; sur mobile, en faire une barre de progression collante en haut de l'écran."
+    },
+    {
+      "id": "tickets-edition-quantite",
+      "title": "Édition de la quantité réelle d'une ligne (en grammes)",
+      "userAction": "Pour chaque ligne, l'utilisateur saisit la quantité réellement achetée avec une unité au choix (g / kg / mL / L / pièce) ; c'est ce chiffre qui pilotera le prix au kilo et la quantité mise au frigo.",
+      "behaviourDetails": "Colonne QTÉ de 250 px contenant un QuantityField (champ numérique + liste d'unités), sans décimales. Le champ est conscient des pièces : si l'ingrédient associé a un poids unitaire renseigné, une entrée « pièce (Xg) » apparaît en tête de la liste d'unités (le poids est lu à la volée via `getAsDict(chosenId)`). Le stockage reste toujours en grammes quelle que soit l'unité affichée ; changer d'unité conserve la masse (1000 g → kg affiche 1,0). Valeur minimale forcée à 0 côté Python. **Modifier la quantité ne touche jamais au prix** — décision explicite : un ticket donne le prix payé, préciser « 250 g » au lieu de « 1 unité » n'invalide pas ce prix. Une écriture identique à ±1e-6 près est ignorée (pas de signal inutile).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:396-413",
+        "app/ui/viewmodels/receipt_import_vm.py:262-278"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE id = ? (pour le poids unitaire)"
+      ],
+      "proposedApi": [
+        "PATCH /api/receipts/{id}/lines/{index}"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.setLineQuantityG"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Champ numérique + liste déroulante côte à côte dans une cellule de 250 px : impossible sur téléphone. Passer à un champ pleine largeur avec des puces d'unités en dessous, et un clavier numérique (`inputmode=\"decimal\"`)."
+    },
+    {
+      "id": "tickets-edition-prix",
+      "title": "Correction manuelle du prix d'une ligne",
+      "userAction": "L'utilisateur corrige le prix total d'une ligne (promotion mal lue, erreur d'extraction) en tapant directement dans la cellule PRIX, aligné à droite.",
+      "behaviourDetails": "Colonne de 100 px, alignement à droite, indication « 0,00 », clavier numérique formaté. Affichage formaté selon la locale à 2 décimales. Le ViewModel n'est appelé que si le texte diffère réellement de la valeur affichée précédemment. Nettoyage à la saisie : espaces retirés, virgule convertie en point, symbole € retiré. Validations : chaîne vide → ignorée silencieusement ; valeur non décodable → message « Prix invalide : « <saisie> » » ; valeur ≤ 0 → message « Le prix doit être strictement positif. ». En cas de succès : le prix total est écrasé, le prix unitaire est recalculé (total ÷ quantité, quantité ramenée à 1 si elle est nulle ou négative), et le drapeau `user_price_override` est posé pour qu'un futur changement de quantité ne réécrase pas ce prix corrigé.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:419-444",
+        "app/ui/viewmodels/receipt_import_vm.py:280-305",
+        "app/domain/receipt.py:130-133"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "PATCH /api/receipts/{id}/lines/{index}"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.setLineTotalPrice"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Le format monétaire localisé doit être conservé (virgule décimale en français). Utiliser `inputmode=\"decimal\"` et accepter la virgule comme séparateur."
+    },
+    {
+      "id": "tickets-date-limite-consommation",
+      "title": "Saisie de la DLC d'une ligne",
+      "userAction": "L'utilisateur tape une date au format JJ/MM/AAAA dans la colonne DLC, ou clique le bouton 📅 pour choisir dans un calendrier.",
+      "behaviourDetails": "Colonne de 140 px : champ texte (indication « JJ/MM/AAAA ») + bouton 📅 de 32×32 px, infobulle « Ouvrir le calendrier ». Saisie manuelle tolérante : l'expression régulière accepte les séparateurs `/`, `-` et `.`, et les jours/mois sur 1 ou 2 chiffres (complétés par un zéro). Une saisie vide efface la date. Une saisie non conforme est **silencieusement ignorée** (le champ garde le texte tapé mais rien n'est enregistré — piège pour l'utilisateur). Côté Python, la conversion en date ajoute « T00:00:00 » ; une date ISO invalide est journalisée en avertissement et remet la date à vide. Un unique sélecteur de date est partagé par toutes les lignes : il mémorise l'indice de ligne cible avant de s'ouvrir.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:56-64",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:446-490",
+        "app/ui/viewmodels/receipt_import_vm.py:372-385"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "PATCH /api/receipts/{id}/lines/{index}"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.setLineExpiry"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "`<input type=\"date\">` natif est bien meilleur sur mobile (sélecteur système). Corriger au passage l'échec silencieux : afficher une erreur de champ quand le format est refusé."
+    },
+    {
+      "id": "tickets-code-barres-lookup",
+      "title": "Saisie d'un code-barres et recherche OpenFoodFacts sur une ligne",
+      "userAction": "L'utilisateur tape ou scanne un code EAN dans la colonne CODE-BARRES puis clique 🔍 ; l'app cherche le produit et l'associe automatiquement à la ligne.",
+      "behaviourDetails": "Colonne de 150 px : champ (clavier chiffres, indication « EAN… ») + bouton 🔍 de 36×32 px, infobulle « Lookup OFF + assigner », **activé seulement à partir de 8 caractères**. Le clic force d'abord l'enregistrement du code saisi puis lance la recherche. Séquence côté Python : validation (au moins 8 chiffres, uniquement des chiffres — sinon « EAN invalide (au moins 8 chiffres requis). ») ; recherche en base d'abord par source OpenFoodFacts puis par source Lidl — si trouvé, l'ingrédient est basculé dans la bibliothèque personnelle et associé, sans appel réseau ; sinon appel OpenFoodFacts par code-barres. Trois messages d'échec possibles : « Erreur OFF : <détail> » (exception réseau), « Aucun produit OpenFoodFacts pour l'EAN <ean>. » (pas de résultat). En cas de succès, l'ingrédient est créé en base avec bibliothèque personnelle = vrai et associé à la ligne. Un lecteur code-barres USB se comporte comme un clavier, aucun code spécifique n'est nécessaire.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:492-529",
+        "app/ui/viewmodels/receipt_import_vm.py:307-370"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE source='openfoodfacts' AND source_ref = ?",
+        "SELECT ingredient WHERE source='lidl' AND source_ref = ?",
+        "UPDATE ingredient SET in_personal_library = 1",
+        "INSERT INTO ingredient"
+      ],
+      "proposedApi": [
+        "POST /api/receipts/{id}/lines/{index}/barcode-lookup",
+        "GET /api/openfoodfacts/barcode/{ean}"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.setLineBarcode",
+        "ReceiptImportViewModel.lookupBarcodeAndAssign"
+      ],
+      "priority": "important",
+      "complexity": "L",
+      "mobileNotes": "C'est LE cas d'usage qui justifie le portage mobile : remplacer la saisie manuelle par un scan caméra (BarcodeDetector API ou une bibliothèque type zxing-wasm). Le bouton 🔍 devient un bouton « Scanner »."
+    },
+    {
+      "id": "tickets-picker-ingredient-suggestions",
+      "title": "Choix de l'ingrédient d'une ligne — suggestions du rapprochement",
+      "userAction": "L'utilisateur clique la cellule INGRÉDIENT d'une ligne ; une fenêtre modale « Choisir l'ingrédient » s'ouvre, titrée avec le nom brut du ticket, proposant en tête les 3 suggestions du rapprochement sous forme de boutons « → <nom> ».",
+      "behaviourDetails": "Toute la cellule est cliquable (survol → fond et bordure changent, curseur main). Le texte de la cellule varie selon l'état : ingrédient associé → « ✓ <nom> » en couleur primaire, graisse Medium, fond primaire à 12 % + bordure primaire, avec un ✎ à droite ; sinon « Cliquer · N suggestion(s) » en italique, ou « Cliquer pour choisir / créer… » si l'origine est « none », avec un ▾ à droite. La fenêtre fait 640×560 (640×640 en mode création), minimum 540×480, modale par rapport au dialogue d'import et `transientParent` explicitement défini (sans quoi, sous Windows, elle passe derrière la fenêtre principale). Cliquer une suggestion associe l'ingrédient et ferme immédiatement.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:536-634",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:705-805"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE id = ? (résolution des noms de suggestions)"
+      ],
+      "proposedApi": [
+        "PATCH /api/receipts/{id}/lines/{index} {ingredientId}"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.setLineChosenIngredient",
+        "IngredientViewModel.getAsDict"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Fenêtre modale imbriquée dans une autre fenêtre : à remplacer par une feuille montante plein écran (bottom sheet) ou une route dédiée. Les suggestions en boutons pleine largeur passent très bien en mobile."
+    },
+    {
+      "id": "tickets-picker-recherche-perimetre",
+      "title": "Recherche d'ingrédient dans le sélecteur (périmètre personnel ou catalogue)",
+      "userAction": "Dans la fenêtre de choix, l'utilisateur bascule entre « Ma bibliothèque » et « Tout (CIQUAL + OFF en cache) » puis tape sa recherche ; il clique un résultat pour l'associer.",
+      "behaviourDetails": "Deux boutons de bascule exclusifs de 28 px de haut, celui actif prend la variante « primary » et un préfixe « ✓ ». Périmètre par défaut : « personal ». Le libellé du champ de recherche change avec le périmètre (« Chercher dans ta bibliothèque… » / « Chercher dans CIQUAL + OFF (cache local)… »). Le composant IngredientSearch applique un anti-rebond de 200 ms et interroge la base en FTS5, sans appel réseau. **Règle métier importante** : quand l'utilisateur choisit un ingrédient depuis le périmètre « Tout », `importExisting(id)` est appelé automatiquement pour le basculer dans la bibliothèque personnelle — l'acte de choisir vaut décision de l'ajouter. La fenêtre se ferme aussitôt.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:807-847"
+      ],
+      "dataOps": [
+        "SELECT via ingredient_fts (scope personal ou all)",
+        "UPDATE ingredient SET in_personal_library = 1"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/search?q=&scope=personal|all",
+        "POST /api/ingredients/{id}/import"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.searchOnce",
+        "IngredientViewModel.importExisting",
+        "ReceiptImportViewModel.setLineChosenIngredient"
+      ],
+      "priority": "core",
+      "complexity": "M",
+      "mobileNotes": "Les deux boutons de bascule deviennent un segmented control. Le champ de recherche doit être focalisé automatiquement à l'ouverture de la feuille."
+    },
+    {
+      "id": "tickets-picker-recherche-off-en-ligne",
+      "title": "Recherche OpenFoodFacts en ligne depuis le sélecteur",
+      "userAction": "Si rien ne correspond en local, l'utilisateur clique « 🌐 Chercher OFF » ; une liste de résultats en ligne apparaît, et un clic sur l'un d'eux l'associe à la ligne.",
+      "behaviourDetails": "Le champ de mot-clé est **pré-rempli avec le nom brut du ticket**. Le bouton est désactivé si une recherche est en cours ou si le mot-clé fait moins de 2 caractères après trim ; son libellé passe à « ⏳ Recherche… » pendant l'appel. Recherche explicite (jamais à la frappe — OpenFoodFacts limite le débit), 10 résultats maximum. Seuls `id` et `name` sont poussés dans le modèle d'affichage, volontairement, pour éviter les avertissements QML sur les rôles absents ; un nom manquant devient « (sans nom) ». Message de résultat sous le champ : « Aucun résultat OFF pour « <mot-clé> » » ou « N résultat(s) — clique pour utiliser ». Liste de hauteur bornée à 120 px (32 px par ligne), chaque ligne portant un badge bleu « OFF ». Au clic : bascule dans la bibliothèque personnelle puis association, puis fermeture.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:849-961"
+      ],
+      "dataOps": [
+        "INSERT/UPDATE ingredient (mise en cache des résultats OFF)",
+        "UPDATE ingredient SET in_personal_library = 1"
+      ],
+      "proposedApi": [
+        "GET /api/openfoodfacts/search?q=&limit=10"
+      ],
+      "vmMethods": [
+        "IngredientViewModel.fetchOnlineAndList",
+        "IngredientViewModel.importExisting"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "L'appel est aujourd'hui synchrone (masqué par un Qt.callLater) : sur mobile, le rendre franchement asynchrone avec un état de chargement, et gérer le cas hors-ligne (bouton désactivé + explication)."
+    },
+    {
+      "id": "tickets-creation-ingredient-inline",
+      "title": "Création d'un ingrédient depuis une ligne de ticket",
+      "userAction": "Dans le sélecteur, l'utilisateur clique « + Créer un nouvel ingrédient depuis cette ligne » ; un mini-formulaire pré-rempli apparaît, il ajuste puis clique « ✓ Créer et utiliser ».",
+      "behaviourDetails": "Pré-remplissage automatique : nom = nom brut du ticket ; catégorie L1 = « Alimentaire » si la ligne est jugée alimentaire (TVA A) ou si l'enseigne est Lidl, sinon vide ; référence source = l'identifiant d'article Lidl si l'enseigne est Lidl, sinon vide ; poids unitaire et quantité de prix à 0. Champs du formulaire : Nom (obligatoire), Code-barres EAN optionnel avec bouton « 🔍 OFF » (actif dès 8 caractères) qui pré-remplit nom et catégories et affiche « ✓ Trouvé sur OpenFoodFacts : <nom> » en vert ou « Aucun produit OFF pour cet EAN. » en ambre, Catégorie L1 (indication « (auto si TVA A) ») et L2, Poids d'une pièce en g (0 à 5000, pas de 5, vide si zéro), Quantité du prix en g (0 à 50000, pas de 50, vide si zéro). Un texte d'astuce explique l'intérêt de renseigner la quantité du prix pour un suivi €/100 g précis. Le bouton de validation est actif seulement si le nom trimé fait plus d'un caractère. Règles de source à la création : Lidl → source LIDL avec la clé d'article (ou l'EAN saisi) ; autre enseigne avec EAN saisi → source OPENFOODFACTS ; autre enseigne sans EAN → source MANUAL sans référence. Pour toute enseigne autre que Lidl, un **alias est enregistré immédiatement** (enseigne + clé de magasin → nouvel ingrédient) pour que le prochain import matche directement. L'ingrédient est créé avec bibliothèque personnelle = vrai, associé à la ligne, et la liste d'ingrédients est rafraîchie. Bouton « ← Retour » pour revenir en mode choix.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:741-753",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:983-1189",
+        "app/ui/viewmodels/receipt_import_vm.py:395-519"
+      ],
+      "dataOps": [
+        "INSERT INTO ingredient",
+        "INSERT/UPDATE receipt_alias",
+        "SELECT via OpenFoodFacts (lookup EAN)"
+      ],
+      "proposedApi": [
+        "POST /api/ingredients",
+        "POST /api/receipts/{id}/lines/{index}/create-ingredient"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.suggestCreatePayload",
+        "ReceiptImportViewModel.createIngredientFromLine",
+        "IngredientViewModel.lookupBarcodeAsDict",
+        "IngredientViewModel.refreshList"
+      ],
+      "priority": "core",
+      "complexity": "L",
+      "mobileNotes": "Formulaire à 6 champs dont deux sur une même ligne : à empiler intégralement en mobile. Les champs numériques à incréments (0-5000 pas de 5) sont pénibles au doigt — préférer un champ libre avec clavier numérique."
+    },
+    {
+      "id": "tickets-supprimer-ligne",
+      "title": "Retirer une ligne de l'import",
+      "userAction": "L'utilisateur clique le bouton 🗑 rouge au bout d'une ligne ; la ligne disparaît définitivement du tableau et ne sera pas enregistrée.",
+      "behaviourDetails": "Bouton de 36×32 px, variante « danger », infobulle « Retirer cette ligne de l'import » après 400 ms. Aucune confirmation, aucune annulation possible. Côté Python, la ligne est retirée de la liste et le nom retiré est journalisé ; c'est le signal `receipt_loaded` (rechargement complet) qui est émis et non `line_changed`, car les indices des lignes suivantes se décalent. Remplace l'ancien interrupteur « Frigo » : depuis la refonte, tout va automatiquement au frigo, donc le seul geste utile est d'écarter une ligne.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:636-655",
+        "app/ui/viewmodels/receipt_import_vm.py:230-240"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "DELETE /api/receipts/{id}/lines/{index}"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.removeLine"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Le geste naturel sur mobile est le balayage latéral sur la carte, avec un toast « Annuler » (le composant UndoToast existe déjà et devrait être branché ici — il ne l'est pas aujourd'hui)."
+    },
+    {
+      "id": "tickets-commit-transactionnel",
+      "title": "Enregistrement de l'import (cascade de calcul de la quantité)",
+      "userAction": "L'utilisateur clique « 💾 Tout enregistrer » ; les prix sont ajoutés à l'historique, les produits au frigo, les correspondances mémorisées, et la fenêtre se ferme sur un message de succès.",
+      "behaviourDetails": "Une seule transaction. Pour chaque ligne : on saute celles sans ingrédient associé ; on saute aussi celles sans prix unitaire valide (nul ou ≤ 0) avec un avertissement journalisé. Cascade de détermination de la quantité en grammes, dans cet ordre exact : (0) la quantité saisie par l'utilisateur si elle est > 0 — la plus fiable car explicite ; (1) sinon `ingredient.price_quantity_g` si défini ; (2) sinon `ingredient.piece_weight_g` × quantité du ticket ; (3) sinon **1000 g par défaut** — valeur d'attente assumée, le €/100 g sera approximatif mais l'évolution relative dans le temps reste interprétable. Écritures : une entrée d'historique de prix (prix = prix unitaire × quantité du ticket, enseigne, date du ticket ou date du jour si absente, note « Import ticket — <nom brut> ») puis recalcul du prix de référence de l'ingrédient ; si la ligne est marquée pour le frigo, un stock avec la même quantité, la DLC et la note « Importé depuis ticket <enseigne> » ; pour toute enseigne autre que Lidl, un alias (enseigne, clé de magasin → ingrédient) est enregistré ou mis à jour — c'est le mécanisme d'apprentissage. Enfin, si le ticket a un identifiant et n'est pas un doublon, il est inscrit dans `imported_receipt` avec enseigne, date, total et nombre de lignes. Message de succès : « Import réussi : N prix enregistré(s) [+ M ajout(s) au frigo] [· fichier supprimé] ». La fenêtre se ferme via Qt.callLater après affichage du toast vert (3 s).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:695-699",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:122-132",
+        "app/ui/viewmodels/receipt_import_vm.py:521-658"
+      ],
+      "dataOps": [
+        "INSERT INTO price_history × N",
+        "recompute_current_price (UPDATE ingredient.current_price)",
+        "INSERT INTO pantry_stock × M",
+        "INSERT/UPDATE receipt_alias × N",
+        "INSERT INTO imported_receipt"
+      ],
+      "proposedApi": [
+        "POST /api/receipts/{id}/commit"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.commitImport",
+        "recompute_current_price",
+        "ReceiptAliasRepo.upsert",
+        "ImportedReceiptRepo.add"
+      ],
+      "priority": "core",
+      "complexity": "L",
+      "mobileNotes": "Le bouton d'enregistrement doit être collant en bas d'écran et afficher le nombre de lignes qui seront écrites. Prévoir un état de chargement : la transaction peut durer si le ticket a 40 lignes."
+    },
+    {
+      "id": "tickets-suppression-fichier-source",
+      "title": "Suppression du fichier après import réussi",
+      "userAction": "Après un import réussi, l'utilisateur constate que le PDF a disparu du dossier de dépôt (et le message le lui dit) — mais uniquement s'il venait de ce dossier.",
+      "behaviourDetails": "Règle de sécurité stricte : le fichier n'est supprimé QUE si son chemin résolu commence par le chemin résolu du dossier de tickets dédié. Un PDF importé depuis n'importe où ailleurs sur le disque (via le sélecteur de fichiers) est laissé intact. Le fichier est aussi retiré de la file d'attente et le badge se met à jour. Une erreur système lors de la suppression est journalisée en avertissement mais n'invalide pas le succès du commit. Le message de succès se termine alors par « · fichier supprimé ». Les tickets Lidl venant de l'API n'ont pas de fichier source, donc rien n'est supprimé.",
+      "sourceRefs": [
+        "app/ui/viewmodels/receipt_import_vm.py:622-652"
+      ],
+      "dataOps": [
+        "suppression du fichier ticket sur disque"
+      ],
+      "proposedApi": [
+        "DELETE /api/receipts/pending/{fileId}"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.commitImport"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Sans objet côté client web : c'est la file d'attente serveur qu'on purge après commit.",
+      "blockers": "Suppression de fichier sur disque local."
+    },
+    {
+      "id": "tickets-annuler-import",
+      "title": "Annuler l'import en cours",
+      "userAction": "L'utilisateur clique « Annuler » ; le tampon est vidé et la fenêtre se ferme sans rien écrire.",
+      "behaviourDetails": "`reset()` met le ticket rapproché à None, le chemin source à None, le drapeau force à faux, puis émet `receipt_loaded` pour que le QML repasse à l'état vide. Le fichier source n'est pas supprimé (il reste dans la file d'attente). Le même reset est appliqué à chaque `openCentered()`. Fermer la fenêtre par la croix ne réinitialise PAS le tampon — le ticket reste chargé et réapparaît si on rouvre par le badge.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:690-694",
+        "app/ui/viewmodels/receipt_import_vm.py:660-666"
+      ],
+      "dataOps": [],
+      "proposedApi": [
+        "DELETE /api/receipts/{id}/draft"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.reset"
+      ],
+      "priority": "important",
+      "complexity": "S",
+      "mobileNotes": "Sur mobile, un brouillon d'import à moitié corrigé mérite d'être persisté côté serveur : quitter l'app ne doit pas perdre 20 minutes de rapprochement manuel. C'est une amélioration à prévoir, pas un simple portage."
+    },
+    {
+      "id": "tickets-etats-vides-et-toasts",
+      "title": "États vides et retours visuels du dialogue d'import",
+      "userAction": "L'utilisateur voit un message adapté si le ticket ne contient aucune ligne, et des bandeaux colorés en bas d'écran pour les erreurs et les succès.",
+      "behaviourDetails": "Si un ticket est chargé mais que la liste est vide : « Aucune ligne d'article détectée. » sur 80 px, centré, en couleur désactivée. Toast d'erreur : rectangle rouge, opacité 0.95, ancré en bas centré à 24 px du bord, largeur bornée à la largeur de la fenêtre moins 80 px, retour à la ligne autorisé, disparition après 5000 ms. Toast de succès : rectangle vert, même position, texte en graisse Medium, disparition après 3000 ms. Les deux sont au premier plan (z = 10). L'en-tête affiche « N ligne(s) · Total : X € · ID <12 premiers caractères>… » quand ces informations sont disponibles.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:159-168",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:669-680",
+        "app/ui/qml/dialogs/ReceiptImportDialog.qml:1194-1245"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Positionner les toasts au-dessus de la barre d'action collante et respecter la zone sûre du bas sur iOS."
+    },
+    {
+      "id": "tickets-import-lidl-json",
+      "title": "Import d'un ticket depuis le JSON de l'API Lidl",
+      "userAction": "L'utilisateur clique le badge Lidl ; le ticket récupéré par l'API est converti et affiché dans le même tableau d'import, sans fichier.",
+      "behaviourDetails": "Conversion par un adaptateur pur (aucune dépendance à la bibliothèque, aucun accès base) tolérant aux champs manquants. Correspondances : `taxGroup` 5,5 % → code TVA « A », 20 % → « B », 10 % → « C », autre → vide. Quantité : conversion en entier arrondi avec plancher à 1 (le vrac au poids « 0.420 kg » devient donc 1 — perte de précision documentée, mais le prix total reste exact). Si seul le total est fourni, le prix unitaire est déduit par division, et réciproquement. Nom de repli « Article <id> » si le nom est absent ; clé de magasin = l'identifiant d'article s'il existe (stable), sinon le nom en casefold. Les lignes totalement vides sont sautées. Les remises ne sont pas répercutées (le prix unitaire courant reflète déjà le prix payé). Date ISO 8601 ; un format inattendu est journalisé et la date devient vide. Si le ticket ne contient aucun article : « Le ticket Lidl ne contient aucun article. ». Un JSON invalide donne « JSON Lidl invalide : <détail> ». Après chargement, il n'y a pas de chemin source, donc aucune suppression de fichier au commit.",
+      "sourceRefs": [
+        "app/services/receipt_parser/lidl_api_adapter.py:60-169",
+        "app/ui/viewmodels/receipt_import_vm.py:130-157"
+      ],
+      "dataOps": [
+        "SELECT ingredient (rapprochement)",
+        "SELECT receipt_alias",
+        "SELECT imported_receipt"
+      ],
+      "proposedApi": [
+        "POST /api/lidl/tickets/{ticketId}/import"
+      ],
+      "vmMethods": [
+        "ReceiptImportViewModel.loadFromLidlJson",
+        "adapt_lidl_json"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "Aucune spécificité mobile ; c'est purement de la transformation de données à faire côté serveur."
+    },
+    {
+      "id": "lidl-etat-configuration",
+      "title": "Diagnostic d'état de l'intégration Lidl Plus",
+      "userAction": "L'utilisateur ouvre Fichier → « Lidl Plus auto-fetch… » ; une fenêtre de 720×780 affiche trois voyants colorés indiquant ce qui manque.",
+      "behaviourDetails": "Fenêtre système détachable non modale, minimum 600×580. Trois voyants de 10 px : (1) bibliothèque `lidl-plus` installée — vert ou rouge avec l'instruction exacte `pip install -e \".[lidl]\"` ; (2) module `keyring` disponible — vert ou ambre avec « credentials non persistables » ; (3) connecté — vert avec « Connecté en tant que : <email> », ou gris « Non connecté ». Un bandeau ambre d'avertissement en haut explique que la fonctionnalité est **expérimentale**, que la bibliothèque est testée surtout pour DE/AT/UK et que le support France n'est pas garanti, avec le repli explicite vers l'import de fichier. À l'ouverture, le champ email est pré-rempli avec l'email connu, le champ token est **toujours vidé** (on ne pré-remplit jamais un secret) et la ligne de statut est effacée. « Connecté » signifie simplement qu'un token est stocké — aucune validation réseau n'est faite ; seule une synchronisation révèle un token expiré.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/LidlPlusSetupDialog.qml:22-164",
+        "app/ui/viewmodels/lidl_plus_vm.py:91-108",
+        "app/services/lidl_plus_client.py:44-107"
+      ],
+      "dataOps": [
+        "lecture keyring OS"
+      ],
+      "proposedApi": [
+        "GET /api/lidl/status"
+      ],
+      "vmMethods": [
+        "LidlPlusViewModel.isAvailable",
+        "LidlPlusViewModel.isKeyringAvailable",
+        "LidlPlusViewModel.isConnected",
+        "LidlPlusViewModel.connectedEmail"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "Les notions « bibliothèque Python installée » et « keyring OS » n'ont aucun sens côté client web : ne rester que « connecté / non connecté », le reste étant un détail d'implémentation serveur.",
+      "blockers": "keyring (Windows Credential Manager) et import Python conditionnel — entièrement à repenser côté serveur (secrets chiffrés en base ou dans un store de secrets Workers)."
+    },
+    {
+      "id": "lidl-enregistrer-credentials",
+      "title": "Enregistrement des identifiants Lidl Plus",
+      "userAction": "L'utilisateur suit la procédure affichée pour obtenir un jeton de rafraîchissement via une commande en ligne de commande, colle ce jeton et son email, puis clique « 💾 Enregistrer les credentials ».",
+      "behaviourDetails": "Un encadré explique la procédure en 4 étapes avec la commande exacte, sélectionnable à la souris (champ en lecture seule, police à chasse fixe) : `.venv\\Scripts\\python.exe -m lidlplus -c FR -l fr -u \"+33XXXXXXXXX\" -p \"motDePasse\" --2fa email auth`. Il précise qu'un code à 2 facteurs arrive par email et que le jeton est stocké dans le gestionnaire d'identifiants Windows, jamais en clair sur disque. Le champ jeton est en mode mot de passe (points). Le bouton est actif seulement si keyring est disponible ET email > 3 caractères ET jeton > 10 caractères. En cas de succès : ligne de statut verte « ✓ Credentials enregistrés. » et le champ jeton est vidé. Si keyring manque, le stockage est refusé avec « Le module `keyring` n'est pas installé — refus de stocker les credentials en clair. Installer via `pip install keyring`. » — il n'y a volontairement aucun repli en clair. Le mot de passe Lidl n'est jamais persisté, il ne sert qu'à générer le jeton hors de l'app.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/LidlPlusSetupDialog.qml:182-286",
+        "app/ui/viewmodels/lidl_plus_vm.py:186-196",
+        "app/services/lidl_plus_client.py:81-96"
+      ],
+      "dataOps": [
+        "écriture keyring OS (service livre-de-recettes/lidl-plus, clés email + refresh_token)"
+      ],
+      "proposedApi": [
+        "PUT /api/lidl/credentials"
+      ],
+      "vmMethods": [
+        "LidlPlusViewModel.storeCredentials"
+      ],
+      "priority": "polish",
+      "complexity": "L",
+      "mobileNotes": "Demander à l'utilisateur de lancer une commande en ligne de commande est impossible sur téléphone. Le portage exige soit un vrai flux d'authentification dans l'app, soit d'abandonner cette fonctionnalité. C'est le plus gros point d'interrogation de la zone.",
+      "blockers": "keyring OS ; procédure hors application via un terminal ; captcha Lidl non géré."
+    },
+    {
+      "id": "lidl-oublier-credentials",
+      "title": "Purge des identifiants Lidl Plus",
+      "userAction": "L'utilisateur clique « 🗑 Oublier les credentials » ; les identifiants sont effacés et la synchronisation automatique est désactivée.",
+      "behaviourDetails": "Bouton de variante « danger », visible uniquement si des identifiants sont stockés. Aucune confirmation demandée (choix assumé : la purge doit être facile). Effet : suppression des deux clés du keyring (les erreurs de suppression sont ignorées, l'opération est idempotente), passage de la synchronisation à désactivée en base, et arrêt du minuteur. Ligne de statut : « Credentials purgés. » en couleur secondaire.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/LidlPlusSetupDialog.qml:287-296",
+        "app/ui/viewmodels/lidl_plus_vm.py:198-208",
+        "app/services/lidl_plus_client.py:110-120"
+      ],
+      "dataOps": [
+        "suppression keyring OS",
+        "UPDATE lidl_plus_settings SET enabled = 0"
+      ],
+      "proposedApi": [
+        "DELETE /api/lidl/credentials"
+      ],
+      "vmMethods": [
+        "LidlPlusViewModel.purgeCredentials"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Se porte directement, mais ajouter une confirmation sur mobile : le bouton rouge est facile à toucher par accident."
+    },
+    {
+      "id": "lidl-activer-autofetch",
+      "title": "Activation de la synchronisation automatique Lidl",
+      "userAction": "L'utilisateur coche « Activer la synchronisation automatique » ; l'app va désormais chercher ses nouveaux tickets périodiquement.",
+      "behaviourDetails": "Case désactivée (grisée) tant que la bibliothèque n'est pas installée OU qu'aucun identifiant n'est stocké. À l'activation : le réglage est persisté en base, puis le minuteur est armé à l'intervalle enregistré. Garde-fou : si la bibliothèque n'est en fait pas disponible, un message « Activation impossible : la lib `lidl-plus` n'est pas installée. » est émis ET le réglage est immédiatement remis à faux en base pour rester cohérent. À la désactivation, le minuteur est simplement arrêté. Au démarrage de l'app, `start_if_enabled()` réarme le minuteur si le réglage était actif lors d'une session précédente, et planifie une première synchronisation différée de 15 secondes pour ne pas alourdir le démarrage. Tant que la case n'est pas cochée, **aucune requête réseau Lidl n'est jamais faite** (opt-in strict).",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/LidlPlusSetupDialog.qml:316-321",
+        "app/ui/viewmodels/lidl_plus_vm.py:69-88",
+        "app/ui/viewmodels/lidl_plus_vm.py:146-174",
+        "app/main.py:123"
+      ],
+      "dataOps": [
+        "SELECT/UPDATE lidl_plus_settings (enabled)"
+      ],
+      "proposedApi": [
+        "PUT /api/lidl/settings {enabled}"
+      ],
+      "vmMethods": [
+        "LidlPlusViewModel.setEnabled",
+        "LidlPlusViewModel.start_if_enabled",
+        "LidlPlusViewModel.enabled"
+      ],
+      "priority": "polish",
+      "complexity": "M",
+      "mobileNotes": "Un client web ne peut pas maintenir un minuteur en arrière-plan : le polling doit migrer vers un déclencheur planifié côté Worker (cron), et le client ne fait que lire la file de tickets en attente."
+    },
+    {
+      "id": "lidl-intervalle-polling",
+      "title": "Réglage de l'intervalle de synchronisation Lidl",
+      "userAction": "L'utilisateur ajuste le champ numérique « Intervalle … minutes » ; la fréquence de synchronisation change immédiatement.",
+      "behaviourDetails": "Plage 5 à 1440 minutes, pas de 5, sans décimale. Valeur par défaut 60 minutes. Le champ est initialisé une seule fois à l'apparition du dialogue plutôt que par une liaison bidirectionnelle — sinon l'écriture notifie la propriété qui redéclenche la liaison et provoque une boucle infinie (le commentaire du code le documente explicitement). Côté Python, toute valeur inférieure à 5 est rejetée silencieusement. La nouvelle valeur est persistée en base et appliquée au minuteur en cours.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/LidlPlusSetupDialog.qml:323-353",
+        "app/ui/viewmodels/lidl_plus_vm.py:117-122",
+        "app/ui/viewmodels/lidl_plus_vm.py:176-184"
+      ],
+      "dataOps": [
+        "SELECT/UPDATE lidl_plus_settings (poll_interval_minutes)"
+      ],
+      "proposedApi": [
+        "PUT /api/lidl/settings {pollIntervalMinutes}"
+      ],
+      "vmMethods": [
+        "LidlPlusViewModel.setPollIntervalMinutes",
+        "LidlPlusViewModel.pollIntervalMinutes"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "À remplacer par un choix simple (toutes les heures / 3 fois par jour / une fois par jour) : un champ numérique 5-1440 avec un pas de 5 est très pénible au doigt."
+    },
+    {
+      "id": "lidl-synchroniser-maintenant",
+      "title": "Synchronisation Lidl manuelle",
+      "userAction": "L'utilisateur clique « 🔄 Synchroniser maintenant » (ou le bouton Lidl de l'onglet Frigo) ; le bouton passe en « ⏳ Sync en cours… » puis une ligne de statut annonce le nombre de nouveaux tickets.",
+      "behaviourDetails": "Bouton désactivé si la bibliothèque manque, si les identifiants manquent, ou si une synchronisation est déjà en cours. Le travail réseau tourne dans un thread démon pour ne pas bloquer l'interface ; un garde `_inflight` empêche les synchronisations concurrentes. Récupère les 20 derniers tickets, les retrie par date décroissante côté Python (on ne fait pas confiance à l'ordre de l'API), puis ne conserve que ceux dont l'identifiant n'est pas déjà dans `imported_receipt`. La date de dernière récupération est enregistrée. Messages : « N nouveau(x) ticket(s) Lidl » ou « Sync OK — aucun nouveau ticket. ». En cas d'échec métier, le message d'erreur français est persisté dans les réglages et affiché en ambre ; un catch-all attrape toute exception inattendue (« Erreur inattendue : … ») pour ne JAMAIS casser le minuteur ni l'application. La ligne « Dernière sync : JJ/MM/AAAA HH:MM » (ou « Jamais ») est affichée à côté du bouton. Le bouton de l'onglet Frigo a un libellé dynamique en 5 états : « 🛒 Lidl Plus… » / « (lib manquante) » / « Configurer Lidl Plus… » / « Sync Lidl… ⏳ » / « Synchroniser Lidl » — et ouvre le dialogue de configuration au lieu de synchroniser si ce n'est pas configuré.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/LidlPlusSetupDialog.qml:355-371",
+        "app/ui/viewmodels/lidl_plus_vm.py:210-282",
+        "app/services/lidl_plus_client.py:180-215",
+        "app/ui/qml/pages/PantryPage.qml:90-110"
+      ],
+      "dataOps": [
+        "SELECT imported_receipt WHERE ticket_id IN (...)",
+        "UPDATE lidl_plus_settings (last_fetched_at, last_error)"
+      ],
+      "proposedApi": [
+        "POST /api/lidl/sync"
+      ],
+      "vmMethods": [
+        "LidlPlusViewModel.syncNow",
+        "LidlPlusViewModel.isSyncing",
+        "LidlPlusViewModel.lastFetchedHuman",
+        "LidlPlusViewModel.lastError"
+      ],
+      "priority": "polish",
+      "complexity": "L",
+      "mobileNotes": "Bon candidat pour un « tirer pour rafraîchir » sur l'onglet Frigo. Le libellé de bouton à 5 états est très bien pensé, à conserver."
+    },
+    {
+      "id": "lidl-libelle-menu-dynamique",
+      "title": "Libellé dynamique de l'entrée de menu Lidl Plus",
+      "userAction": "L'utilisateur lit l'état de la fonctionnalité directement dans le menu Fichier, sans ouvrir le dialogue.",
+      "behaviourDetails": "Quatre libellés selon l'état, évalués dans cet ordre : ViewModel absent → « Lidl Plus auto-fetch (expérimental)… » ; bibliothèque non installée → « Lidl Plus auto-fetch (lib manquante)… » ; pas d'identifiants → « Lidl Plus auto-fetch (non configuré)… » ; sinon « Lidl Plus auto-fetch · ✓ activé » ou « Lidl Plus auto-fetch · désactivé » selon le réglage.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:100-110"
+      ],
+      "dataOps": [
+        "SELECT lidl_plus_settings"
+      ],
+      "proposedApi": [
+        "GET /api/lidl/status"
+      ],
+      "vmMethods": [
+        "LidlPlusViewModel.isAvailable",
+        "LidlPlusViewModel.isConnected",
+        "LidlPlusViewModel.enabled"
+      ],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Se traduit en une ligne de réglages avec une valeur à droite — motif standard sur mobile."
+    },
+    {
+      "id": "undo-toast-composant",
+      "title": "Toast « Annuler » pour les suppressions",
+      "userAction": "Après une suppression, l'utilisateur voit un bandeau sombre en bas de la page avec le libellé de ce qui a été supprimé et un bouton « Annuler » ; il a 5 secondes pour revenir en arrière.",
+      "behaviourDetails": "Composant partagé, utilisé aujourd'hui par les pages Calendrier, Recettes et Ingrédients (**pas** par le dialogue d'import de ticket, alors que ce serait pertinent). Ancré en bas, centré horizontalement, à 24 px du bord. Fond sombre volontairement fixe (#1f2937 en mode clair, Theme.colorSurface en mode sombre) pour un contraste élevé, bordure blanche à 10 %, opacité 0.96 avec un fondu de 150 ms. Largeur et hauteur adaptatives au contenu. Le bouton « Annuler » est dessiné à la main (les variantes d'AppButton ne rendent pas bien sur ce fond sombre custom) : fond blanc à 10 %, 20 % au survol. Disparition automatique après 5000 ms ; cliquer « Annuler » émet le signal et masque immédiatement. Au premier plan (z = 100).",
+      "sourceRefs": [
+        "app/ui/qml/components/UndoToast.qml:22-106",
+        "app/ui/qml/pages/CalendarPage.qml:50",
+        "app/ui/qml/pages/RecipesPage.qml:57",
+        "app/ui/qml/pages/IngredientsPage.qml:1186"
+      ],
+      "dataOps": [
+        "dépend de l'appelant (restauration de la ligne supprimée)"
+      ],
+      "proposedApi": [
+        "POST /api/{resource}/{id}/undo-delete"
+      ],
+      "vmMethods": [
+        "<vm>.undoLastDelete (côté appelant)"
+      ],
+      "priority": "important",
+      "complexity": "M",
+      "mobileNotes": "Motif « snackbar » standard, se porte parfaitement. Attention à la zone sûre du bas sur iOS et à ne pas superposer une barre d'action collante. Sur mobile, le délai de 5 s est un peu court quand on lit — 7 s serait plus confortable."
+    },
+    {
+      "id": "recettes-possibles-sections",
+      "title": "Dialogue « Recettes possibles » — trois sections",
+      "userAction": "Depuis l'onglet Ingrédients, après avoir sélectionné des ingrédients, l'utilisateur ouvre ce dialogue de 720×640 qui lui montre ce qu'il peut cuisiner, classé en trois blocs.",
+      "behaviourDetails": "Fenêtre système détachable, non modale, minimum 540×420, avec défilement. Sous-titre : « Sélection : N ingrédient(s). ». Section 1 « ✨ Tu peux faire maintenant · N recette(s) » en vert : recettes intégralement couvertes, chaque carte affichant « ✓ Tous les ingrédients dispo (N) » et un badge « ✓ Prêt ». Section 2 « 📝 Il te manque peu · N recette(s) » en couleur primaire : recettes auxquelles il manque au plus 3 ingrédients, avec la liste nominative des manquants (« Il te manque 2 ingrédients : beurre, œufs ») et un badge de pourcentage arrondi. Section 3 « 🛒 À acheter pour débloquer » en ambre : jusqu'à 5 ingrédients qui reviennent le plus souvent dans les recettes presque prêtes, chacun annoté « → débloque N recette(s) ». Chaque section n'apparaît que si elle contient au moins un élément. Cartes de recette de 80 px avec vignette photo de 60×60 (recadrée en conservant les proportions) ou une icône 🍽 de repli. Hauteurs de liste bornées (320 px pour « prêtes », 360 px pour « manquantes »), listes non interactives (le défilement se fait au niveau du conteneur). Les tableaux de noms manquants sont sérialisés en chaîne car le modèle de liste QML ne gère pas les tableaux imbriqués.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/RecipeMatchDialog.qml:21-192",
+        "app/ui/qml/dialogs/RecipeMatchDialog.qml:224-378",
+        "app/ui/qml/pages/IngredientsPage.qml:43"
+      ],
+      "dataOps": [
+        "SELECT recipe + recipe_ingredient (calcul de couverture)"
+      ],
+      "proposedApi": [
+        "POST /api/recipes/match {ingredientIds}"
+      ],
+      "vmMethods": [],
+      "priority": "important",
+      "complexity": "L",
+      "mobileNotes": "Trois listes imbriquées à hauteur bornée dans un conteneur défilant : à plat sur mobile (un seul flux, en-têtes collants). Les cartes de 80 px avec vignette passent bien."
+    },
+    {
+      "id": "recettes-possibles-etat-vide-et-clic",
+      "title": "Interactions du dialogue « Recettes possibles »",
+      "userAction": "L'utilisateur clique un ingrédient de la section « À acheter » : le dialogue se ferme et l'ingrédient s'ouvre en édition dans l'onglet Ingrédients. Si rien ne correspond, il voit un état vide illustré.",
+      "behaviourDetails": "Chaque ligne de suggestion d'achat fait 36 px, change de fond au survol, curseur main, infobulle « Cliquer pour ouvrir cet ingrédient en édition » après 600 ms. Le clic remonte à la fenêtre parente via `transientParent.navigateToIngredient(id)` puis ferme le dialogue. **Les cartes de recette, elles, ne sont pas cliquables** — on ne peut pas ouvrir une recette depuis ce dialogue. État vide (les trois sections vides) : une icône 🍳 de 64 px en couleur désactivée et le texte « Aucune recette ne correspond avec ces ingrédients. ». Un unique bouton « Fermer » (primaire) en pied de fenêtre. Une méthode de compatibilité ascendante `open(items, count, parent)` accepte encore un tableau plat et répartit les recettes entre « prêtes » (0 manquant) et « manquantes », sans les noms d'ingrédients manquants ni les suggestions d'achat.",
+      "sourceRefs": [
+        "app/ui/qml/dialogs/RecipeMatchDialog.qml:78-107",
+        "app/ui/qml/dialogs/RecipeMatchDialog.qml:359-410"
+      ],
+      "dataOps": [
+        "SELECT ingredient WHERE id = ?"
+      ],
+      "proposedApi": [
+        "GET /api/ingredients/{id}"
+      ],
+      "vmMethods": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Rendre les cartes de recette cliquables serait le premier réflexe d'un utilisateur mobile — c'est un manque à combler au portage."
+    },
+    {
+      "id": "shell-quitter-application",
+      "title": "Quitter l'application",
+      "userAction": "L'utilisateur choisit Fichier → « Quitter » ou tape Ctrl+Q ; l'application se ferme immédiatement.",
+      "behaviourDetails": "Aucune confirmation, aucune sauvegarde du formulaire en cours d'édition, aucun avertissement si un import de ticket est à moitié corrigé. À la fermeture, le watcher de tickets est arrêté (avec un délai de grâce de 2 s) et le contexte applicatif est fermé proprement dans un bloc `finally`.",
+      "sourceRefs": [
+        "app/ui/qml/Main.qml:118-122",
+        "app/main.py:148-152"
+      ],
+      "dataOps": [],
+      "proposedApi": [],
+      "vmMethods": [],
+      "priority": "polish",
+      "complexity": "S",
+      "mobileNotes": "Sans objet en PWA : l'utilisateur ferme l'onglet ou bascule d'app. Cela rend d'autant plus nécessaire la persistance des brouillons (import de ticket, formulaire d'ingrédient) — la fermeture n'est plus un acte délibéré."
+    }
+  ]
+}
