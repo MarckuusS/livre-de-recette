@@ -142,7 +142,11 @@ function ShoppingContent({
           aria-pressed={store.active}
           onClick={store.toggle}
         >
-          <span aria-hidden="true">🛒</span> Mode courses
+          {/* Nomme par ce qu'il FAIT, et non « mode courses » : ce nom laissait
+              attendre une session de scan en magasin, alors qu'il ne s'agit que
+              d'un confort de lecture. Le grossissement seul, sans explication,
+              passait pour un zoom parasite. */}
+          <span aria-hidden="true">🔆</span> Écran allumé
         </button>
 
         {list.missingPriceCount > 0 && (
@@ -157,9 +161,26 @@ function ShoppingContent({
         )}
       </div>
 
+      {/* Le verrou d'ecran est invisible par nature. Sans un mot pour le dire,
+          activer le mode ne se manifeste que par des lignes plus grandes — donc
+          par une gene, sans la contrepartie. */}
+      {store.active && store.screenAwake && (
+        <p className="shopping-note">
+          L’écran reste allumé et les lignes sont agrandies : plus besoin de déverrouiller entre
+          deux rayons.
+        </p>
+      )}
+
       {store.active && store.supported && !store.screenAwake && (
         <p className="shopping-note">
-          L’écran n’est pas maintenu allumé : le système a refusé (mode économie d’énergie ?).
+          Lignes agrandies. En revanche l’écran n’est pas maintenu allumé : le système a refusé
+          (mode économie d’énergie ?).
+        </p>
+      )}
+
+      {store.active && !store.supported && (
+        <p className="shopping-note">
+          Lignes agrandies. Ce navigateur ne sait pas maintenir l’écran allumé.
         </p>
       )}
 
