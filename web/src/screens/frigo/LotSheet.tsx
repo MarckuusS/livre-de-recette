@@ -13,17 +13,30 @@
  * Retirer une quantite superieure ou egale au lot le fait DISPARAITRE : la
  * table porte un CHECK (quantity_g > 0), un lot vide n'existe pas. C'est la
  * reponse de l'API qui le dit, pas une deduction cote client.
+ *
+ * On y releve aussi le PRIX PAYE, apres coup : le ticket ressort de la poche
+ * une fois les courses rangees, et l'ecran Ingredients est loin. Le montant ne
+ * touche pas le lot, il rejoint l'historique de prix de l'ingredient — voir
+ * PricePaid.
  */
 
 import { useState } from 'react'
-import { formatGrams } from '@livre/shared'
+import { Link } from 'react-router'
+import { formatEuros, formatGrams } from '@livre/shared'
 
 import { DateField, TextField } from '../../components/Field.js'
 import { QuantityField } from '../../components/QuantityField.js'
 import { ConfirmDialog, Sheet } from '../../components/Sheet.js'
 import { useToast } from '../../components/Toast.js'
-import { useConsumeStock, useDeleteStock, useUpdateStock, type PantryResponse } from '../../lib/queries.js'
+import {
+  useAddPrice,
+  useConsumeStock,
+  useDeleteStock,
+  useUpdateStock,
+  type PantryResponse,
+} from '../../lib/queries.js'
 import { formatExpiryDate, formatExpiryLabel, formatLotQuantity, type Lot } from './lots.js'
+import { EMPTY_PRICE_DRAFT, PricePaidFields, readPrice, type PriceDraft } from './PricePaid.js'
 
 const NOTES_MAX_LENGTH = 500
 
@@ -50,11 +63,14 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
   const update = useUpdateStock()
   const consume = useConsumeStock()
   const remove = useDeleteStock()
+  const addPrice = useAddPrice(lot.stock.ingredientId)
   const toast = useToast()
 
   const [quantityG, setQuantityG] = useState<number | null>(lot.stock.quantityG)
   const [expiryDate, setExpiryDate] = useState<string | null>(lot.stock.expiryDate)
   const [notes, setNotes] = useState(lot.stock.notes ?? '')
+  const [price, setPrice] = useState<PriceDraft>(EMPTY_PRICE_DRAFT)
+  const [priceOpen, setPriceOpen] = useState(false)
   const [attempted, setAttempted] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
@@ -68,9 +84,14 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
     setQuantityG(lot.stock.quantityG)
   }
 
-  const busy = update.isPending || consume.isPending || remove.isPending
+  const busy = update.isPending || consume.isPending || remove.isPending || addPrice.isPending
   const invalidQuantity = quantityG === null || quantityG <= 0
-  const failure = update.error ?? consume.error ?? remove.error
+  const failure = update.error ?? consume.error ?? remove.error ?? addPrice.error
+
+  // La quantite du prix suit celle du champ, pas celle enregistree : on corrige
+  // souvent les deux dans le meme geste (« finalement c'etait 480 g a 2,30 € »).
+  const priceReading = readPrice(price, quantityG ?? lot.stock.quantityG)
+  const priceError = attempted && priceReading.kind === 'invalid' ? priceReading.message : null
 
   /*
    * `mutateAsync` et non `mutate(…, { onSuccess })` : une consommation totale
@@ -104,6 +125,9 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
   const save = async () => {
     setAttempted(true)
     if (quantityG === null || quantityG <= 0) return
+    // Un prix a moitie saisi se corrige avant d'ecrire. Un prix absent, lui,
+    // n'empeche jamais d'enregistrer le lot.
+    if (priceReading.kind === 'invalid') return
 
     try {
       await update.mutateAsync({
@@ -113,11 +137,31 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
         expiryDate,
         notes: notes.trim() === '' ? null : notes.trim(),
       })
-      toast.show({ message: `${lot.name} mis à jour.` })
-      onClose()
     } catch {
       /* voir le commentaire ci-dessus */
+      return
     }
+
+    const recorded = priceReading.kind === 'ready'
+    if (priceReading.kind === 'ready') {
+      try {
+        await addPrice.mutateAsync(priceReading.entry)
+      } catch {
+        /*
+         * Le lot est a jour, le releve non. Contrairement a la feuille d'ajout,
+         * reessayer est ici sans danger : reenregistrer reecrit les memes
+         * valeurs au lieu de creer un second lot. On garde donc la feuille
+         * ouverte avec la saisie et l'erreur, plutot que de fermer sur un
+         * demi-succes.
+         */
+        return
+      }
+    }
+
+    toast.show({
+      message: recorded ? `${lot.name} mis à jour, prix relevé.` : `${lot.name} mis à jour.`,
+    })
+    onClose()
   }
 
   const confirmDelete = async () => {
@@ -216,6 +260,50 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
           placeholder="Ex : entamé dimanche…"
           maxLength={NOTES_MAX_LENGTH}
         />
+
+        {/* Rien a relever pour un lot orphelin : la fiche qui recevrait
+            l'observation n'existe plus. */}
+        {lot.ingredient !== null &&
+          (priceOpen ? (
+            <section className="price-paid">
+              <h3 className="price-paid__title">Prix payé</h3>
+              <p className="price-paid__lead">
+                {lot.ingredient.priceEur === null
+                  ? 'Aucun prix connu pour cet ingrédient.'
+                  : `Prix de référence actuel : ${formatEuros(lot.ingredient.priceEur)}${
+                      lot.ingredient.priceQuantityG === null
+                        ? ''
+                        : ` pour ${formatGrams(lot.ingredient.priceQuantityG)}`
+                    }.`}{' '}
+                Un nouveau relevé le remplace et met à jour le coût de la liste de courses.
+              </p>
+              <PricePaidFields
+                draft={price}
+                onChange={setPrice}
+                fallbackQuantityG={quantityG ?? lot.stock.quantityG}
+                pieceWeightG={lot.pieceWeightG}
+                error={priceError}
+                disabled={busy}
+              />
+              <p className="price-paid__lead">
+                Il part avec « Enregistrer ».{' '}
+                {/* Un releve ne se modifie pas : le corriger passe par sa
+                    suppression, et seule la fiche de l'ingredient sait le
+                    faire. */}
+                <Link className="price-paid__link" to={`/ingredients/${lot.stock.ingredientId}`}>
+                  Voir l’historique des prix
+                </Link>
+              </p>
+            </section>
+          ) : (
+            <button
+              type="button"
+              className="button button--secondary button--block"
+              onClick={() => setPriceOpen(true)}
+            >
+              Saisir le prix payé
+            </button>
+          ))}
 
         {failure && (
           <p className="text-error" role="alert">

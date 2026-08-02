@@ -369,3 +369,87 @@
   font-size: var(--font-size-md);
   color: var(--color-text-secondary);
 }
+
+/* ---------- Scan d'un produit ---------- */
+
+.scan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Le bouton ouvre le bloc : le retrait d'empilement que .button--secondary
+   porte pour ses usages en pile ferait double emploi avec l'ecart de la
+   feuille, et decollerait le bouton du champ auquel il se rapporte. */
+.scan__button {
+  margin-top: 0;
+}
+
+.scan__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.scan__name {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.scan__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: center;
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* Actions empilees et non cote a cote : « Ajouter et le mettre au frigo » ne
+   tient pas sur une demi-largeur de 375 px, et une action de scan se prend au
+   pouce, sans viser. */
+.scan__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.scan__actions .button {
+  width: 100%;
+  margin-top: 0;
+  /* Les liens-boutons (« Créer sa fiche ») n'heritent pas du centrage d'un
+     <button> : sans cela, le libelle se colle a gauche et la ligne de base
+     remonte au-dessus des vrais boutons. */
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+}
+
+/* ---------- Prix payé ---------- */
+
+.price-paid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.price-paid__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.price-paid__lead {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.price-paid__link {
+  color: var(--color-primary);
+}

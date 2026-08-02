@@ -283,6 +283,89 @@
   }
 }
 
+/* ---------- Réf. source : champ + scan ---------- */
+
+.ing-scan {
+  display: flex;
+  gap: var(--space-sm);
+  /* `stretch` : le bouton prend exactement la hauteur du champ. Sans cela deux
+     controles de la meme rangee auraient deux cibles tactiles differentes. */
+  align-items: stretch;
+}
+
+.ing-scan .field__input {
+  flex: 1;
+  /* `width: 100%` ne suffit pas a autoriser un enfant de flex a retrecir :
+     sans `min-width: 0`, le champ pousse le bouton hors de l'ecran en 375 px. */
+  min-width: 0;
+}
+
+.ing-scan__button {
+  flex: none;
+  padding: 0 var(--space-md);
+  /* Neutralise le `margin-top` que .button--secondary porte pour son usage en
+     pile : dans une rangee il decalerait le bouton d'un cran vers le bas. */
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+/* ---------- Proposition de reprise d'une fiche scannee ---------- */
+
+.ing-scan-fill {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.ing-scan-fill__wait {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.ing-scan-fill__title {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.ing-scan-fill__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* Rangee de decision, ici et dans le resultat de scan de la feuille d'import.
+   Empilee et non cote a cote : « Compléter les champs vides » ne tient pas dans
+   un tiers de 375 px, et un bouton tronque au pouce se rate. */
+.ing-scan-fill__actions,
+.ing-scan-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ing-scan-fill__actions .button,
+.ing-scan-actions .button {
+  margin-top: 0;
+}
+
+/* Un <a> ne se dimensionne pas comme un <button> : il prend la hauteur de sa
+   ligne de texte. Hauteur imposee pour que la pile reste reguliere. */
+.ing-scan-fill__actions a.button,
+.ing-scan-actions a.button {
+  display: grid;
+  place-items: center;
+  height: var(--control-height-lg);
+  line-height: 1;
+  text-decoration: none;
+}
+
 /* ---------- Cellules en lecture seule ---------- */
 
 .ing-readonly {

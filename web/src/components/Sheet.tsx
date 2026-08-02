@@ -81,6 +81,77 @@ function useBodyScrollLock(active: boolean): void {
 }
 
 // ---------------------------------------------------------------------------
+// Geste de retour
+// ---------------------------------------------------------------------------
+
+/**
+ * Le retour du systeme ferme la feuille, pas la page.
+ *
+ * Sur telephone, le geste de retour — bouton Android, balayage depuis le bord
+ * sous iOS — est le reflexe pour annuler. Sans cette gestion il quittait
+ * l'ecran entier : ouvrir « Ajouter un lot », se raviser, et se retrouver
+ * ejecte du frigo vers la liste de courses.
+ *
+ * Le principe : a l'ouverture on empile une entree d'historique bidon, que le
+ * geste de retour consomme. La feuille se ferme, l'adresse est inchangee.
+ * Fermer par le bouton ✕ ou par le fond doit alors DEPILER cette entree,
+ * sinon elle s'accumulerait et il faudrait revenir deux fois.
+ *
+ * `sheetClosed` distingue les deux origines : un `popstate` cause par le geste
+ * ne doit pas rappeler `history.back()`, ce qui remonterait d'un ecran de plus.
+ */
+/**
+ * Entrees d'historique empilees dont le retrait est PROGRAMME mais pas encore
+ * effectue.
+ *
+ * Ce compteur existe pour une raison precise : en developpement, React monte
+ * les effets, les demonte, puis les remonte. Sans lui, le demontage retirait
+ * l'entree que le remontage venait d'empiler — `history.back()` etant
+ * asynchrone, le `popstate` arrivait APRES le nouveau `pushState` et refermait
+ * la feuille a l'instant ou elle s'ouvrait. L'ecran Frigo etait inutilisable.
+ *
+ * Le retrait passe donc par une micro-tache, qu'un remontage immediat annule
+ * en reprenant l'entree a son compte.
+ */
+let pendingHistoryPop = 0
+
+function useBackToClose(active: boolean, onClose: () => void): void {
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useEffect(() => {
+    if (!active) return
+
+    let closedByGesture = false
+    // Une entree en attente de retrait est reprise telle quelle : c'est le cas
+    // du remontage decrit ci-dessus.
+    if (pendingHistoryPop > 0) pendingHistoryPop--
+    else history.pushState({ sheet: true }, '')
+
+    const onPop = () => {
+      closedByGesture = true
+      onCloseRef.current()
+    }
+    window.addEventListener('popstate', onPop)
+
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      // Fermeture par le geste : le navigateur a deja depile, rien a faire.
+      if (closedByGesture) return
+
+      // Fermeture par ✕, par le fond ou par Echap : l'entree est encore la.
+      // On la retire, sauf si un remontage la reprend d'ici la.
+      pendingHistoryPop++
+      queueMicrotask(() => {
+        if (pendingHistoryPop === 0) return
+        pendingHistoryPop--
+        if (history.state?.sheet === true) history.back()
+      })
+    }
+  }, [active])
+}
+
+// ---------------------------------------------------------------------------
 // Mise au point
 // ---------------------------------------------------------------------------
 
@@ -134,6 +205,7 @@ export function Sheet({
 
   useBodyScrollLock(open)
   useFocusCapture(open, panelRef)
+  useBackToClose(open, onClose)
 
   useEffect(() => {
     if (!open || !dismissible) return

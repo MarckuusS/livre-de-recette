@@ -9,7 +9,7 @@
  * et un signalement des modifications non enregistrees, que le desktop n'avait
  * pas et dont l'absence se paye bien plus cher au doigt.
  *
- * Trois regles metier qui ne se devinent pas en lisant le formulaire :
+ * Quatre regles metier qui ne se devinent pas en lisant le formulaire :
  *
  *   1. Une macro VIDE vaut « inconnue » (`null`), pas zero. Le desktop allait
  *      plus loin et convertissait AUSSI un 0 saisi en `null`, rendant
@@ -24,17 +24,32 @@
  *   3. Le prix ne se saisit pas : il derive du dernier releve. La cellule est
  *      un BOUTON qui ouvre l'historique, plutot qu'un cadenas qui n'explique
  *      rien.
+ *
+ *   4. `source` n'est pas un champ : elle se DEDUIT de la provenance du code
+ *      porte par « Réf. source ». Un code venu d'OpenFoodFacts — parametre
+ *      `?ean=` de la feuille d'import, ou scan fait ici — donne une fiche
+ *      `openfoodfacts` ; tout le reste donne `manual`. C'est ce qui garantit
+ *      que le lien « ouvrir la fiche d'origine », affiche ensuite en lecture
+ *      seule, mene bien quelque part.
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router'
-import { SOURCE_LABELS, formatEuros, formatGrams, type Ingredient } from '@livre/shared'
+import { Link, useNavigate, useSearchParams } from 'react-router'
+import { SOURCE_LABELS, formatEuros, formatGrams, type Ingredient, type Source } from '@livre/shared'
 
-import { NumberField, SelectField, TextField } from '../../components/Field.js'
+import { BarcodeScanner, isValidEan } from '../../components/BarcodeScanner.js'
+import {
+  FieldShell,
+  NumberField,
+  SelectField,
+  TextField,
+  useFieldIds,
+} from '../../components/Field.js'
 import { ConfirmDialog } from '../../components/Sheet.js'
 import { SourceBadge } from '../../components/States.js'
 import { ApiError } from '../../lib/api.js'
 import {
+  useBarcode,
   useCategories,
   useCreateIngredient,
   useDeleteIngredient,
@@ -68,6 +83,32 @@ const NUTRIENTS = [
 
 type NutrientKey = (typeof NUTRIENTS)[number]['key']
 
+/**
+ * Aide du champ « Réf. source ».
+ *
+ * Sortie du JSX parce que le champ n'est plus un `TextField` : il faut la
+ * passer a `FieldShell` et la reutiliser pour `useFieldIds`.
+ */
+const SOURCE_REF_HINT =
+  'Modifiable uniquement à la création : c’est cette référence qui relie ensuite la fiche à son catalogue d’origine.'
+
+/**
+ * Code-barres transmis par l'URL, `null` quand il n'y a rien d'exploitable.
+ *
+ * La cle de controle est verifiee avant tout pre-remplissage. Le seul emetteur
+ * legitime de ce parametre — la feuille d'import, quand un scan ne trouve rien
+ * chez OpenFoodFacts — ne produit que des codes deja valides ; une reference
+ * bidon tapee dans la barre d'adresse voyagerait sinon jusqu'au lien « ouvrir
+ * la fiche d'origine » de la fiche enregistree, qui pointerait vers une page
+ * inexistante.
+ */
+function readEanParam(params: URLSearchParams): string | null {
+  const raw = params.get('ean')
+  if (raw === null) return null
+  const digits = raw.replace(/\D/g, '')
+  return isValidEan(digits) ? digits : null
+}
+
 export interface IngredientFormProps {
   /** `null` en creation. Le parent monte le formulaire avec `key={id}`. */
   readonly ingredient: Ingredient | null
@@ -78,10 +119,21 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
   const create = useCreateIngredient()
   const update = useUpdateIngredient()
   const categories = useCategories()
+  const [searchParams] = useSearchParams()
+
+  // `?ean=` n'est lu qu'a la CREATION : en modification « Réf. source » est en
+  // lecture seule, et l'API reecrit de toute facon la reference depuis la ligne
+  // existante. Honorer le parametre y afficherait une valeur que rien
+  // n'enregistrerait — exactement le piege silencieux que la fiche evite.
+  const prefillEan = ingredient === null ? readEanParam(searchParams) : null
 
   const initial = useMemo(
-    () => (ingredient ? draftFromIngredient(ingredient) : EMPTY_DRAFT),
-    [ingredient],
+    // Le code pre-rempli fait partie de l'etat INITIAL et non d'une
+    // modification : sinon la fiche s'ouvrirait en annoncant « Modifications
+    // non enregistrées » avant que l'utilisateur ait touche quoi que ce soit.
+    () =>
+      ingredient ? draftFromIngredient(ingredient) : { ...EMPTY_DRAFT, sourceRef: prefillEan ?? '' },
+    [ingredient, prefillEan],
   )
   const [draft, setDraft] = useState<IngredientDraft>(initial)
   const [nameError, setNameError] = useState<string | null>(null)
@@ -90,8 +142,19 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [customRayon, setCustomRayon] = useState(false)
 
+  /** Code qui rattache la fiche a OpenFoodFacts : celui de l'URL, puis celui du dernier scan. */
+  const [offEan, setOffEan] = useState<string | null>(prefillEan)
+
   const patch = (changes: Partial<IngredientDraft>) =>
     setDraft((current) => ({ ...current, ...changes }))
+
+  // Source deduite plutot que choisie (regle 4 de l'en-tete). Tant que « Réf.
+  // source » porte EXACTEMENT le code venu d'OpenFoodFacts, la fiche vient de
+  // la ; des que l'utilisateur le retouche, elle redevient manuelle. Un menu
+  // « Source » de plus aurait laisse annoncer « openfoodfacts » sur un code
+  // invente, donc un lien d'origine mort.
+  const source: Source =
+    offEan !== null && draft.sourceRef.trim() === offEan ? 'openfoodfacts' : 'manual'
 
   const id = ingredient?.id ?? null
   const isPending = create.isPending || update.isPending
@@ -141,7 +204,7 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
       create.mutate(
         // `sourceRef` n'est accepte qu'ici : ensuite il identifie la fiche
         // d'origine et n'a plus aucune raison de bouger.
-        { ...payload, source: 'manual', sourceRef: draft.sourceRef.trim() || null },
+        { ...payload, source, sourceRef: draft.sourceRef.trim() || null },
         // `replace` : le bouton Retour ne doit pas ramener sur un formulaire
         // vide qui recreerait un doublon au prochain envoi.
         { onSuccess: (created) => void navigate(`/ingredients/${created.id}`, { replace: true }) },
@@ -162,6 +225,10 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
           draft={draft}
           nameError={nameError ?? duplicateMessage}
           onPatch={patch}
+          onScan={(code) => {
+            setOffEan(code)
+            patch({ sourceRef: code })
+          }}
         />
 
         <fieldset className="ing-form__section">
@@ -345,13 +412,29 @@ function Identity({
   draft,
   nameError,
   onPatch,
+  onScan,
 }: {
   ingredient: Ingredient | null
   draft: IngredientDraft
   nameError: string | null
   onPatch: (changes: Partial<IngredientDraft>) => void
+  /** Code lu par la camera. Remonte pour fixer la source de la fiche. */
+  onScan: (code: string) => void
 }) {
   const link = ingredient ? sourceUrl(ingredient) : null
+  const [scanning, setScanning] = useState(false)
+
+  /**
+   * Code dont on attend la fiche OpenFoodFacts.
+   *
+   * Distinct du code pre-rempli par `?ean=` : on n'arrive avec ce parametre
+   * qu'apres avoir lu « produit inconnu » dans la feuille d'import. Relancer la
+   * requete a l'ouverture reposerait une question deja tranchee, et afficherait
+   * un panneau d'echec en travers d'un formulaire vide.
+   */
+  const [lookup, setLookup] = useState<string | null>(null)
+
+  const refIds = useFieldIds(undefined, { hint: SOURCE_REF_HINT })
 
   return (
     <fieldset className="ing-form__section">
@@ -376,14 +459,60 @@ function Identity({
       />
 
       {ingredient === null ? (
-        <TextField
-          label="Réf. source"
-          value={draft.sourceRef}
-          onChange={(value) => onPatch({ sourceRef: value })}
-          placeholder="Code CIQUAL ou code-barres EAN (optionnel)"
-          inputMode="numeric"
-          hint="Modifiable uniquement à la création : c’est cette référence qui relie ensuite la fiche à son catalogue d’origine."
-        />
+        <>
+          {/* `FieldShell` + `useFieldIds` au lieu de `TextField` : c'est le seul
+              moyen de glisser un bouton ENTRE le libelle et l'aide. Un bouton
+              pose a cote du `TextField` entier se serait aligne sous la ligne
+              d'aide, a dix pixels du bord bas de la carte. Les deux helpers
+              sont exportes pour ce cas — QuantityField fait pareil. */}
+          <FieldShell ids={refIds} label="Réf. source" hint={SOURCE_REF_HINT}>
+            <div className="ing-scan">
+              <input
+                id={refIds.controlId}
+                className="field__input"
+                type="text"
+                value={draft.sourceRef}
+                onChange={(event) => onPatch({ sourceRef: event.target.value })}
+                placeholder="Code CIQUAL ou code-barres EAN (optionnel)"
+                inputMode="numeric"
+                aria-describedby={refIds.describedBy}
+              />
+              {/* Treize chiffres recopies a la main devant un rayon, c'est une
+                  erreur de saisie sur deux. Le meme geste qu'a l'import. */}
+              <button
+                type="button"
+                className="button button--secondary ing-scan__button"
+                onClick={() => setScanning(true)}
+              >
+                Scanner
+              </button>
+            </div>
+          </FieldShell>
+
+          <BarcodeScanner
+            open={scanning}
+            onClose={() => setScanning(false)}
+            title="Scanner un code-barres"
+            hint="Le code remplira « Réf. source »."
+            onDetect={(code) => {
+              setScanning(false)
+              setLookup(code)
+              onScan(code)
+            }}
+          />
+
+          {/* `key` sur le code : un second scan doit repartir d'un panneau
+              neuf, pas garder le « ✓ repris » du produit precedent. */}
+          {lookup !== null && (
+            <ScannedFill
+              key={lookup}
+              ean={lookup}
+              draft={draft}
+              onPatch={onPatch}
+              onDismiss={() => setLookup(null)}
+            />
+          )}
+        </>
       ) : (
         <div className="ing-readonly">
           <span className="field__label">Source</span>
@@ -403,6 +532,201 @@ function Identity({
         </div>
       )}
     </fieldset>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Reprise d'une fiche OpenFoodFacts
+// ---------------------------------------------------------------------------
+
+/**
+ * Fusionne un produit OpenFoodFacts dans le brouillon.
+ *
+ * Toutes les cles sont TOUJOURS rendues, meme quand la valeur ne bouge pas.
+ * L'alternative — n'emettre que les cles concernees par des spreads
+ * conditionnels — se type mal sous `exactOptionalPropertyTypes`, et la variante
+ * naive (`{ name: undefined }` pour « ne touche pas ») VIDERAIT le champ au
+ * lieu de le preserver. Reecrire une valeur identique ne coute rien.
+ *
+ * `replace = false` ne remplit que le vide : c'est l'action par defaut, celle
+ * qui ne peut pas faire perdre une saisie.
+ */
+function merged(
+  draft: IngredientDraft,
+  product: Ingredient,
+  replace: boolean,
+): Partial<IngredientDraft> {
+  const text = (current: string, incoming: string | null): string =>
+    incoming === null || incoming.trim() === '' || (!replace && current.trim() !== '')
+      ? current
+      : incoming.trim()
+
+  // `current !== null` et non « falsy » : 0 est une valeur mesuree, pas un vide.
+  const macro = (current: number | null, incoming: number | null): number | null =>
+    incoming === null || (!replace && current !== null) ? current : incoming
+
+  return {
+    name: text(draft.name, product.name),
+    brand: text(draft.brand, product.brand),
+    kcal: macro(draft.kcal, product.kcal),
+    fats: macro(draft.fats, product.fats),
+    saturatedFats: macro(draft.saturatedFats, product.saturatedFats),
+    carbs: macro(draft.carbs, product.carbs),
+    sugars: macro(draft.sugars, product.sugars),
+    fiber: macro(draft.fiber, product.fiber),
+    proteins: macro(draft.proteins, product.proteins),
+    salt: macro(draft.salt, product.salt),
+  }
+}
+
+/** Champs deja remplis que la fiche OpenFoodFacts recouvrirait, nommes pour l'utilisateur. */
+function overwritten(draft: IngredientDraft, product: Ingredient): string[] {
+  const names: string[] = []
+  if (draft.name.trim() !== '' && product.name.trim() !== '') names.push('Nom')
+  if (draft.brand.trim() !== '' && (product.brand ?? '').trim() !== '') names.push('Marque')
+
+  // Huit libelles enumeres feraient une phrase illisible sur 375 px : au-dela
+  // d'un seul conflit, on compte.
+  const macros = NUTRIENTS.filter((n) => draft[n.key] !== null && product[n.key] !== null).map(
+    (n) => n.label,
+  )
+  if (macros.length === 1) names.push(...macros)
+  else if (macros.length > 1) names.push(`${macros.length} valeurs nutritionnelles`)
+
+  return names
+}
+
+/**
+ * Ce qu'OpenFoodFacts sait du code lu — propose, jamais impose.
+ *
+ * Quatre issues, qui n'appellent pas la meme action : la fiche est deja dans la
+ * bibliotheque (l'ouvrir, plutot que de finir sur un 409 « existe déjà » au
+ * moment d'enregistrer), le produit est connu (le reprendre), le code est
+ * inconnu (cas NORMAL : marque de distributeur, produit local, vrac), ou le
+ * reseau a lache.
+ */
+function ScannedFill({
+  ean,
+  draft,
+  onPatch,
+  onDismiss,
+}: {
+  ean: string
+  draft: IngredientDraft
+  onPatch: (changes: Partial<IngredientDraft>) => void
+  onDismiss: () => void
+}) {
+  const query = useBarcode(ean)
+  const [applied, setApplied] = useState(false)
+
+  if (query.isPending) {
+    return (
+      <p className="ing-scan-fill__wait" aria-live="polite">
+        Recherche du produit sur OpenFoodFacts…
+      </p>
+    )
+  }
+
+  if (query.isError) {
+    const unknown = query.error instanceof ApiError && query.error.status === 404
+    return (
+      <div className="ing-scan-fill">
+        <p className="card__lead">
+          {unknown
+            ? `Le code ${ean} est inconnu d’OpenFoodFacts. Il reste dans « Réf. source » ; le reste est à saisir.`
+            : query.error.message}
+        </p>
+        <div className="ing-scan-fill__actions">
+          <button type="button" className="button button--ghost" onClick={onDismiss}>
+            Fermer
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const product = query.data
+
+  if (product.id !== null && (product.alreadyKnown === true || product.inLibrary)) {
+    return (
+      <div className="ing-scan-fill">
+        <p className="status status--ok">« {product.name} » est déjà dans ta bibliothèque.</p>
+        <div className="ing-scan-fill__actions">
+          <Link to={`/ingredients/${product.id}`} className="button button--primary">
+            Ouvrir sa fiche
+          </Link>
+          <button type="button" className="button button--ghost" onClick={onDismiss}>
+            Continuer cette création
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (applied) {
+    return (
+      <div className="ing-scan-fill">
+        <p className="status status--ok">✓ Informations reprises depuis OpenFoodFacts.</p>
+        {/* Rien n'est parti au serveur : le dire evite le classique « je croyais
+            que c'était enregistré » sur un formulaire quitte au bouton Retour. */}
+        <p className="card__lead">Relis les valeurs, puis « Enregistrer ».</p>
+        <div className="ing-scan-fill__actions">
+          <button type="button" className="button button--ghost" onClick={onDismiss}>
+            Fermer
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const conflicts = overwritten(draft, product)
+
+  const apply = (replace: boolean) => {
+    onPatch(merged(draft, product, replace))
+    setApplied(true)
+  }
+
+  const macros = [
+    product.kcal !== null ? `${Math.round(product.kcal)} kcal` : null,
+    product.proteins !== null ? `P ${formatGrams(product.proteins)}` : null,
+    product.carbs !== null ? `G ${formatGrams(product.carbs)}` : null,
+    product.fats !== null ? `L ${formatGrams(product.fats)}` : null,
+  ].filter((part): part is string => part !== null)
+
+  return (
+    <div className="ing-scan-fill">
+      <p className="ing-scan-fill__title">{product.name}</p>
+      {/* Un produit OpenFoodFacts sans marque NI macro existe : ne pas laisser
+          une ligne vide ouvrir un ecart de plus dans une carte deja dense. */}
+      {(product.brand || macros.length > 0) && (
+        <p className="ing-scan-fill__meta">
+          {product.brand && <span>{product.brand}</span>}
+          {macros.length > 0 && <span>{macros.join(' · ')}</span>}
+        </p>
+      )}
+
+      <p className="card__lead">
+        {conflicts.length === 0
+          ? 'OpenFoodFacts connaît ce produit : reprends sa fiche plutôt que de tout saisir.'
+          : `Tu as déjà rempli : ${conflicts.join(', ')}. Ta saisie est gardée, sauf si tu demandes le remplacement.`}
+      </p>
+
+      {/* Le bouton par defaut ne detruit jamais rien. « Tout remplacer » n'existe
+          que lorsqu'il y a effectivement quelque chose a ecraser, et il le dit. */}
+      <div className="ing-scan-fill__actions">
+        <button type="button" className="button button--primary" onClick={() => apply(false)}>
+          {conflicts.length === 0 ? 'Reprendre ces informations' : 'Compléter les champs vides'}
+        </button>
+        {conflicts.length > 0 && (
+          <button type="button" className="button button--secondary" onClick={() => apply(true)}>
+            Tout remplacer
+          </button>
+        )}
+        <button type="button" className="button button--ghost" onClick={onDismiss}>
+          Ignorer
+        </button>
+      </div>
+    </div>
   )
 }
 
