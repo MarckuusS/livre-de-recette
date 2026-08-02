@@ -309,6 +309,26 @@ stdout.write(`\nApplication sur ${where}…\n`)
 const { code, output } = await runWrangler(sql, target)
 
 if (code !== 0) {
+  const migrate = `npm run db:migrate:${target === '--local' ? 'local' : 'remote'}`
+
+  // La cause la plus frequente, et la plus opaque quand elle remonte brute :
+  // le schema multi-cuisines n'a jamais ete applique a CETTE base. SQLite dit
+  // « no such table: household » et laisse deviner tout le reste.
+  if (/no such table: household/i.test(output)) {
+    quit(
+      `Cette base ne connaît pas encore les cuisines séparées.\n\n` +
+        `Applique d'abord la migration :\n    ${migrate}\n\n` +
+        `Puis relance cette commande.`,
+    )
+  }
+
+  if (/no such column: household_id/i.test(output)) {
+    quit(
+      `Cette base est à moitié migrée : la table « household » existe, pas la colonne.\n` +
+        `Relance « ${migrate} ».`,
+    )
+  }
+
   stdout.write(`\n${output}\n`)
   quit(
     `Échec. Si c'est un problème d'authentification, lance « npx wrangler login ».\n` +
