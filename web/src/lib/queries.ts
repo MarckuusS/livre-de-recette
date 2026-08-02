@@ -281,6 +281,34 @@ export function usePriceHistory(ingredientId: number | null) {
   })
 }
 
+/**
+ * Enregistre un prix pour un ingredient connu seulement a l'envoi.
+ *
+ * `useAddPrice` fige l'identifiant a la creation du hook, ce qui ne convient
+ * pas quand l'ingredient vient d'etre CREE dans la meme action — le cas du
+ * scan : on ajoute le produit a la bibliotheque, et son identifiant n'existe
+ * qu'ensuite. Ici il voyage avec la mutation.
+ */
+export function useRecordPrice() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      ingredientId,
+      ...entry
+    }: Omit<PriceEntry, 'id' | 'ingredientId' | 'createdAt'> & { ingredientId: number }) =>
+      post<{ items: PriceEntry[]; ingredient: Ingredient }>(
+        `/api/ingredients/${ingredientId}/prices`,
+        entry,
+      ),
+    onSuccess: (result, vars) => {
+      client.setQueryData(keys.prices(vars.ingredientId), { items: result.items })
+      client.setQueryData(keys.ingredient(vars.ingredientId), result.ingredient)
+      void client.invalidateQueries({ queryKey: ['ingredients'] })
+      invalidateDerived(client)
+    },
+  })
+}
+
 export function useAddPrice(ingredientId: number) {
   const client = useQueryClient()
   return useMutation({

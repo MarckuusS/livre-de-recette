@@ -115,12 +115,35 @@ function useBodyScrollLock(active: boolean): void {
  */
 let pendingHistoryPop = 0
 
+/**
+ * Nombre de feuilles ouvertes. SEULE la premiere touche a l'historique.
+ *
+ * Une feuille peut en ouvrir une autre : le scanner de code-barres vit dans la
+ * feuille d'import. Quand chacune empilait son entree, fermer la feuille fille
+ * retirait la sienne, le `popstate` qui en resultait etait capte par la feuille
+ * MERE — encore a l'ecoute — et fermait tout. Concretement : on scannait un
+ * produit et l'ecran entier disparaissait avant de l'afficher.
+ *
+ * Une seule participante supprime la classe de bug. Consequence assumee : le
+ * geste de retour ferme alors la pile entiere, pas seulement la feuille du
+ * dessus. C'est previsible, et infiniment preferable a une fermeture surprise.
+ */
+let openSheets = 0
+
 function useBackToClose(active: boolean, onClose: () => void): void {
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
   useEffect(() => {
     if (!active) return
+
+    const isOutermost = openSheets === 0
+    openSheets++
+    if (!isOutermost) {
+      return () => {
+        openSheets--
+      }
+    }
 
     let closedByGesture = false
     // Une entree en attente de retrait est reprise telle quelle : c'est le cas
@@ -135,6 +158,7 @@ function useBackToClose(active: boolean, onClose: () => void): void {
     window.addEventListener('popstate', onPop)
 
     return () => {
+      openSheets--
       window.removeEventListener('popstate', onPop)
       // Fermeture par le geste : le navigateur a deja depile, rien a faire.
       if (closedByGesture) return

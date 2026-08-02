@@ -40,6 +40,7 @@ import {
   type BarcodeResult,
 } from '../../lib/queries.js'
 import { catalogKey } from './model.js'
+import { ScanReview } from './ScanReview.js'
 import '../../styles/ingredients.css'
 
 type Tab = 'ciqual' | 'off'
@@ -567,35 +568,23 @@ function ScannedProduct({
   }
 
   const product = query.data
-  const known = product.alreadyKnown === true || isKnown(product, library)
+
+  // `alreadyKnown` dit seulement que la fiche existe au CATALOGUE, pas qu'elle
+  // est dans la bibliotheque personnelle. Les confondre affichait « Déjà
+  // ajouté » sur un produit absent de la bibliotheque, sans moyen de l'ajouter.
+  const known = product.inLibrary || isKnown(product, library)
 
   return (
-    <div className="card">
-      {/* Pas de nom ni de marque ici : CandidateRow les affiche deja. Les
-          repeter au-dessus donnait la meme fiche deux fois de suite. */}
-      <p className="card__lead">
-        Code <strong>{ean}</strong>
-      </p>
-
-      {known && product.inLibrary ? (
-        <p className="status status--ok">Déjà dans ta bibliothèque.</p>
-      ) : (
-        <CandidateRow
-          candidate={product}
-          known={known}
-          checked={false}
-          onToggle={() => undefined}
-          onAdded={(message) => {
-            onAdded(message)
-            onDismiss()
-          }}
-        />
-      )}
-
-      <button type="button" className="button button--secondary" onClick={onDismiss}>
-        Scanner autre chose
-      </button>
-    </div>
+    // `key` sur le code : scanner un second produit remonte un formulaire
+    // neuf, plutot que de reinjecter les valeurs dans le brouillon du premier.
+    <ScanReview
+      key={ean}
+      ean={ean}
+      product={product}
+      known={known}
+      onAdded={onAdded}
+      onDismiss={onDismiss}
+    />
   )
 }
 
