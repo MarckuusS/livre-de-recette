@@ -7,6 +7,25 @@
  *
  * L'instance est construite a chaque requete — un Worker n'a pas d'etat
  * partage fiable entre invocations, et D1 ne coute rien a « ouvrir ».
+ *
+ * ---------------------------------------------------------------------------
+ * LE CLOISONNEMENT PAR FOYER
+ * ---------------------------------------------------------------------------
+ * Plusieurs cuisines cohabitent dans la meme base. Le foyer est donc lie ICI,
+ * a la CONSTRUCTION, et jamais passe requete par requete.
+ *
+ * Ce choix est la principale mesure de securite du modele, et il tient a une
+ * chose : un appelant ne peut pas oublier ce qu'il n'a pas a fournir. Passer
+ * `householdId` en argument de chaque methode aurait multiplie par cinquante
+ * les occasions de l'omettre — et SQLite n'ayant pas de Row-Level Security,
+ * rien n'aurait rattrape l'oubli.
+ *
+ * Sa valeur vient de `SessionUser.householdId`, donc de la table `user`, donc
+ * du cookie signe. Aucune route ne la choisit, aucun corps de requete ne peut
+ * l'influencer.
+ *
+ * `scripts/smoke-isolation.mjs` verifie qu'aucun chemin de lecture ne franchit
+ * la frontiere. C'est la seconde mesure, et la seule qui prouve quelque chose.
  */
 
 import { CalendarRepo } from './calendar.js'
@@ -15,6 +34,16 @@ import { PantryRepo } from './pantry.js'
 import { RecipeRepo } from './recipes.js'
 import { SettingsRepo } from './settings.js'
 
+/**
+ * Foyer inexistant, utilise quand aucune session n'est etablie.
+ *
+ * Choix DELIBEREMENT ferme : une requete faite sans utilisateur ne rend rien,
+ * au lieu de rendre les donnees du foyer 1. Les routes publiques ne touchent
+ * de toute facon pas aux repositories — si l'une venait a le faire, elle
+ * echouerait a vide plutot que de fuiter.
+ */
+export const NO_HOUSEHOLD = 0
+
 export class Repositories {
   readonly ingredients: IngredientRepo
   readonly recipes: RecipeRepo
@@ -22,15 +51,15 @@ export class Repositories {
   readonly pantry: PantryRepo
   readonly settings: SettingsRepo
 
-  constructor(db: D1Database) {
-    this.ingredients = new IngredientRepo(db)
+  constructor(db: D1Database, householdId: number) {
+    this.ingredients = new IngredientRepo(db, householdId)
     // Les recettes chargent leurs ingredients : la dependance est explicite
     // plutot que dupliquee, sinon deux chemins liraient la meme table
-    // differemment.
-    this.recipes = new RecipeRepo(db, this.ingredients)
-    this.calendar = new CalendarRepo(db)
-    this.pantry = new PantryRepo(db)
-    this.settings = new SettingsRepo(db)
+    // differemment — et l'un des deux pourrait oublier le foyer.
+    this.recipes = new RecipeRepo(db, householdId, this.ingredients)
+    this.calendar = new CalendarRepo(db, householdId)
+    this.pantry = new PantryRepo(db, householdId)
+    this.settings = new SettingsRepo(db, householdId)
   }
 }
 

@@ -21,6 +21,8 @@
     "smoke": "node scripts/smoke-api.mjs",
     "// smoke:courses": "Eprouve la session de courses (chariot, correspondance, validation en cinq etapes). Memes garde-fous que `smoke`.",
     "smoke:courses": "node scripts/smoke-courses.mjs",
+    "// smoke:isolation": "PROUVE que deux cuisines ne se voient pas. Exige deux comptes dans des foyers differents (voir --cuisine= dans add-user.mjs) et SMOKE_A_* / SMOKE_B_*.",
+    "smoke:isolation": "node scripts/smoke-isolation.mjs",
     "db:check": "node scripts/check-fts5.mjs",
     "db:export": "node scripts/migrate-sqlite-to-d1.mjs",
     "db:verify": "node scripts/migrate-sqlite-to-d1.mjs && node scripts/verify-migration.mjs",

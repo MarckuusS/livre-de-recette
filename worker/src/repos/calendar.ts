@@ -24,20 +24,32 @@ export interface EntryWrite {
 }
 
 export class CalendarRepo {
-  constructor(private readonly db: D1Database) {}
+  constructor(
+    private readonly db: D1Database,
+    private readonly householdId: number,
+  ) {}
 
   async listWeek(isoWeek: string): Promise<MealPlanEntry[]> {
     const { results } = await this.db
-      .prepare(`SELECT ${ENTRY_COLUMNS} FROM meal_plan_entry WHERE iso_week = ? ORDER BY day_of_week, ordinal`)
-      .bind(isoWeek)
+      .prepare(
+        `SELECT ${ENTRY_COLUMNS} FROM meal_plan_entry
+          WHERE household_id = ? AND iso_week = ? ORDER BY day_of_week, ordinal`,
+      )
+      .bind(this.householdId, isoWeek)
       .all<MealPlanEntryRow>()
     return results.map(toMealPlanEntry)
   }
 
+  /**
+   * L'identifiant vient de l'URL. C'est par cette methode que les routes
+   * verifient l'existence d'une entree avant de la modifier ou de la
+   * supprimer : sans le filtre, deviner un numero suffirait a lire — puis a
+   * effacer — le repas d'un autre foyer.
+   */
   async getEntry(id: number): Promise<MealPlanEntry | null> {
     const row = await this.db
-      .prepare(`SELECT ${ENTRY_COLUMNS} FROM meal_plan_entry WHERE id = ?`)
-      .bind(id)
+      .prepare(`SELECT ${ENTRY_COLUMNS} FROM meal_plan_entry WHERE id = ? AND household_id = ?`)
+      .bind(id, this.householdId)
       .first<MealPlanEntryRow>()
     return row ? toMealPlanEntry(row) : null
   }
@@ -52,14 +64,19 @@ export class CalendarRepo {
   async addEntry(entry: EntryWrite): Promise<number> {
     const row = await this.db
       .prepare(
+        // La sous-requete de l'ordinal est bornee elle aussi : compter les
+        // entrees de tous les foyers sur ce creneau laisserait des trous dans
+        // la numerotation, et revelerait au passage combien de repas le voisin
+        // a prevus mardi midi.
         `INSERT INTO meal_plan_entry
-           (iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal)
-         VALUES (?, ?, ?, ?, ?, ?, ?,
+           (household_id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?,
            (SELECT COALESCE(MAX(ordinal), -1) + 1 FROM meal_plan_entry
-             WHERE iso_week = ? AND day_of_week = ? AND slot = ?))
+             WHERE household_id = ? AND iso_week = ? AND day_of_week = ? AND slot = ?))
          RETURNING id`,
       )
       .bind(
+        this.householdId,
         entry.isoWeek,
         entry.dayOfWeek,
         entry.slot,
@@ -67,6 +84,7 @@ export class CalendarRepo {
         entry.ingredientId,
         entry.quantityG,
         entry.portions,
+        this.householdId,
         entry.isoWeek,
         entry.dayOfWeek,
         entry.slot,
@@ -80,8 +98,8 @@ export class CalendarRepo {
   /** Change la quantite ou le nombre de portions d'une entree existante. */
   async updateAmount(id: number, quantityG: number | null, portions: number | null): Promise<boolean> {
     const result = await this.db
-      .prepare('UPDATE meal_plan_entry SET quantity_g = ?, portions = ? WHERE id = ?')
-      .bind(quantityG, portions, id)
+      .prepare('UPDATE meal_plan_entry SET quantity_g = ?, portions = ? WHERE id = ? AND household_id = ?')
+      .bind(quantityG, portions, id, this.householdId)
       .run()
     return (result.meta.changes ?? 0) > 0
   }
@@ -90,35 +108,40 @@ export class CalendarRepo {
   async moveEntry(id: number, dayOfWeek: number, slot: string): Promise<boolean> {
     const result = await this.db
       .prepare(
+        // Meme remarque que pour `addEntry` sur le calcul de l'ordinal.
         `UPDATE meal_plan_entry
             SET day_of_week = ?, slot = ?,
                 ordinal = (SELECT COALESCE(MAX(ordinal), -1) + 1 FROM meal_plan_entry m
-                            WHERE m.iso_week = meal_plan_entry.iso_week
+                            WHERE m.household_id = ?
+                              AND m.iso_week = meal_plan_entry.iso_week
                               AND m.day_of_week = ? AND m.slot = ? AND m.id <> ?)
-          WHERE id = ?`,
+          WHERE id = ? AND household_id = ?`,
       )
-      .bind(dayOfWeek, slot, dayOfWeek, slot, id, id)
+      .bind(dayOfWeek, slot, this.householdId, dayOfWeek, slot, id, id, this.householdId)
       .run()
     return (result.meta.changes ?? 0) > 0
   }
 
   async deleteEntry(id: number): Promise<boolean> {
-    const result = await this.db.prepare('DELETE FROM meal_plan_entry WHERE id = ?').bind(id).run()
+    const result = await this.db
+      .prepare('DELETE FROM meal_plan_entry WHERE id = ? AND household_id = ?')
+      .bind(id, this.householdId)
+      .run()
     return (result.meta.changes ?? 0) > 0
   }
 
   async clearDay(isoWeek: string, dayOfWeek: number): Promise<number> {
     const result = await this.db
-      .prepare('DELETE FROM meal_plan_entry WHERE iso_week = ? AND day_of_week = ?')
-      .bind(isoWeek, dayOfWeek)
+      .prepare('DELETE FROM meal_plan_entry WHERE household_id = ? AND iso_week = ? AND day_of_week = ?')
+      .bind(this.householdId, isoWeek, dayOfWeek)
       .run()
     return result.meta.changes ?? 0
   }
 
   async clearWeek(isoWeek: string): Promise<number> {
     const result = await this.db
-      .prepare('DELETE FROM meal_plan_entry WHERE iso_week = ?')
-      .bind(isoWeek)
+      .prepare('DELETE FROM meal_plan_entry WHERE household_id = ? AND iso_week = ?')
+      .bind(this.householdId, isoWeek)
       .run()
     return result.meta.changes ?? 0
   }
@@ -133,8 +156,12 @@ export class CalendarRepo {
     const source = await this.listWeek(from)
     if (source.length === 0) return 0
 
+    // Le DELETE de la destination est borne : recopier une semaine ne doit pas
+    // vider celle du voisin.
     const statements: D1PreparedStatement[] = [
-      this.db.prepare('DELETE FROM meal_plan_entry WHERE iso_week = ?').bind(to),
+      this.db
+        .prepare('DELETE FROM meal_plan_entry WHERE household_id = ? AND iso_week = ?')
+        .bind(this.householdId, to),
     ]
 
     for (const e of source) {
@@ -142,10 +169,20 @@ export class CalendarRepo {
         this.db
           .prepare(
             `INSERT INTO meal_plan_entry
-               (iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+               (household_id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .bind(to, e.dayOfWeek, e.slot, e.recipeId, e.ingredientId, e.quantityG, e.portions, e.ordinal),
+          .bind(
+            this.householdId,
+            to,
+            e.dayOfWeek,
+            e.slot,
+            e.recipeId,
+            e.ingredientId,
+            e.quantityG,
+            e.portions,
+            e.ordinal,
+          ),
       )
     }
 
@@ -157,7 +194,11 @@ export class CalendarRepo {
 
   async listTemplates(): Promise<Array<{ id: number; name: string; entryCount: number; updatedAt: string }>> {
     const { results } = await this.db
-      .prepare('SELECT id, name, snapshot_json, updated_at FROM meal_plan_template ORDER BY name')
+      .prepare(
+        `SELECT id, name, snapshot_json, updated_at FROM meal_plan_template
+          WHERE household_id = ? ORDER BY name`,
+      )
+      .bind(this.householdId)
       .all<{ id: number; name: string; snapshot_json: string; updated_at: string }>()
 
     return results.map((t) => {
@@ -188,11 +229,15 @@ export class CalendarRepo {
 
     const row = await this.db
       .prepare(
-        `INSERT INTO meal_plan_template (name, snapshot_json) VALUES (?, ?)
-         ON CONFLICT(name) DO UPDATE SET snapshot_json = excluded.snapshot_json, updated_at = ${NOW_SQL}
+        // La cible du ON CONFLICT suit l'index `ix_template_unique`, devenu
+        // (household_id, name) en 0005 : deux foyers doivent pouvoir nommer
+        // « Semaine type » chacun le leur. Laisser `(name)` seul ferait echouer
+        // la requete — SQLite exige que la cible corresponde a une contrainte.
+        `INSERT INTO meal_plan_template (household_id, name, snapshot_json) VALUES (?, ?, ?)
+         ON CONFLICT(household_id, name) DO UPDATE SET snapshot_json = excluded.snapshot_json, updated_at = ${NOW_SQL}
          RETURNING id`,
       )
-      .bind(name, JSON.stringify(snapshot))
+      .bind(this.householdId, name, JSON.stringify(snapshot))
       .first<{ id: number }>()
 
     if (!row) throw new Error("INSERT meal_plan_template n'a rien renvoye")
@@ -202,8 +247,8 @@ export class CalendarRepo {
   /** Applique un modele sur une semaine, en remplacant son contenu. */
   async applyTemplate(id: number, isoWeek: string): Promise<number> {
     const row = await this.db
-      .prepare('SELECT snapshot_json FROM meal_plan_template WHERE id = ?')
-      .bind(id)
+      .prepare('SELECT snapshot_json FROM meal_plan_template WHERE id = ? AND household_id = ?')
+      .bind(id, this.householdId)
       .first<{ snapshot_json: string }>()
     if (!row) return -1
 
@@ -216,7 +261,9 @@ export class CalendarRepo {
     }
 
     const statements: D1PreparedStatement[] = [
-      this.db.prepare('DELETE FROM meal_plan_entry WHERE iso_week = ?').bind(isoWeek),
+      this.db
+        .prepare('DELETE FROM meal_plan_entry WHERE household_id = ? AND iso_week = ?')
+        .bind(this.householdId, isoWeek),
     ]
 
     for (const e of snapshot) {
@@ -224,10 +271,11 @@ export class CalendarRepo {
         this.db
           .prepare(
             `INSERT INTO meal_plan_entry
-               (iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+               (household_id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .bind(
+            this.householdId,
             isoWeek,
             e['dayOfWeek'] ?? 0,
             e['slot'] ?? 'noon',
@@ -245,7 +293,10 @@ export class CalendarRepo {
   }
 
   async deleteTemplate(id: number): Promise<boolean> {
-    const result = await this.db.prepare('DELETE FROM meal_plan_template WHERE id = ?').bind(id).run()
+    const result = await this.db
+      .prepare('DELETE FROM meal_plan_template WHERE id = ? AND household_id = ?')
+      .bind(id, this.householdId)
+      .run()
     return (result.meta.changes ?? 0) > 0
   }
 }

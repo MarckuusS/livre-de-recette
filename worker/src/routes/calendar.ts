@@ -61,6 +61,13 @@ route('POST', '/api/calendar/:week/entries', async ({ repos, params, request, en
     isoWeek: week,
   })
 
+  // La cible doit appartenir a CETTE cuisine. Les repositories sont cloisonnes,
+  // donc un identifiant etranger rend `null` — sans ce controle on inserait une
+  // entree pointant dans le vide, qui s'afficherait « Ingrédient supprimé » et
+  // fausserait les totaux. Rien ne fuiterait, mais rien ne le signalerait non
+  // plus.
+  await assertTargetExists(repos, entry.recipeId, entry.ingredientId)
+
   const label = await describeTarget(repos, entry.recipeId, entry.ingredientId)
   const id = await repos.calendar.addEntry({
     isoWeek: week,
@@ -236,6 +243,25 @@ route('DELETE', '/api/templates/:id', async ({ repos, params }) => {
   if (!(await repos.calendar.deleteTemplate(id))) throw notFound('Modèle introuvable.')
   return json({ id })
 })
+
+/**
+ * Refuse une entree qui designe une recette ou un ingredient d'ailleurs.
+ *
+ * Le message ne distingue pas « n'existe pas » de « n'est pas a vous » : le
+ * second renseignerait sur l'existence d'une fiche chez quelqu'un d'autre.
+ */
+async function assertTargetExists(
+  repos: Repositories,
+  recipeId: number | null,
+  ingredientId: number | null,
+): Promise<void> {
+  if (recipeId !== null && (await repos.recipes.get(recipeId)) === null) {
+    throw new HttpError(422, 'unknown_recipe', 'Recette introuvable.')
+  }
+  if (ingredientId !== null && (await repos.ingredients.get(ingredientId)) === null) {
+    throw new HttpError(422, 'unknown_ingredient', 'Ingrédient introuvable.')
+  }
+}
 
 /**
  * Nom lisible de ce que designe une entree.

@@ -4,6 +4,11 @@
  * Le « catalogue » (CIQUAL, OpenFoodFacts) et la « bibliotheque personnelle »
  * sont la MEME table. Seul `in_personal_library` les distingue. Ajouter un
  * ingredient depuis le catalogue ne copie donc rien : cela bascule un drapeau.
+ *
+ * Le catalogue est DUPLIQUE par foyer (voir migrations/0005_households.sql) :
+ * chaque ligne appartient a exactement un foyer, y compris les 4 177 lignes
+ * CIQUAL. Il n'existe donc aucune ligne « commune » qu'il faudrait laisser
+ * passer — toute requete de ce fichier se filtre sur le foyer, sans exception.
  */
 
 import type { Ingredient } from '@livre/shared'
@@ -61,22 +66,39 @@ export interface IngredientUsage {
 }
 
 export class IngredientRepo {
-  constructor(private readonly db: D1Database) {}
+  constructor(
+    private readonly db: D1Database,
+    private readonly householdId: number,
+  ) {}
 
   // ------------------------------------------------------------------ lecture
 
   async count(): Promise<number> {
-    const row = await this.db.prepare('SELECT COUNT(*) AS c FROM ingredient').first<{ c: number }>()
+    const row = await this.db
+      .prepare('SELECT COUNT(*) AS c FROM ingredient WHERE household_id = ?')
+      .bind(this.householdId)
+      .first<{ c: number }>()
     return row?.c ?? 0
   }
 
+  /**
+   * Chargement en masse par identifiants.
+   *
+   * Les identifiants arrivent d'ailleurs — lignes de recettes, entrees du
+   * calendrier, lots du frigo. Le filtre sur le foyer est donc ce qui rend une
+   * reference etrangere INEXISTANTE plutot que lisible : l'appelant recoit une
+   * Map sans cette cle, et traite le cas comme un ingredient supprime.
+   */
   async byIds(ids: Iterable<number>): Promise<Map<number, Ingredient>> {
     const unique = [...new Set(ids)]
     if (unique.length === 0) return new Map()
 
     const { results } = await this.db
-      .prepare(`SELECT ${INGREDIENT_COLUMNS} FROM ingredient WHERE id IN (${placeholders(unique.length)})`)
-      .bind(...unique)
+      .prepare(
+        `SELECT ${INGREDIENT_COLUMNS} FROM ingredient
+         WHERE id IN (${placeholders(unique.length)}) AND household_id = ?`,
+      )
+      .bind(...unique, this.householdId)
       .all<IngredientRow>()
 
     return new Map(results.map((r) => [r.id, toIngredient(r)]))
@@ -84,8 +106,8 @@ export class IngredientRepo {
 
   async get(id: number): Promise<Ingredient | null> {
     const row = await this.db
-      .prepare(`SELECT ${INGREDIENT_COLUMNS} FROM ingredient WHERE id = ?`)
-      .bind(id)
+      .prepare(`SELECT ${INGREDIENT_COLUMNS} FROM ingredient WHERE id = ? AND household_id = ?`)
+      .bind(id, this.householdId)
       .first<IngredientRow>()
     return row ? toIngredient(row) : null
   }
@@ -103,23 +125,31 @@ export class IngredientRepo {
 
     if (!fts) {
       const { results } = await this.db
-        .prepare(`SELECT ${INGREDIENT_COLUMNS} FROM ingredient WHERE in_personal_library = 1 ORDER BY name LIMIT ?`)
-        .bind(limit)
+        .prepare(
+          `SELECT ${INGREDIENT_COLUMNS} FROM ingredient
+           WHERE household_id = ? AND in_personal_library = 1 ORDER BY name LIMIT ?`,
+        )
+        .bind(this.householdId, limit)
         .all<IngredientRow>()
       return results.map(toIngredient)
     }
 
+    // `ingredient_fts` ne porte PAS le foyer — elle indexe les lignes de tout
+    // le monde et ne sait que proposer des rowid. C'est ce SELECT-ci qui
+    // cloisonne, via `i.household_id` : le MATCH peut rendre l'identifiant
+    // d'un ingredient du voisin, la jointure ne le retiendra pas.
     const { results } = await this.db
       .prepare(
         `SELECT ${prefixed('i')}
          FROM ingredient i
-         WHERE i.in_personal_library = 1
+         WHERE i.household_id = ?
+           AND i.in_personal_library = 1
            AND (i.id IN (SELECT rowid FROM ingredient_fts WHERE ingredient_fts MATCH ?)
                 OR i.name_normalized LIKE ? ESCAPE '\\')
          ORDER BY i.name
          LIMIT ?`,
       )
-      .bind(fts, `%${escapeLike(normalizeName(query))}%`, limit)
+      .bind(this.householdId, fts, `%${escapeLike(normalizeName(query))}%`, limit)
       .all<IngredientRow>()
     return results.map(toIngredient)
   }
@@ -140,10 +170,15 @@ export class IngredientRepo {
     const { source = null, categoryL1 = null, limit = 50, offset = 0 } = options
     const fts = toFtsQuery(query)
 
-    const where: string[] = []
-    const args: unknown[] = []
+    // Le foyer ouvre la liste, donc la clause n'est JAMAIS vide : sans requete
+    // ni filtre, ce catalogue rendait autrefois toute la table. Il rend
+    // desormais le catalogue de ce foyer, et rien d'autre.
+    const where: string[] = ['i.household_id = ?']
+    const args: unknown[] = [this.householdId]
 
     if (fts) {
+      // Meme remarque que dans `listPersonal` : le MATCH n'est pas cloisonne,
+      // c'est le `i.household_id` ci-dessus qui borne le resultat.
       where.push(`(i.id IN (SELECT rowid FROM ingredient_fts WHERE ingredient_fts MATCH ?) OR i.name_normalized LIKE ? ESCAPE '\\')`)
       args.push(fts, `%${escapeLike(normalizeName(query))}%`)
     }
@@ -156,7 +191,7 @@ export class IngredientRepo {
       args.push(categoryL1)
     }
 
-    const clause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''
+    const clause = `WHERE ${where.join(' AND ')}`
 
     const [page, total] = await Promise.all([
       this.db
@@ -177,9 +212,11 @@ export class IngredientRepo {
     const { results } = await this.db
       .prepare(
         `SELECT category_l1 AS l1, COUNT(*) AS count
-         FROM ingredient WHERE category_l1 IS NOT NULL AND category_l1 <> ''
+         FROM ingredient
+         WHERE household_id = ? AND category_l1 IS NOT NULL AND category_l1 <> ''
          GROUP BY category_l1 ORDER BY category_l1`,
       )
+      .bind(this.householdId)
       .all<{ l1: string; count: number }>()
     return results
   }
@@ -193,20 +230,30 @@ export class IngredientRepo {
    */
   async findBySourceRef(source: string, sourceRef: string): Promise<Ingredient | null> {
     const row = await this.db
-      .prepare(`SELECT ${INGREDIENT_COLUMNS} FROM ingredient WHERE source = ? AND source_ref = ? LIMIT 1`)
-      .bind(source, sourceRef)
+      .prepare(
+        `SELECT ${INGREDIENT_COLUMNS} FROM ingredient
+         WHERE household_id = ? AND source = ? AND source_ref = ? LIMIT 1`,
+      )
+      .bind(this.householdId, source, sourceRef)
       .first<IngredientRow>()
     return row ? toIngredient(row) : null
   }
 
-  /** Recherche un doublon exact sur le nom normalise, hors ligne `exceptId`. */
+  /**
+   * Recherche un doublon exact sur le nom normalise, hors ligne `exceptId`.
+   *
+   * Le foyer n'est pas seulement une question de confidentialite ici : sans
+   * lui, scanner un produit que le voisin possede deja repondrait « ce nom
+   * existe déjà » en designant une fiche que l'on ne peut ni ouvrir ni
+   * modifier.
+   */
   async findByNormalizedName(name: string, exceptId: number | null = null): Promise<Ingredient | null> {
     const row = await this.db
       .prepare(
         `SELECT ${INGREDIENT_COLUMNS} FROM ingredient
-         WHERE name_normalized = ? AND (? IS NULL OR id <> ?) LIMIT 1`,
+         WHERE household_id = ? AND name_normalized = ? AND (? IS NULL OR id <> ?) LIMIT 1`,
       )
-      .bind(normalizeName(name), exceptId, exceptId)
+      .bind(this.householdId, normalizeName(name), exceptId, exceptId)
       .first<IngredientRow>()
     return row ? toIngredient(row) : null
   }
@@ -214,8 +261,11 @@ export class IngredientRepo {
   // ------------------------------------------------------------------ ecriture
 
   async create(payload: IngredientWrite & { name: string }): Promise<number> {
-    const columns: string[] = ['name', 'name_normalized']
-    const values: unknown[] = [payload.name, normalizeName(payload.name)]
+    // `household_id` est pose ICI et non dans `WRITABLE` : il ne doit jamais
+    // etre modifiable par un corps de requete, sinon une fiche pourrait etre
+    // deposee dans la cuisine d'a cote.
+    const columns: string[] = ['household_id', 'name', 'name_normalized']
+    const values: unknown[] = [this.householdId, payload.name, normalizeName(payload.name)]
 
     for (const [key, column] of Object.entries(WRITABLE)) {
       if (key === 'name' || !(key in payload)) continue
@@ -258,8 +308,8 @@ export class IngredientRepo {
     }
 
     const result = await this.db
-      .prepare(`UPDATE ingredient SET ${clause} WHERE id = ?`)
-      .bind(...values, id)
+      .prepare(`UPDATE ingredient SET ${clause} WHERE id = ? AND household_id = ?`)
+      .bind(...values, id, this.householdId)
       .run()
     return (result.meta.changes ?? 0) > 0
   }
@@ -267,8 +317,11 @@ export class IngredientRepo {
   /** Bascule l'appartenance a la bibliotheque personnelle. */
   async setInLibrary(id: number, inLibrary: boolean): Promise<boolean> {
     const result = await this.db
-      .prepare(`UPDATE ingredient SET in_personal_library = ?, updated_at = ${NOW_SQL} WHERE id = ?`)
-      .bind(inLibrary ? 1 : 0, id)
+      .prepare(
+        `UPDATE ingredient SET in_personal_library = ?, updated_at = ${NOW_SQL}
+          WHERE id = ? AND household_id = ?`,
+      )
+      .bind(inLibrary ? 1 : 0, id, this.householdId)
       .run()
     return (result.meta.changes ?? 0) > 0
   }
@@ -283,32 +336,47 @@ export class IngredientRepo {
   async usage(id: number): Promise<IngredientUsage> {
     const row = await this.db
       .prepare(
+        // `recipe_ingredient` ne porte pas le foyer : on le borne par sa
+        // recette, qui le porte. Compter sans cette jointure ferait remonter
+        // l'usage chez le voisin — un « utilise par 3 recettes » sans qu'aucune
+        // recette visible ne l'utilise, donc une suppression impossible a
+        // expliquer.
         `SELECT
-           (SELECT COUNT(DISTINCT recipe_id) FROM recipe_ingredient WHERE ingredient_id = ?) AS recipes,
-           (SELECT COUNT(*) FROM meal_plan_entry  WHERE ingredient_id = ?) AS meal_plan,
-           (SELECT COUNT(*) FROM pantry_stock     WHERE ingredient_id = ?) AS pantry`,
+           (SELECT COUNT(DISTINCT ri.recipe_id) FROM recipe_ingredient ri
+              JOIN recipe r ON r.id = ri.recipe_id AND r.household_id = ?
+             WHERE ri.ingredient_id = ?) AS recipes,
+           (SELECT COUNT(*) FROM meal_plan_entry WHERE ingredient_id = ? AND household_id = ?) AS meal_plan,
+           (SELECT COUNT(*) FROM pantry_stock    WHERE ingredient_id = ? AND household_id = ?) AS pantry`,
       )
-      .bind(id, id, id)
+      .bind(this.householdId, id, id, this.householdId, id, this.householdId)
       .first<{ recipes: number; meal_plan: number; pantry: number }>()
 
     return { recipes: row?.recipes ?? 0, mealPlan: row?.meal_plan ?? 0, pantry: row?.pantry ?? 0 }
   }
 
-  /** Noms des recettes qui utilisent l'ingredient — pour un message d'erreur utile. */
+  /**
+   * Noms des recettes qui utilisent l'ingredient — pour un message d'erreur utile.
+   *
+   * Ces noms partent dans un message affiche : le filtre sur `r.household_id`
+   * est ce qui empeche le message d'erreur de reciter les recettes du voisin.
+   */
   async recipeNamesUsing(id: number, limit = 5): Promise<string[]> {
     const { results } = await this.db
       .prepare(
         `SELECT DISTINCT r.name FROM recipe r
          JOIN recipe_ingredient ri ON ri.recipe_id = r.id
-         WHERE ri.ingredient_id = ? ORDER BY r.name LIMIT ?`,
+         WHERE ri.ingredient_id = ? AND r.household_id = ? ORDER BY r.name LIMIT ?`,
       )
-      .bind(id, limit)
+      .bind(id, this.householdId, limit)
       .all<{ name: string }>()
     return results.map((r) => r.name)
   }
 
   async delete(id: number): Promise<boolean> {
-    const result = await this.db.prepare('DELETE FROM ingredient WHERE id = ?').bind(id).run()
+    const result = await this.db
+      .prepare('DELETE FROM ingredient WHERE id = ? AND household_id = ?')
+      .bind(id, this.householdId)
+      .run()
     return (result.meta.changes ?? 0) > 0
   }
 
@@ -320,10 +388,10 @@ export class IngredientRepo {
     const { results } = await this.db
       .prepare(
         `SELECT id, ingredient_id, price_eur, quantity_g, store, recorded_at, notes, created_at
-         FROM ingredient_price_history WHERE ingredient_id = ?
+         FROM ingredient_price_history WHERE ingredient_id = ? AND household_id = ?
          ORDER BY recorded_at DESC, id DESC`,
       )
-      .bind(ingredientId)
+      .bind(ingredientId, this.householdId)
       .all<{
         id: number
         ingredient_id: number
@@ -369,21 +437,62 @@ export class IngredientRepo {
       this.db
         .prepare(
           `INSERT INTO ingredient_price_history
-             (ingredient_id, price_eur, quantity_g, store, recorded_at, notes)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+             (household_id, ingredient_id, price_eur, quantity_g, store, recorded_at, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .bind(entry.ingredientId, entry.priceEur, entry.quantityG, entry.store, entry.recordedAt, entry.notes),
+        .bind(
+          this.householdId,
+          entry.ingredientId,
+          entry.priceEur,
+          entry.quantityG,
+          entry.store,
+          entry.recordedAt,
+          entry.notes,
+        ),
       this.db
         .prepare(
+          // Le NOT EXISTS est borne lui aussi : un releve plus recent chez le
+          // voisin empecherait sinon la mise a jour du prix courant ici, sans
+          // qu'aucune ligne visible ne l'explique.
           `UPDATE ingredient
               SET price_eur = ?, price_quantity_g = ?, updated_at = ${NOW_SQL}
-            WHERE id = ?
+            WHERE id = ? AND household_id = ?
               AND NOT EXISTS (
                 SELECT 1 FROM ingredient_price_history
-                 WHERE ingredient_id = ? AND recorded_at > ?)`,
+                 WHERE ingredient_id = ? AND household_id = ? AND recorded_at > ?)`,
         )
-        .bind(entry.priceEur, entry.quantityG, entry.ingredientId, entry.ingredientId, entry.recordedAt),
+        .bind(
+          entry.priceEur,
+          entry.quantityG,
+          entry.ingredientId,
+          this.householdId,
+          entry.ingredientId,
+          this.householdId,
+          entry.recordedAt,
+        ),
     ])
+  }
+
+  /**
+   * Enseignes deja rencontrees, les plus frequentes d'abord.
+   *
+   * Sert a proposer le magasin a l'ouverture d'une session de courses. La
+   * source est l'historique de prix, donc partagee ENTRE LES TELEPHONES D'UN
+   * MEME FOYER : le telephone de l'un propose les enseignes saisies par
+   * l'autre. Le partage s'arrete la — les enseignes d'un autre foyer disent ou
+   * il fait ses courses, ce qui ne le regarde pas.
+   */
+  async listStores(limit = 12): Promise<Array<{ store: string; count: number }>> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT store, COUNT(*) AS count
+         FROM ingredient_price_history
+         WHERE household_id = ? AND store IS NOT NULL AND TRIM(store) <> ''
+         GROUP BY store ORDER BY count DESC, store LIMIT ?`,
+      )
+      .bind(this.householdId, limit)
+      .all<{ store: string; count: number }>()
+    return results
   }
 
   /**
@@ -394,50 +503,45 @@ export class IngredientRepo {
    * l'historique ne justifie. Le cache doit toujours refleter le dernier
    * releve restant — ou redevenir vide quand il n'en reste aucun.
    */
-  /**
-   * Enseignes deja rencontrees, les plus frequentes d'abord.
-   *
-   * Sert a proposer le magasin a l'ouverture d'une session de courses. La
-   * source est l'historique de prix, donc PARTAGEE : le telephone de l'un
-   * propose les enseignes saisies par l'autre, ce qu'un stockage local ne
-   * saurait pas faire.
-   */
-  async listStores(limit = 12): Promise<Array<{ store: string; count: number }>> {
-    const { results } = await this.db
-      .prepare(
-        `SELECT store, COUNT(*) AS count
-         FROM ingredient_price_history
-         WHERE store IS NOT NULL AND TRIM(store) <> ''
-         GROUP BY store ORDER BY count DESC, store LIMIT ?`,
-      )
-      .bind(limit)
-      .all<{ store: string; count: number }>()
-    return results
-  }
-
   async deletePriceObservation(id: number): Promise<boolean> {
+    // La lecture prealable est aussi le controle d'appartenance : un releve
+    // d'un autre foyer ne rend rien, et l'on repart sur un 404 plutot que de
+    // supprimer chez lui.
     const row = await this.db
-      .prepare('SELECT ingredient_id FROM ingredient_price_history WHERE id = ?')
-      .bind(id)
+      .prepare('SELECT ingredient_id FROM ingredient_price_history WHERE id = ? AND household_id = ?')
+      .bind(id, this.householdId)
       .first<{ ingredient_id: number }>()
     if (!row) return false
 
     await this.db.batch([
-      this.db.prepare('DELETE FROM ingredient_price_history WHERE id = ?').bind(id),
-      // La sous-requete s'evalue APRES le DELETE : D1 execute les requetes d'un
-      // batch dans l'ordre. Sans ligne restante, elle rend NULL et le prix
-      // s'efface, ce qui est le comportement voulu.
+      this.db
+        .prepare('DELETE FROM ingredient_price_history WHERE id = ? AND household_id = ?')
+        .bind(id, this.householdId),
+      // Les deux sous-requetes s'evaluent APRES le DELETE : D1 execute les
+      // requetes d'un batch dans l'ordre. Sans ligne restante, elles rendent
+      // NULL et le prix s'efface, ce qui est le comportement voulu — encore
+      // faut-il qu'elles ne voient que l'historique de ce foyer, sinon le prix
+      // repris serait celui du voisin.
       this.db
         .prepare(
           `UPDATE ingredient SET
              price_eur = (SELECT price_eur FROM ingredient_price_history
-                           WHERE ingredient_id = ? ORDER BY recorded_at DESC, id DESC LIMIT 1),
+                           WHERE ingredient_id = ? AND household_id = ?
+                           ORDER BY recorded_at DESC, id DESC LIMIT 1),
              price_quantity_g = (SELECT quantity_g FROM ingredient_price_history
-                                  WHERE ingredient_id = ? ORDER BY recorded_at DESC, id DESC LIMIT 1),
+                                  WHERE ingredient_id = ? AND household_id = ?
+                                  ORDER BY recorded_at DESC, id DESC LIMIT 1),
              updated_at = ${NOW_SQL}
-           WHERE id = ?`,
+           WHERE id = ? AND household_id = ?`,
         )
-        .bind(row.ingredient_id, row.ingredient_id, row.ingredient_id),
+        .bind(
+          row.ingredient_id,
+          this.householdId,
+          row.ingredient_id,
+          this.householdId,
+          row.ingredient_id,
+          this.householdId,
+        ),
     ])
 
     return true

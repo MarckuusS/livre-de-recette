@@ -2,6 +2,7 @@
 
 import { listActivity } from '../activity.js'
 import { json, route } from '../http.js'
+import { NO_HOUSEHOLD } from '../repos/index.js'
 
 export const VERSION = '0.3.0'
 
@@ -26,6 +27,14 @@ route('GET', '/api/health', async ({ repos, env }) => {
   })
 })
 
-route('GET', '/api/activity', async ({ env, url }) =>
-  json({ items: await listActivity(env.DB, Number(url.searchParams.get('limit') ?? 50)) }),
+// Le journal ne passe pas par un repository : le foyer lui est donne ici, et
+// il vient de la session — comme celui que `index.ts` remet aux repositories.
+route('GET', '/api/activity', async ({ env, url, user }) =>
+  json({
+    items: await listActivity(
+      env.DB,
+      user?.householdId ?? NO_HOUSEHOLD,
+      Number(url.searchParams.get('limit') ?? 50),
+    ),
+  }),
 )

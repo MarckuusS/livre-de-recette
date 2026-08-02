@@ -41,6 +41,17 @@ const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000
 const MAX_FAILURES = 10
 const LOCKOUT_MS = 15 * 60 * 1000
 
+/**
+ * Foyer 0 : les reglages du SERVEUR, pas ceux d'une cuisine.
+ *
+ * `app_setting` a pour cle primaire (household_id, key) depuis la migration
+ * 0005. Le secret de signature et le compteur d'echecs y vivent sous le foyer
+ * 0, qui n'existe pas dans `household`. Un secret par cuisine n'aurait aucun
+ * sens : c'est justement lui qui permet de savoir DE QUELLE cuisine releve la
+ * requete.
+ */
+const GLOBAL_HOUSEHOLD = 0
+
 const SESSION_SECRET_KEY = 'auth.session_secret'
 
 const encoder = new TextEncoder()
@@ -52,6 +63,15 @@ export interface SessionUser {
   readonly id: number
   readonly username: string
   readonly displayName: string
+  /**
+   * Cuisine a laquelle ce compte donne acces.
+   *
+   * C'est la SEULE source du cloisonnement : elle est lue ici, a
+   * l'authentification, et transmise au constructeur des repositories. Aucune
+   * route ne la choisit, aucun corps de requete ne peut l'influencer — sans
+   * quoi il suffirait d'envoyer un autre numero pour lire la cuisine du voisin.
+   */
+  readonly householdId: number
 }
 
 // ---------------------------------------------------------------------------
@@ -60,8 +80,8 @@ export interface SessionUser {
 
 async function sessionSecret(db: D1Database): Promise<string> {
   const row = await db
-    .prepare('SELECT value_json FROM app_setting WHERE key = ?')
-    .bind(SESSION_SECRET_KEY)
+    .prepare('SELECT value_json FROM app_setting WHERE household_id = ? AND key = ?')
+    .bind(GLOBAL_HOUSEHOLD, SESSION_SECRET_KEY)
     .first<{ value_json: string }>()
 
   if (row) {
@@ -76,11 +96,11 @@ async function sessionSecret(db: D1Database): Promise<string> {
   const secret = toHex(crypto.getRandomValues(new Uint8Array(32)).buffer)
   await db
     .prepare(
-      `INSERT INTO app_setting (key, value_json, updated_at)
-       VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-       ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
+      `INSERT INTO app_setting (household_id, key, value_json, updated_at)
+       VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+       ON CONFLICT(household_id, key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
     )
-    .bind(SESSION_SECRET_KEY, JSON.stringify({ secret }))
+    .bind(GLOBAL_HOUSEHOLD, SESSION_SECRET_KEY, JSON.stringify({ secret }))
     .run()
   return secret
 }
@@ -157,11 +177,18 @@ export async function currentUser(request: Request, db: D1Database): Promise<Ses
   if (!timingSafeEqual(signature, expected)) return null
 
   const row = await db
-    .prepare('SELECT id, username, display_name FROM user WHERE id = ? AND is_active = 1')
+    .prepare('SELECT id, username, display_name, household_id FROM user WHERE id = ? AND is_active = 1')
     .bind(userId)
-    .first<{ id: number; username: string; display_name: string }>()
+    .first<{ id: number; username: string; display_name: string; household_id: number }>()
 
-  return row ? { id: row.id, username: row.username, displayName: row.display_name } : null
+  return row
+    ? {
+        id: row.id,
+        username: row.username,
+        displayName: row.display_name,
+        householdId: row.household_id,
+      }
+    : null
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +202,7 @@ export async function authenticate(
 ): Promise<SessionUser | null> {
   const row = await db
     .prepare(
-      `SELECT id, username, display_name, password_hash, password_salt, iterations
+      `SELECT id, username, display_name, household_id, password_hash, password_salt, iterations
        FROM user WHERE username = ? AND is_active = 1`,
     )
     .bind(username.trim().toLowerCase())
@@ -183,6 +210,7 @@ export async function authenticate(
       id: number
       username: string
       display_name: string
+      household_id: number
       password_hash: string
       password_salt: string
       iterations: number
@@ -203,7 +231,12 @@ export async function authenticate(
     .bind(row.id)
     .run()
 
-  return { id: row.id, username: row.username, displayName: row.display_name }
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    householdId: row.household_id,
+  }
 }
 
 export async function hasAnyUser(db: D1Database): Promise<boolean> {
@@ -224,8 +257,8 @@ const FAILURE_KEY = 'auth.failures'
 
 async function readFailures(db: D1Database): Promise<FailureState> {
   const row = await db
-    .prepare('SELECT value_json FROM app_setting WHERE key = ?')
-    .bind(FAILURE_KEY)
+    .prepare('SELECT value_json FROM app_setting WHERE household_id = ? AND key = ?')
+    .bind(GLOBAL_HOUSEHOLD, FAILURE_KEY)
     .first<{ value_json: string }>()
   if (!row) return { count: 0, lockedUntil: 0 }
   try {
@@ -239,11 +272,11 @@ async function readFailures(db: D1Database): Promise<FailureState> {
 async function writeFailures(db: D1Database, state: FailureState): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO app_setting (key, value_json, updated_at)
-       VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-       ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
+      `INSERT INTO app_setting (household_id, key, value_json, updated_at)
+       VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+       ON CONFLICT(household_id, key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
     )
-    .bind(FAILURE_KEY, JSON.stringify(state))
+    .bind(GLOBAL_HOUSEHOLD, FAILURE_KEY, JSON.stringify(state))
     .run()
 }
 

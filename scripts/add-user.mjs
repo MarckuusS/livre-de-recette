@@ -189,16 +189,42 @@ async function runWrangler(sql, target) {
 }
 
 const args = process.argv.slice(2)
-const flags = new Set(args.filter((a) => a.startsWith('--')))
+const flags = new Set(args.filter((a) => a.startsWith('--') && !a.includes('=')))
+const options = new Map(
+  args
+    .filter((a) => a.startsWith('--') && a.includes('='))
+    .map((a) => {
+      const at = a.indexOf('=')
+      return [a.slice(2, at), a.slice(at + 1)]
+    }),
+)
 const [usernameRaw, displayNameRaw] = args.filter((a) => !a.startsWith('--'))
 
 if (!usernameRaw) {
-  quit(`Usage : node scripts/add-user.mjs <identifiant> ["Nom affiché"] [--local] [--print]
+  quit(`Usage : node scripts/add-user.mjs <identifiant> ["Nom affiché"] [options]
 
-  identifiant   ce qu'on tape pour se connecter (minuscules, sans espace)
-  Nom affiché   ce qui apparaît dans le journal d'activité
-  --local       applique sur la base de développement au lieu de la production
-  --print       affiche seulement le SQL, sans rien appliquer`)
+  identifiant        ce qu'on tape pour se connecter (minuscules, sans espace)
+  Nom affiché        ce qui apparaît dans le journal d'activité
+
+  --cuisine="Nom"    CREE une nouvelle cuisine et y place ce compte.
+                     Sans cette option, le compte rejoint la cuisine n° 1 —
+                     donc voit les mêmes recettes, le même frigo, les mêmes
+                     prix. C'est ce qu'on veut pour un conjoint, jamais pour
+                     un ami.
+  --local            applique sur la base de développement
+  --print            affiche seulement le SQL, sans rien appliquer
+
+Exemples :
+  node scripts/add-user.mjs marius "Marius"
+      → rejoint la cuisine existante
+
+  node scripts/add-user.mjs paul "Paul" --cuisine="Chez Paul"
+      → nouvelle cuisine, données entièrement séparées`)
+}
+
+const newKitchen = options.get('cuisine')?.trim() ?? null
+if (newKitchen !== null && newKitchen === '') {
+  quit('--cuisine attend un nom : --cuisine="Chez Paul"')
 }
 
 const username = usernameRaw.trim().toLowerCase()
@@ -226,9 +252,47 @@ if (password !== confirmation) {
 
 const { hash, salt, iterations } = await hashPassword(password)
 
+/*
+ * Une nouvelle cuisine part avec une COPIE du catalogue CIQUAL/OpenFoodFacts.
+ *
+ * Sans elle, le nouveau venu ouvre une application vide : plus aucun aliment a
+ * chercher, et l'import ne servirait qu'a retelecharger ce que la base contient
+ * deja. La copie repart a zero sur ce qui est intime — bibliotheque
+ * personnelle, prix releves — et ne garde que les donnees de reference.
+ *
+ * Le sous-SELECT `MIN(id)` par (source, source_ref) evite de dupliquer une
+ * fiche deja presente en plusieurs exemplaires, ce qui violerait l'unicite.
+ */
+const kitchenSql =
+  newKitchen === null
+    ? ''
+    : `INSERT INTO household (name) VALUES (${sqlString(newKitchen)});
+` +
+      `INSERT INTO ingredient (household_id, name, name_normalized, source, source_ref, brand,
+` +
+      `  kcal_per_100g, proteins_g, carbs_g, sugars_g, fats_g, saturated_fats_g, fiber_g, salt_g,
+` +
+      `  piece_weight_g, cooked_weight_per_100g_raw, in_personal_library, category_l1, category_l2,
+` +
+      `  season_months)
+` +
+      `SELECT (SELECT MAX(id) FROM household), name, name_normalized, source, source_ref, brand,
+` +
+      `  kcal_per_100g, proteins_g, carbs_g, sugars_g, fats_g, saturated_fats_g, fiber_g, salt_g,
+` +
+      `  piece_weight_g, cooked_weight_per_100g_raw, 0, category_l1, category_l2, season_months
+` +
+      `FROM ingredient WHERE id IN (SELECT MIN(id) FROM ingredient GROUP BY source, source_ref);
+`
+
+// `household_id` n'est PAS dans le ON CONFLICT : changer le mot de passe d'un
+// compte existant ne doit jamais le deplacer de cuisine.
+const household = newKitchen === null ? '1' : '(SELECT MAX(id) FROM household)'
+
 const sql =
-  `INSERT INTO user (username, display_name, password_hash, password_salt, iterations) ` +
-  `VALUES (${sqlString(username)}, ${sqlString(displayName)}, ${sqlString(hash)}, ${sqlString(salt)}, ${iterations}) ` +
+  kitchenSql +
+  `INSERT INTO user (username, display_name, household_id, password_hash, password_salt, iterations) ` +
+  `VALUES (${sqlString(username)}, ${sqlString(displayName)}, ${household}, ${sqlString(hash)}, ${sqlString(salt)}, ${iterations}) ` +
   `ON CONFLICT(username) DO UPDATE SET ` +
   `display_name = excluded.display_name, password_hash = excluded.password_hash, ` +
   `password_salt = excluded.password_salt, iterations = excluded.iterations, is_active = 1;`
@@ -253,7 +317,11 @@ if (code !== 0) {
 }
 
 stdout.write(`
-Compte « ${username} » (${displayName}) créé sur ${where}.
+Compte « ${username} » (${displayName}) créé sur ${where}.${
+  newKitchen === null
+    ? '\nIl rejoint la cuisine existante : mêmes recettes, même frigo, mêmes prix.'
+    : `\nNouvelle cuisine « ${newKitchen} », avec sa copie du catalogue. Données entièrement séparées.`
+}
 Le mot de passe n'est stocké nulle part : seule son empreinte l'est.
 
 Tu peux maintenant te connecter avec l'identifiant « ${username} ».

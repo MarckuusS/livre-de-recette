@@ -30,7 +30,7 @@
 
 import { currentUser } from './auth.js'
 import { fail, HttpError, match, type Env } from './http.js'
-import { Repositories } from './repos/index.js'
+import { NO_HOUSEHOLD, Repositories } from './repos/index.js'
 
 // Enregistrement des routes. L'ordre n'a pas d'importance : les chemins sont
 // disjoints et la recherche compare le motif complet.
@@ -76,7 +76,10 @@ export default {
 
     try {
       return await found.route.handler({
-        repos: new Repositories(env.DB),
+        // Le foyer vient du cookie signe, jamais de la requete. Sans session,
+        // NO_HOUSEHOLD ne correspond a aucune cuisine : la lecture rend vide
+        // au lieu de tomber sur celle de quelqu'un.
+        repos: new Repositories(env.DB, user?.householdId ?? NO_HOUSEHOLD),
         env,
         url,
         params: found.params,

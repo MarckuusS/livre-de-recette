@@ -9,9 +9,20 @@
  * suppression, `entityId` ne designe plus rien ; rejouer une jointure pour
  * afficher le nom donnerait une ligne vide. « a supprimé Chili con carne »
  * doit rester lisible trois mois plus tard.
+ *
+ * ---------------------------------------------------------------------------
+ * Le journal est cloisonne comme le reste, et pour une raison de plus : ces
+ * libelles figes sont des NOMS DE RECETTES ET DE PRODUITS. Un journal commun
+ * raconterait a chaque foyer ce que les autres cuisinent, achetent et jettent —
+ * l'ecran le plus bavard de l'application.
+ *
+ * Ces deux fonctions ne passent pas par un repository (elles n'ont besoin que
+ * de `env.DB`), le foyer leur est donc passe explicitement. Il vient de
+ * `SessionUser`, jamais d'un parametre de requete.
  */
 
 import type { SessionUser } from './auth.js'
+import { NO_HOUSEHOLD } from './repos/index.js'
 
 export type ActivityAction = 'create' | 'update' | 'delete'
 
@@ -67,10 +78,13 @@ export async function logActivity(
   try {
     await db
       .prepare(
-        `INSERT INTO activity_log (user_id, action, entity, entity_id, label, details)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO activity_log (household_id, user_id, action, entity, entity_id, label, details)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
+        // Sans utilisateur, la trace part au foyer 0, que personne ne lit :
+        // elle est perdue plutot que versee au journal d'une vraie cuisine.
+        user?.householdId ?? NO_HOUSEHOLD,
         user?.id ?? null,
         input.action,
         input.entity,
@@ -84,19 +98,27 @@ export async function logActivity(
   }
 }
 
-export async function listActivity(db: D1Database, limit = 50): Promise<ActivityEntry[]> {
+export async function listActivity(
+  db: D1Database,
+  householdId: number,
+  limit = 50,
+): Promise<ActivityEntry[]> {
   const { results } = await db
     .prepare(
       // LEFT JOIN : un compte supprime ne doit pas faire disparaitre
-      // l'historique de la cuisine.
+      // l'historique de la cuisine. Le foyer est lie DEUX fois — la condition
+      // de jointure precede textuellement celle du WHERE. Celle du JOIN est une
+      // ceinture de securite : les lignes sont deja les notres, mais un
+      // `user_id` errant ferait sinon apparaitre le nom d'un inconnu.
       `SELECT a.id, a.user_id, u.display_name, a.action, a.entity, a.entity_id,
               a.label, a.details, a.at
        FROM activity_log a
-       LEFT JOIN user u ON u.id = a.user_id
+       LEFT JOIN user u ON u.id = a.user_id AND u.household_id = ?
+       WHERE a.household_id = ?
        ORDER BY a.at DESC, a.id DESC
        LIMIT ?`,
     )
-    .bind(Math.min(Math.max(limit, 1), 200))
+    .bind(householdId, householdId, Math.min(Math.max(limit, 1), 200))
     .all<{
       id: number
       user_id: number | null
