@@ -394,6 +394,27 @@ export class IngredientRepo {
    * l'historique ne justifie. Le cache doit toujours refleter le dernier
    * releve restant — ou redevenir vide quand il n'en reste aucun.
    */
+  /**
+   * Enseignes deja rencontrees, les plus frequentes d'abord.
+   *
+   * Sert a proposer le magasin a l'ouverture d'une session de courses. La
+   * source est l'historique de prix, donc PARTAGEE : le telephone de l'un
+   * propose les enseignes saisies par l'autre, ce qu'un stockage local ne
+   * saurait pas faire.
+   */
+  async listStores(limit = 12): Promise<Array<{ store: string; count: number }>> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT store, COUNT(*) AS count
+         FROM ingredient_price_history
+         WHERE store IS NOT NULL AND TRIM(store) <> ''
+         GROUP BY store ORDER BY count DESC, store LIMIT ?`,
+      )
+      .bind(limit)
+      .all<{ store: string; count: number }>()
+    return results
+  }
+
   async deletePriceObservation(id: number): Promise<boolean> {
     const row = await this.db
       .prepare('SELECT ingredient_id FROM ingredient_price_history WHERE id = ?')

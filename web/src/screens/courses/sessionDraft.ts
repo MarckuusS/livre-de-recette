@@ -9,9 +9,18 @@
  * flottant la ou le serveur attend une chaine decimale.
  */
 
-import type { Ingredient, NutritionTotal, SessionItem } from '@livre/shared'
+import type { Ingredient, SessionItem } from '@livre/shared'
 
 import type { SessionItemWrite } from '../../lib/queries.js'
+
+/**
+ * Les macros telles que l'API les accepte.
+ *
+ * On les prend sur le modele partage plutot que d'ecrire `Partial<NutritionTotal>` :
+ * sous `exactOptionalPropertyTypes`, les deux ne sont PAS le meme type, et le
+ * second refuserait ce que zod produit reellement.
+ */
+type ItemMacros = NonNullable<SessionItem['macros']>
 
 /** Les 8 macros du tableau reglementaire, telles que les porte un ingredient. */
 const MACRO_KEYS = [
@@ -36,7 +45,7 @@ export interface ItemDraft {
   /** Montant en euros. `null` = prix non note, l'article compte quand meme. */
   readonly priceEur: number | null
   readonly ingredientId: number | null
-  readonly macros: Partial<NutritionTotal> | null
+  readonly macros: ItemMacros | null
   readonly pieceWeightG: number | null
 }
 
@@ -52,8 +61,8 @@ export const emptyDraft = (ean: string | null): ItemDraft => ({
 })
 
 /** Les macros connues, sous la forme attendue par la creation differee. */
-function macrosOf(product: Ingredient): Partial<NutritionTotal> | null {
-  const macros: Partial<NutritionTotal> = {}
+function macrosOf(product: Ingredient): ItemMacros | null {
+  const macros: ItemMacros = {}
   let any = false
   for (const key of MACRO_KEYS) {
     const value = product[key]

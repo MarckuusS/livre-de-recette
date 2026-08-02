@@ -881,3 +881,17 @@ export function useCommitSession() {
 }
 /** Article envoye au serveur : l'identifiant et l'horodatage viennent de lui. */
 export type SessionItemWrite = Omit<SessionItem, 'id' | 'scannedAt'>
+
+/**
+ * Enseignes deja rencontrees, les plus frequentes d'abord.
+ *
+ * Alimente la suggestion de magasin a l'ouverture d'une session. La source est
+ * l'historique de prix, donc PARTAGEE entre les deux telephones du foyer — un
+ * stockage local ne proposerait que ce que cet appareil a saisi.
+ */
+export const useStores = () =>
+  useQuery({
+    queryKey: ['stores'],
+    queryFn: () => apiFetch<{ items: Array<{ store: string; count: number }> }>('/api/stores'),
+    staleTime: 10 * 60 * 1000,
+  })

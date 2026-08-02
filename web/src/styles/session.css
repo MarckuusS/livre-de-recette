@@ -1,0 +1,474 @@
+/*
+ * Session de courses — l'ecran du chariot, et son entree depuis la liste.
+ *
+ * Contexte d'usage, qui explique a peu pres tout ce qui suit : DEBOUT, A UNE
+ * MAIN, dans un rayon, parfois avec un caddie dans l'autre main. Trois regles
+ * en decoulent et ne souffrent aucune exception ici :
+ *
+ *   - la cible tapee trente fois par course (le bouton Scanner) est fixe,
+ *     pleine largeur, et deux fois plus haute qu'un bouton ordinaire ;
+ *   - ce qu'on doit pouvoir lire sans defiler (magasin, articles, total) est
+ *     colle en haut ;
+ *   - aucune cible sous 44 px, aucune valeur brute : tout vient de theme.css.
+ *
+ * Le pied fixe reprend exactement la mecanique de `.shopping-footer`
+ * (app.css) : `bottom: var(--above-tabbar)`, et recentrage au-dela de 720 px.
+ * Deux pieds fixes differents dans le meme onglet se verraient.
+ */
+
+/* ---------- Entree depuis la liste de courses ---------- */
+
+.session-entry,
+.session-resume {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/* La session en cours est une alerte utile, pas une carte de plus : elle porte
+   la couleur d'accent pour se distinguer au premier coup d'oeil. */
+.session-resume {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-subtle);
+}
+
+.session-entry__body,
+.session-resume__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.session-entry__title,
+.session-resume__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.session-entry__lead,
+.session-resume__meta {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* Neutralise le `margin-top` que .button--secondary porte pour son usage en
+   pile : dans une rangee, il decale un bouton sur deux.
+   Cette regle ne touche QUE la marge : melanger `flex` ici l'emporterait, par
+   specificite, sur les `.session-scan__main` et consorts qui suivent. */
+.session-entry .button,
+.session-resume .button,
+.session-head__actions .button,
+.session-summary__actions .button,
+.session-scan .button {
+  margin-top: 0;
+}
+
+.session-entry__action,
+.session-resume__action {
+  flex: none;
+}
+
+/* Sous 420 px, « Commencer les courses » et le texte ne tiennent pas cote a
+   cote : le bouton passe dessous et prend toute la largeur, ce qui en fait
+   une meilleure cible. */
+@media (max-width: 420px) {
+  .session-entry {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .session-entry__action {
+    width: 100%;
+  }
+}
+
+/* ---------- Ouverture : le magasin ---------- */
+
+.session-stores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.session-conflict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+/* ---------- En-tete collant du chariot ---------- */
+
+.screen--session {
+  /* Laisse passer le pied fixe (bouton Scanner) sous le contenu. */
+  padding-bottom: calc(var(--space-lg) + 96px);
+}
+
+.session-head {
+  position: sticky;
+  /* Se cale sous l'en-tete de l'application, encoche comprise. */
+  top: calc(var(--header-height) + var(--safe-top));
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  /* Pleine largeur : sans ces marges negatives, le contenu defilerait dans les
+     gouttieres de part et d'autre de l'en-tete colle. */
+  margin: calc(-1 * var(--space-lg)) calc(-1 * var(--space-lg)) 0;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-subtle);
+}
+
+.session-head__top {
+  display: flex;
+  gap: var(--space-md);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.session-head__store {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.session-head__name {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-head__count {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.session-head__total {
+  flex: none;
+  font-size: var(--font-size-title);
+  /* Chiffres a chasse fixe : le total monte a chaque scan, et un montant qui
+     se decale lateralement a chaque centime se lit mal du coin de l'oeil. */
+  font-variant-numeric: tabular-nums;
+}
+
+.session-head__actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.session-head__actions .button {
+  flex: 1;
+}
+
+/* ---------- Avancement sur la liste ---------- */
+
+.session-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.session-progress__track {
+  height: var(--space-sm);
+  overflow: hidden;
+  background: var(--color-surface-pressed);
+  border-radius: var(--radius-full);
+}
+
+.session-progress__bar {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+  border-radius: var(--radius-full);
+  transition: width var(--duration-normal) var(--easing-standard);
+}
+
+.session-progress__label {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Ce qui reste a prendre ---------- */
+
+.session-remaining {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.session-remaining__summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Le triangle natif de <summary> saute d'un navigateur a l'autre : on le
+   remplace par un chevron qui pivote, comme les rayons de la liste. */
+.session-remaining__summary::-webkit-details-marker {
+  display: none;
+}
+
+.session-remaining__summary::after {
+  margin-left: auto;
+  content: '▾';
+  transition: transform var(--duration-fast) var(--easing-standard);
+}
+
+.session-remaining[open] .session-remaining__summary::after {
+  transform: rotate(180deg);
+}
+
+.session-remaining__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.session-remaining__row {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--control-height-lg);
+  padding: var(--space-xs) var(--space-lg);
+}
+
+.session-remaining__row + .session-remaining__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.session-remaining__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-remaining__quantity {
+  flex: none;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.session-done {
+  margin: 0;
+}
+
+/* ---------- Le chariot ---------- */
+
+.session-cart {
+  overflow: clip;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.session-cart__title {
+  margin: 0;
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-hover);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.session-cart__empty {
+  margin: 0;
+  padding: var(--space-lg);
+  color: var(--color-text-secondary);
+}
+
+.session-cart__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session-cart__list > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+/* Toute la ligne ouvre la correction : viser un crayon de 24 px avec un caddie
+   au bras ne marche pas. */
+.session-line {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-lg);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.session-line:active {
+  background: var(--color-surface-pressed);
+}
+
+.session-line__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.session-line__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-line__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: center;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.session-line__price {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-line__price--missing {
+  font-size: var(--font-size-md);
+  color: var(--color-warning);
+}
+
+.session-line__chevron {
+  flex: none;
+  font-size: var(--font-size-xl);
+  color: var(--color-text-placeholder);
+}
+
+.session-abandon {
+  align-self: center;
+  color: var(--color-error);
+}
+
+/* ---------- Pied fixe : le geste repete ---------- */
+
+.session-scan {
+  position: fixed;
+  right: 0;
+  bottom: var(--above-tabbar);
+  left: 0;
+  z-index: 15;
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-normal);
+}
+
+.session-scan__main {
+  flex: 1;
+  /* Deux fois la hauteur d'un bouton ordinaire : c'est la cible qu'on vise
+     sans regarder, entre deux rayons. */
+  min-height: 60px;
+  font-size: var(--font-size-xl);
+}
+
+.session-scan__manual {
+  /* Rare (vrac, boucherie) mais indispensable : assez grande pour etre tapee,
+     assez discrete pour ne pas concurrencer le scan. */
+  flex: none;
+  min-width: 96px;
+}
+
+@media (min-width: 720px) {
+  .session-scan {
+    right: auto;
+    left: 50%;
+    width: 720px;
+    transform: translateX(-50%);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+/* ---------- Confirmation d'un article ---------- */
+
+.session-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  margin: 0 0 var(--space-sm);
+}
+
+.session-match {
+  margin: 0 0 var(--space-md);
+}
+
+.session-observed {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.session-remove {
+  margin-top: var(--space-xl);
+}
+
+/* ---------- Bilan ---------- */
+
+.session-summary__list {
+  margin: var(--space-md) 0;
+  padding-left: var(--space-lg);
+}
+
+.session-summary__list li + li {
+  margin-top: var(--space-xs);
+}
+
+.session-summary__actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.session-summary__actions .button {
+  flex: 1;
+  /* Le lien « Voir le frigo » est un <a> : il ne centre pas son texte comme un
+     <button> et retomberait en haut a gauche de sa boite. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}

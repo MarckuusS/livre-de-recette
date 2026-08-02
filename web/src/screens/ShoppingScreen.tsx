@@ -13,10 +13,18 @@ import {
 import { Sheet } from '../components/Sheet.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
 import { WeekPicker } from '../components/WeekPicker.js'
-import { useShoppingList, useToggleChecked, type ShoppingListResponse } from '../lib/queries.js'
+import {
+  useShoppingList,
+  useShoppingSession,
+  useToggleChecked,
+  type CommitResult,
+  type ShoppingListResponse,
+} from '../lib/queries.js'
 import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
 import { CostHistorySheet } from './courses/CostHistorySheet.js'
 import { LineDetailSheet } from './courses/LineDetailSheet.js'
+import { SessionBar } from './courses/SessionBar.js'
+import { SessionScreen, SessionSummary } from './courses/SessionScreen.js'
 import { useStoreMode, type StoreMode } from './courses/useStoreMode.js'
 import '../styles/shopping.css'
 
@@ -38,15 +46,54 @@ import '../styles/shopping.css'
  *     « Synchroniser avec calendrier » que personne ne devinait ;
  *   - chaque ligne explique d'ou vient sa quantite et accepte un prix ;
  *   - le cout de la semaine s'archive et se compare ;
- *   - un mode courses garde l'ecran allume.
+ *   - un mode courses garde l'ecran allume ;
+ *   - on entre en session de courses depuis cet ecran (voir courses/).
  */
 export function ShoppingScreen() {
   const week = useIsoWeekParam()
   const query = useShoppingList(week.isoWeek)
   const store = useStoreMode()
 
+  /*
+   * La session de courses partage cet onglet, et prend la main quand elle est
+   * ouverte : en magasin, le chariot est ce qu'on vient faire, la liste n'en
+   * est que la reference. Une route separee aurait ete plus propre, mais elle
+   * aurait aussi laisse l'utilisateur revenir sur `/courses` sans plus voir
+   * son chariot — exactement ce qu'on cherche a eviter.
+   *
+   * L'etat vit sur le SERVEUR : rouvrir l'application apres qu'iOS a decharge
+   * l'onglet retrouve le chariot, sans rien de local a restaurer.
+   */
+  const session = useShoppingSession()
+  const [showList, setShowList] = useState(false)
+  /** Bilan de la derniere validation. Il survit a la session, qui vient de disparaitre. */
+  const [summary, setSummary] = useState<CommitResult | null>(null)
+
+  const state = session.data
+  const live =
+    state !== undefined && state.active && state.session !== null
+      ? { state, session: state.session }
+      : null
+
+  if (summary !== null) {
+    return <SessionSummary result={summary} onClose={() => setSummary(null)} />
+  }
+
+  if (live !== null && !showList) {
+    return (
+      <SessionScreen
+        state={live.state}
+        session={live.session}
+        onShowList={() => setShowList(true)}
+        onCommitted={setSummary}
+      />
+    )
+  }
+
   return (
     <section className={`screen screen--shopping${store.active ? ' screen--store' : ''}`}>
+      <SessionBar isoWeek={week.isoWeek} onEnterCart={() => setShowList(false)} />
+
       <WeekPicker {...week} />
 
       <p className="shopping-head">

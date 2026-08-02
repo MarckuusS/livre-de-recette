@@ -160,6 +160,9 @@ route('GET', '/api/catalog', async ({ repos, url }) => {
 
 route('GET', '/api/categories', async ({ repos }) => json({ items: await repos.ingredients.listCategories() }))
 
+/** Enseignes deja saisies — partagees entre les deux telephones du foyer. */
+route('GET', '/api/stores', async ({ repos }) => json({ items: await repos.ingredients.listStores() }))
+
 /** Fait entrer une fiche du catalogue dans la bibliotheque personnelle. */
 route('PUT', '/api/ingredients/:id/library', async ({ repos, params, env, user }) => {
   const id = intParam(params, 'id')
