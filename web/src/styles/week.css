@@ -418,3 +418,10 @@
   color: var(--color-error);
   background: var(--color-surface-pressed);
 }
+
+/* Cout d'une ligne de repas. Cadre discret : c'est une information utile, pas
+   le sujet de la ligne — le nom du plat le reste. */
+.meal__cost {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-accent);
+}

@@ -27,10 +27,12 @@ import {
   MEAL_SLOT_LABELS,
   datesOfIsoWeek,
   formatEuros,
+  mealPlanEntryCost,
   type MealSlot,
   type NutritionTotal,
 } from '@livre/shared'
 
+import { NutrientLabel } from '../components/NutrientLabel.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
 import { useToast } from '../components/Toast.js'
 import { WeekPicker } from '../components/WeekPicker.js'
@@ -52,6 +54,7 @@ import {
   entryAmountLabel,
   entryName,
   entryNutrition,
+  targetOf,
   sumNutrition,
   type SavedEntry,
 } from './semaine/totals.js'
@@ -373,6 +376,12 @@ function MealRow({
   const name = entryName(entry, data)
   const kcal = entryNutrition(entry, data).kcal
 
+  // Cout de CETTE ligne. « 20 g d'isolat » ne dit rien de la depense, et le
+  // total du jour ne se repartit pas a l'oeil : sans cette valeur, impossible
+  // de savoir ce que pese un ingredient dans la note.
+  const target = targetOf(entry, data)
+  const cost = target === null ? null : mealPlanEntryCost(entry, target)
+
   return (
     <li className="meal">
       {/* Toute la ligne ouvre la feuille du repas : quantite, deplacement et
@@ -387,6 +396,9 @@ function MealRow({
           <span className="meal__meta">
             <span>{entryAmountLabel(entry)}</span>
             {kcal > 0 && <span>{Math.round(kcal).toLocaleString('fr-FR')} kcal</span>}
+            {/* Un prix inconnu ne s'affiche pas en « 0,00 € » : le panneau de
+                cout compte deja ces lignes et le dit en toutes lettres. */}
+            {cost !== null && <span className="meal__cost">{formatEuros(cost.toFixed(4))}</span>}
           </span>
         </span>
         <span className="meal__chevron" aria-hidden="true">
@@ -453,7 +465,7 @@ function DayTotals({
               {NUTRIENT_ROWS.map((row) => (
                 <tr key={row.key}>
                   <th scope="row" className={row.sub ? 'unit' : undefined}>
-                    {row.label}
+                    <NutrientLabel nutrient={row.key} label={row.label} sub={row.sub ?? false} />
                   </th>
                   <td>{formatNutrient(dayEntries.length, dayTotal[row.key], row)}</td>
                   <td>{formatNutrient(weekEntries.length, weekTotal[row.key], row)}</td>

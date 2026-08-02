@@ -714,10 +714,49 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/* En-tete de la PREMIERE colonne, aligne sur les libelles qu'il surmonte.
+   La regle generale ci-dessus cale toutes les cellules a droite — ce qui est
+   juste pour des nombres — et le corps du tableau repasse a gauche pour ses
+   libelles. « Nutriment » restait donc seul a droite, decale au-dessus d'une
+   colonne alignee a gauche. */
+.nutrition-table thead th:first-child {
+  text-align: left;
+}
+
 .nutrition-table tbody th {
   text-align: left;
   font-weight: var(--font-weight-regular);
   color: var(--color-text-secondary);
+}
+
+/* ---------- Pictogrammes de nutriments ---------- */
+
+/*
+ * Les icones dessinees pour l'application de bureau, reprises telles quelles.
+ * Reduites de 250 a 72 px et quantifiees en palette : 487 Ko a 58 Ko pour les
+ * huit. Ce sont des a-plats de deux couleurs, 8 bits par canal n'y apportaient
+ * rien, et une PWA telecharge ses images une fois pour toutes.
+ */
+.nutrient-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.nutrient-label__icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  /* L'icone double le libelle qui la suit : elle n'ajoute rien pour un lecteur
+     d'ecran, d'ou `alt=""` cote balise et ce simple role decoratif. */
+  object-fit: contain;
+}
+
+/* Sous-ligne du tableau reglementaire (« dont sucres ») : pas de picto propre,
+   mais le retrait doit rester lisible. */
+.nutrient-label--sub {
+  padding-left: calc(22px + var(--space-sm));
+  font-style: italic;
 }
 
 .nutrition-table .unit {
