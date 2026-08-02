@@ -21,6 +21,8 @@ import {
   type PantryStockWrite,
   type Recipe,
   type RecipeWrite,
+  type SessionItem,
+  type ShoppingSession,
   type ShoppingList,
 } from '@livre/shared'
 
@@ -47,6 +49,7 @@ export const keys = {
   shopping: (week: string) => ['shopping', week] as const,
   shoppingHistory: ['shopping-history'] as const,
   activity: ['activity'] as const,
+  session: ['shopping-session'] as const,
 }
 
 /**
@@ -784,3 +787,97 @@ export const useShoppingHistory = () =>
 
 /** Semaine ISO courante, calculee sur l'heure LOCALE du telephone. */
 export const useCurrentWeek = () => currentIsoWeek()
+
+// ---------------------------------------------------------------------------
+// Session de courses
+// ---------------------------------------------------------------------------
+
+/**
+ * Le chariot en cours.
+ *
+ * L'etat vit sur le SERVEUR, pas dans le navigateur : en magasin, iOS decharge
+ * volontiers un onglet passe en arriere-plan, et un chariot garde en memoire
+ * disparaitrait apres vingt articles scannes. Chaque mutation rend l'etat
+ * complet, qu'on repose directement dans le cache — un aller-retour de moins a
+ * chaque scan, ce qui se sent sur le reseau d'un supermarche.
+ */
+export interface SessionState {
+  readonly active: boolean
+  readonly session: ShoppingSession | null
+  /** Ingredients du chariot deja connus : sert a marquer la liste de courses. */
+  readonly matchedIngredientIds?: readonly number[]
+  readonly totalEur?: string
+  readonly itemCount?: number
+}
+
+export interface CommitResult extends SessionState {
+  readonly store: string
+  readonly createdCount: number
+  readonly stockedCount: number
+  readonly pricedCount: number
+  readonly totalEur: string
+}
+
+export const useShoppingSession = () =>
+  useQuery({
+    queryKey: keys.session,
+    queryFn: () => apiFetch<SessionState>('/api/courses'),
+    // En magasin on scanne a deux, parfois dans deux rayons differents : le
+    // chariot doit se rafraichir tout seul quand l'autre y ajoute quelque chose.
+    refetchInterval: (query) => (query.state.data?.active === true ? 20_000 : false),
+  })
+
+function useSessionMutation<TVars, TResult extends SessionState = SessionState>(
+  fn: (vars: TVars) => Promise<TResult>,
+) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (state) => {
+      client.setQueryData(keys.session, state)
+    },
+  })
+}
+
+export const useStartSession = () =>
+  useSessionMutation<{ store: string; isoWeek: string }>((vars) =>
+    post<SessionState>('/api/courses', vars),
+  )
+
+export const useAddSessionItem = () =>
+  useSessionMutation<SessionItemWrite>((item) => post<SessionState>('/api/courses/items', item))
+
+export const useUpdateSessionItem = () =>
+  useSessionMutation<SessionItemWrite & { id: string }>(({ id, ...item }) =>
+    put<SessionState>(`/api/courses/items/${id}`, item),
+  )
+
+export const useRemoveSessionItem = () =>
+  useSessionMutation<string>((id) => del<SessionState>(`/api/courses/items/${id}`))
+
+export const useAbandonSession = () =>
+  useSessionMutation<void>(() => del<SessionState>('/api/courses'))
+
+/**
+ * Validation — le seul moment ou l'on ecrit ailleurs.
+ *
+ * Invalide LARGEMENT : la validation cree des fiches, pose des lots, releve des
+ * prix et coche la liste. Presque tout l'ecran a bouge.
+ */
+export function useCommitSession() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => post<CommitResult>('/api/courses/commit', {}),
+    onSuccess: (result) => {
+      client.setQueryData(keys.session, { active: false, session: null })
+      void client.invalidateQueries({ queryKey: ['ingredients'] })
+      void client.invalidateQueries({ queryKey: keys.pantry })
+      void client.invalidateQueries({ queryKey: ['shopping'] })
+      void client.invalidateQueries({ queryKey: keys.activity })
+      void client.invalidateQueries({ queryKey: keys.shoppingHistory })
+      return result
+    },
+  })
+}
+/** Article envoye au serveur : l'identifiant et l'horodatage viennent de lui. */
+export type SessionItemWrite = Omit<SessionItem, 'id' | 'scannedAt'>

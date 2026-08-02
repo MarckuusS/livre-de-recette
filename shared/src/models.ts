@@ -379,6 +379,59 @@ export type PantryStockWrite = z.infer<typeof pantryStockWriteSchema>
 export const cookingLogWriteSchema = cookingLogEntrySchema.omit({ id: true, recipeId: true, createdAt: true })
 
 // ---------------------------------------------------------------------------
+// Session de courses
+// ---------------------------------------------------------------------------
+//
+// On scanne les produits au fur et a mesure qu'ils entrent dans le chariot.
+// Rien n'est ecrit dans la bibliotheque ni dans le frigo pendant la session :
+// tout est retenu, puis valide d'un bloc a la caisse. Abandonner une session
+// ne doit laisser aucune trace — on renonce parfois a des courses.
+//
+// Le magasin est demande UNE FOIS, au depart : le redemander a chaque article
+// serait insupportable sur trente produits.
+
+/** Un article dans le chariot. */
+export const sessionItemSchema = z.object({
+  /** Identifiant local, attribue par le serveur a l'ajout. */
+  id: z.string().min(1),
+  /** `null` pour un article saisi a la main (vrac, fruits et legumes). */
+  ean: z.string().nullable().default(null),
+  name: nonEmpty('Donne un nom à cet article.'),
+  brand: z.string().nullable().default(null),
+  quantityG: z.number().positive('La quantité doit être strictement positive.'),
+  /** `null` quand on n'a pas note le prix — l'article compte quand meme. */
+  priceEur: positiveDecimalString.nullable().default(null),
+  /**
+   * Ingredient deja connu, quand le code-barres a ete reconnu.
+   *
+   * `null` signifie qu'il faudra CREER la fiche a la validation. C'est aussi ce
+   * qui distingue « deja dans ma bibliotheque » de « nouveau produit », et donc
+   * ce qui permet de cocher la bonne ligne de la liste de courses.
+   */
+  ingredientId: z.number().int().positive().nullable().default(null),
+  /** Macros relevees sur OpenFoodFacts, gardees pour la creation differee. */
+  macros: nutritionTotalSchema.partial().nullable().default(null),
+  pieceWeightG: z.number().positive().nullable().default(null),
+  scannedAt: utcTimestamp.nullable().default(null),
+})
+export type SessionItem = z.infer<typeof sessionItemSchema>
+
+export const shoppingSessionSchema = z.object({
+  store: nonEmpty('Indique le magasin.'),
+  /** Liste de courses de reference, pour la correspondance article par article. */
+  isoWeek: isoWeekString,
+  startedAt: utcTimestamp.nullable().default(null),
+  items: z.array(sessionItemSchema).default([]),
+})
+export type ShoppingSession = z.infer<typeof shoppingSessionSchema>
+
+/** Ouverture : le magasin et la semaine suffisent. */
+export const sessionStartSchema = shoppingSessionSchema.pick({ store: true, isoWeek: true })
+
+/** Ajout d'un article — l'identifiant vient du serveur. */
+export const sessionItemWriteSchema = sessionItemSchema.omit({ id: true, scannedAt: true })
+
+// ---------------------------------------------------------------------------
 // Derives calcules cote client
 // ---------------------------------------------------------------------------
 

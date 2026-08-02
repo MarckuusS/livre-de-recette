@@ -41,6 +41,7 @@ import './routes/recipes.js'
 import './routes/calendar.js'
 import './routes/pantry.js'
 import './routes/shopping.js'
+import './routes/courses.js'
 
 /**
  * Routes accessibles sans session. Tout le reste est protege par defaut.

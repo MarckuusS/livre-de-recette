@@ -19,6 +19,8 @@
     "db:migrate:remote": "wrangler d1 migrations apply livre-de-recettes --remote",
     "// smoke": "Eprouve l'API d'ecriture contre le Worker LOCAL. Voir l'en-tete du script : il exige SMOKE_USER / SMOKE_PASSWORD et refuse toute cible autre que localhost.",
     "smoke": "node scripts/smoke-api.mjs",
+    "// smoke:courses": "Eprouve la session de courses (chariot, correspondance, validation en cinq etapes). Memes garde-fous que `smoke`.",
+    "smoke:courses": "node scripts/smoke-courses.mjs",
     "db:check": "node scripts/check-fts5.mjs",
     "db:export": "node scripts/migrate-sqlite-to-d1.mjs",
     "db:verify": "node scripts/migrate-sqlite-to-d1.mjs && node scripts/verify-migration.mjs",

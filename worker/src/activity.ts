@@ -23,6 +23,13 @@ export type ActivityEntity =
   | 'price_history'
   | 'cooking_log'
   | 'shopping_checked'
+  /**
+   * Une virée de courses, du premier scan a la validation.
+   *
+   * Journalisee comme un tout et non article par article : trente lignes
+   * « a ajouté X » noieraient le reste du journal pour une seule sortie.
+   */
+  | 'shopping_session'
 
 export interface ActivityEntry {
   readonly id: number
