@@ -15,7 +15,14 @@
  * un compte cree ici ne pourrait pas se connecter en production.
  */
 
+import { spawn } from 'node:child_process'
+import { rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { stdin, stdout } from 'node:process'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const ITERATIONS = 210_000
 const MIN_LENGTH = 10
@@ -132,13 +139,62 @@ const quit = (message) => {
 
 const sqlString = (v) => `'${String(v).replace(/'/g, "''")}'`
 
-const [, , usernameRaw, displayNameRaw] = process.argv
+/**
+ * Execute la commande wrangler directement.
+ *
+ * Le SQL n'est PAS colle dans un terminal : il est passe en argument via
+ * `spawn`, sans passer par un shell. C'est ce qui evite le probleme de
+ * guillemets — la requete contient des apostrophes, la commande des
+ * guillemets doubles, et selon le terminal le collage casse l'un ou l'autre.
+ *
+ * Le mot de passe ne part toujours pas sur le reseau : wrangler ne transmet
+ * que l'empreinte, deja calculee ici.
+ */
+async function runWrangler(sql, target) {
+  // Le SQL passe par un FICHIER, jamais par la ligne de commande.
+  //
+  // Un argument contenant apostrophes, espaces et parentheses se fait
+  // reinterpreter par le shell — c'est precisement ce qui cassait le
+  // copier-coller manuel, et `shell: true` reproduisait le probleme.
+  const file = join(tmpdir(), `livre-user-${Date.now()}.sql`)
+  await writeFile(file, sql, 'utf8')
+
+  // On appelle l'entree JavaScript de wrangler avec le Node courant, plutot
+  // que `npx`. Sur Windows npx est un script .cmd, que Node refuse de lancer
+  // sans shell — et le shell est justement ce qu'on veut eviter.
+  const wrangler = join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
+
+  try {
+    return await new Promise((resolve) => {
+      const child = spawn(
+        process.execPath,
+        [wrangler, 'd1', 'execute', 'livre-de-recettes', target, '--file', file],
+        { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] },
+      )
+      let output = ''
+      child.stdout.on('data', (d) => (output += d))
+      child.stderr.on('data', (d) => (output += d))
+      child.on('close', (code) => resolve({ code, output }))
+      child.on('error', (err) => resolve({ code: 1, output: String(err) }))
+    })
+  } finally {
+    // Le fichier ne contient que l'empreinte, jamais le mot de passe — mais
+    // il n'a aucune raison de trainer.
+    await rm(file, { force: true })
+  }
+}
+
+const args = process.argv.slice(2)
+const flags = new Set(args.filter((a) => a.startsWith('--')))
+const [usernameRaw, displayNameRaw] = args.filter((a) => !a.startsWith('--'))
 
 if (!usernameRaw) {
-  quit(`Usage : node scripts/add-user.mjs <identifiant> ["Nom affiché"]
+  quit(`Usage : node scripts/add-user.mjs <identifiant> ["Nom affiché"] [--local] [--print]
 
   identifiant   ce qu'on tape pour se connecter (minuscules, sans espace)
-  Nom affiché   ce qui apparaît dans le journal d'activité`)
+  Nom affiché   ce qui apparaît dans le journal d'activité
+  --local       applique sur la base de développement au lieu de la production
+  --print       affiche seulement le SQL, sans rien appliquer`)
 }
 
 const username = usernameRaw.trim().toLowerCase()
@@ -173,13 +229,28 @@ const sql =
   `display_name = excluded.display_name, password_hash = excluded.password_hash, ` +
   `password_salt = excluded.password_salt, iterations = excluded.iterations, is_active = 1;`
 
+if (flags.has('--print')) {
+  stdout.write(`\n${sql}\n`)
+  process.exit(0)
+}
+
+const target = flags.has('--local') ? '--local' : '--remote'
+const where = target === '--local' ? 'la base de développement' : 'la production'
+
+stdout.write(`\nApplication sur ${where}…\n`)
+const { code, output } = await runWrangler(sql, target)
+
+if (code !== 0) {
+  stdout.write(`\n${output}\n`)
+  quit(
+    `Échec. Si c'est un problème d'authentification, lance « npx wrangler login ».\n` +
+      `Tu peux aussi récupérer le SQL avec --print et l'appliquer toi-même.`,
+  )
+}
+
 stdout.write(`
-Compte « ${username} » (${displayName}) — prêt.
-Le mot de passe n'apparaît nulle part ci-dessous : seule son empreinte est stockée.
+Compte « ${username} » (${displayName}) créé sur ${where}.
+Le mot de passe n'est stocké nulle part : seule son empreinte l'est.
 
-Copie-colle cette commande :
-
-npx wrangler d1 execute livre-de-recettes --remote --command "${sql.replace(/"/g, '\\"')}"
-
-(remplace --remote par --local pour la base de développement)
+Tu peux maintenant te connecter avec l'identifiant « ${username} ».
 `)

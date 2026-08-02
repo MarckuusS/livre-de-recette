@@ -142,12 +142,24 @@ Row-Level Security, cette garantie ne viendrait de nulle part ailleurs.
 node scripts/add-user.mjs marius "Marius"
 ```
 
-Le script demande le mot de passe de façon interactive, calcule son empreinte
-**en local**, et affiche la commande `wrangler` à exécuter. Le mot de passe ne
-transite par aucun réseau et n'apparaît dans aucun historique de commandes.
+Le script demande le mot de passe de façon masquée, calcule son empreinte **en
+local**, puis applique directement en production. Le mot de passe ne transite
+par aucun réseau et n'apparaît dans aucun historique de commandes.
+
+| Option | Effet |
+|---|---|
+| *(aucune)* | applique sur la production |
+| `--local` | applique sur la base de développement |
+| `--print` | affiche seulement le SQL, sans rien appliquer |
 
 La même commande, rejouée sur un identifiant existant, **change son mot de
 passe**.
+
+Note d'implémentation : le SQL est passé à `wrangler` par un fichier
+temporaire, et wrangler est appelé via son entrée JavaScript plutôt que par
+`npx`. Une requête contenant apostrophes et espaces passée en argument se fait
+réinterpréter par le shell — c'est ce qui cassait la version précédente, qui
+demandait un copier-coller manuel.
 
 ### Comment ça marche
 
