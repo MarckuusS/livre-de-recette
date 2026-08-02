@@ -4,10 +4,15 @@
  * Sert /api/* sur la meme origine que le front (Cloudflare Pages), ce qui
  * evite toute question de CORS.
  *
+ * Ce fichier ne contient plus aucune route : il ne fait qu'assembler. Les
+ * routes vivent dans `routes/`, ou chaque module s'enregistre a l'import via
+ * `route()`. Les imports ci-dessous ne sont donc pas decoratifs — les retirer
+ * ferait disparaitre les endpoints correspondants, sans erreur de compilation.
+ *
  * ---------------------------------------------------------------------------
  * AUTHENTIFICATION
  * ---------------------------------------------------------------------------
- * Toute route /api/* exige une session valide, sauf /api/login.
+ * Toute route /api/* exige une session valide, sauf celles de PUBLIC_ROUTES.
  *
  * Cloudflare Access remplissait ce role au depart et le faisait mieux — il
  * refusait la requete AVANT d'atteindre ce code. Mais sa page de connexion vit
@@ -23,390 +28,27 @@
  * et l'ecran de connexion en fait partie.
  */
 
-import {
-  aggregateShoppingList,
-  currentIsoWeek,
-  isValidIsoWeek,
-  type ShoppingList,
-} from '@livre/shared'
+import { currentUser } from './auth.js'
+import { fail, HttpError, match, type Env } from './http.js'
+import { Repositories } from './repos/index.js'
 
-import {
-  authenticate,
-  clearSessionCookie,
-  currentUser,
-  hasAnyUser,
-  issueSession,
-  lockoutRemaining,
-  recordFailure,
-  resetFailures,
-  type SessionUser,
-} from './auth.js'
-import { listActivity, logActivity } from './activity.js'
-import { Repositories } from './repositories.js'
-
-export interface Env {
-  readonly DB: D1Database
-  readonly OFF_USER_AGENT: string
-  readonly ENVIRONMENT: string
-  /**
-   * Fichiers statiques du site, fournis par Pages en mode avance.
-   *
-   * Des lors qu'un `_worker.js` est present, Pages ne sert plus rien tout
-   * seul : ce Worker recoit CHAQUE requete et doit deleguer explicitement
-   * ce qui n'est pas de l'API. Oublier cette delegation rend le site entier
-   * inaccessible, y compris index.html.
-   */
-  readonly ASSETS: { fetch: (request: Request) => Promise<Response> }
-}
-
-const VERSION = '0.2.0'
-
-// ---------------------------------------------------------------------------
-// Reponses
-// ---------------------------------------------------------------------------
-
-const json = (data: unknown, status = 200): Response =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      // Aucune reponse d'API n'est mise en cache : afficher un prix perime
-      // comme s'il etait frais serait pire qu'afficher une erreur.
-      'cache-control': 'no-store',
-    },
-  })
-
-/** Les messages sont en francais : ils remontent tels quels a l'ecran. */
-const fail = (status: number, code: string, message: string): Response =>
-  json({ error: { code, message } }, status)
-
-class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-  ) {
-    super(message)
-  }
-}
-
-const badWeek = (value: string) =>
-  new HttpError(400, 'invalid_week', `Semaine « ${value} » invalide. Format attendu : 2026-W18.`)
-
-// ---------------------------------------------------------------------------
-// Routeur
-// ---------------------------------------------------------------------------
-
-type Handler = (ctx: {
-  readonly repos: Repositories
-  readonly env: Env
-  readonly url: URL
-  readonly params: Record<string, string>
-  readonly request: Request
-  /** `null` uniquement sur les routes publiques. */
-  readonly user: SessionUser | null
-}) => Promise<Response>
-
-interface Route {
-  readonly method: string
-  readonly pattern: RegExp
-  readonly keys: readonly string[]
-  readonly handler: Handler
-}
-
-const routes: Route[] = []
-
-/** `/api/shopping/:week` -> expression reguliere + noms de parametres. */
-function route(method: string, path: string, handler: Handler): void {
-  const keys: string[] = []
-  const pattern = new RegExp(
-    '^' +
-      path.replace(/:(\w+)/g, (_, key: string) => {
-        keys.push(key)
-        return '([^/]+)'
-      }) +
-      '/?$',
-  )
-  routes.push({ method, pattern, keys, handler })
-}
-
-// ---------------------------------------------------------------------------
-// Diagnostic
-// ---------------------------------------------------------------------------
-
-route('GET', '/api/health', async ({ repos, env }) => {
-  // On interroge reellement la base : un Worker qui repond alors que D1 est
-  // injoignable donnerait un diagnostic faussement rassurant.
-  let reachable = false
-  let ingredients: number | null = null
-  try {
-    ingredients = await repos.countIngredients()
-    reachable = true
-  } catch {
-    reachable = false
-  }
-
-  return json({
-    status: 'ok',
-    version: VERSION,
-    environment: env.ENVIRONMENT,
-    database: { reachable, ingredients },
-    time: new Date().toISOString(),
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Ingredients
-// ---------------------------------------------------------------------------
-
-route('GET', '/api/ingredients', async ({ repos, url }) => {
-  const q = url.searchParams.get('q')
-  const items = await repos.listPersonalIngredients(q)
-  return json({ items, totalCount: items.length })
-})
-
-route('GET', '/api/ingredients/:id', async ({ repos, params }) => {
-  const id = Number(params['id'])
-  if (!Number.isInteger(id)) throw new HttpError(400, 'invalid_id', 'Identifiant invalide.')
-  const ingredient = await repos.getIngredient(id)
-  if (!ingredient) throw new HttpError(404, 'not_found', 'Ingrédient introuvable.')
-  return json(ingredient)
-})
-
-// ---------------------------------------------------------------------------
-// Recettes
-// ---------------------------------------------------------------------------
-
-route('GET', '/api/recipes', async ({ repos }) => {
-  const items = await repos.listRecipeSummaries()
-  return json({ items, totalCount: items.length })
-})
-
-route('GET', '/api/recipes/:id', async ({ repos, params }) => {
-  const id = Number(params['id'])
-  if (!Number.isInteger(id)) throw new HttpError(400, 'invalid_id', 'Identifiant invalide.')
-  const recipe = (await repos.listRecipesByIds([id])).get(id)
-  if (!recipe) throw new HttpError(404, 'not_found', 'Recette introuvable.')
-  return json(recipe)
-})
-
-// ---------------------------------------------------------------------------
-// Calendrier
-// ---------------------------------------------------------------------------
-
-route('GET', '/api/calendar/:week', async ({ repos, params }) => {
-  const week = params['week'] ?? ''
-  if (!isValidIsoWeek(week)) throw badWeek(week)
-
-  const entries = await repos.listWeekEntries(week)
-  const recipes = await repos.listRecipesByIds(
-    entries.map((e) => e.recipeId).filter((id): id is number => id !== null),
-  )
-  const ingredients = await repos.listIngredientsByIds(
-    entries.map((e) => e.ingredientId).filter((id): id is number => id !== null),
-  )
-
-  return json({
-    isoWeek: week,
-    entries,
-    recipes: Object.fromEntries(recipes),
-    ingredients: Object.fromEntries(ingredients),
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Frigo
-// ---------------------------------------------------------------------------
-
-route('GET', '/api/pantry', async ({ repos }) => {
-  const stocks = await repos.listPantry()
-  const ingredients = await repos.listIngredientsByIds(stocks.map((s) => s.ingredientId))
-  return json({ items: stocks, ingredients: Object.fromEntries(ingredients) })
-})
-
-// ---------------------------------------------------------------------------
-// Liste de courses
-// ---------------------------------------------------------------------------
-
-async function buildShoppingList(repos: Repositories, week: string): Promise<ShoppingList> {
-  const entries = await repos.listWeekEntries(week)
-
-  // Chargement en masse : 4 requetes quel que soit le nombre d'entrees.
-  const recipes = await repos.listRecipesByIds(
-    entries.map((e) => e.recipeId).filter((id): id is number => id !== null),
-  )
-
-  const ingredientIds = new Set<number>()
-  for (const e of entries) if (e.ingredientId !== null) ingredientIds.add(e.ingredientId)
-  for (const r of recipes.values()) {
-    for (const l of r.lines) if (l.ingredient.id !== null) ingredientIds.add(l.ingredient.id)
-  }
-
-  const [ingredients, pantry] = await Promise.all([
-    repos.listIngredientsByIds(ingredientIds),
-    repos.pantryTotalsByIngredient(),
-  ])
-
-  return aggregateShoppingList({
-    isoWeek: week,
-    entries,
-    recipesById: recipes,
-    ingredientsById: ingredients,
-    pantryByIngredient: pantry,
-  })
-}
-
-route('GET', '/api/shopping/:week', async ({ repos, params }) => {
-  const week = params['week'] ?? ''
-  if (!isValidIsoWeek(week)) throw badWeek(week)
-  const [list, checked] = await Promise.all([
-    buildShoppingList(repos, week),
-    repos.getCheckedItems(week),
-  ])
-  return json({ ...list, checkedIngredientIds: checked })
-})
-
-/**
- * Cases cochees. Volatiles dans le desktop : un rafraichissement en plein
- * magasin effacait tout le travail. Elles sont desormais persistees.
- */
-route('PUT', '/api/shopping/:week/checked', async ({ repos, params, request, env, user }) => {
-  const week = params['week'] ?? ''
-  if (!isValidIsoWeek(week)) throw badWeek(week)
-
-  let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    throw new HttpError(400, 'invalid_body', 'Corps de requête illisible.')
-  }
-
-  const ids = (body as { ingredientIds?: unknown })?.ingredientIds
-  if (!Array.isArray(ids) || !ids.every((v) => Number.isInteger(v))) {
-    throw new HttpError(400, 'invalid_body', 'ingredientIds doit être une liste d’entiers.')
-  }
-
-  const previous = await repos.getCheckedItems(week)
-  await repos.setCheckedItems(week, ids as number[])
-
-  // On ne journalise que le sens du changement, pas chaque case : cocher au
-  // fil des rayons produirait vingt lignes illisibles pour une seule course.
-  const added = (ids as number[]).length - previous.length
-  if (added !== 0) {
-    await logActivity(env.DB, user, {
-      action: 'update',
-      entity: 'shopping_checked',
-      label: `Liste de courses ${week}`,
-      details: { added: Math.max(added, 0), removed: Math.max(-added, 0), total: (ids as number[]).length },
-    })
-  }
-
-  return json({ isoWeek: week, checkedIngredientIds: ids })
-})
-
-/** Semaine courante — calculee cote serveur (UTC) et cote client (heure locale). */
-route('GET', '/api/current-week', async () => json({ isoWeek: currentIsoWeek() }))
-
-// ---------------------------------------------------------------------------
-// Authentification
-// ---------------------------------------------------------------------------
+// Enregistrement des routes. L'ordre n'a pas d'importance : les chemins sont
+// disjoints et la recherche compare le motif complet.
+import './routes/session.js'
+import './routes/system.js'
+import './routes/ingredients.js'
+import './routes/recipes.js'
+import './routes/calendar.js'
+import './routes/pantry.js'
+import './routes/shopping.js'
 
 /**
  * Routes accessibles sans session. Tout le reste est protege par defaut.
- * `/logout` et `/session` sont inoffensives : l'une efface un cookie, l'autre
- * ne dit que « oui » ou « non ».
+ *
+ * Liste explicite et courte : proteger route par route serait l'inverse, et
+ * laisserait tot ou tard passer un endpoint oublie.
  */
 const PUBLIC_ROUTES = new Set(['/api/login', '/api/logout', '/api/session'])
-
-route('POST', '/api/login', async ({ env, request }) => {
-  if (!(await hasAnyUser(env.DB))) {
-    // Aucun compte en base : on REFUSE plutot que d'ouvrir. Un defaut de
-    // configuration ne doit jamais laisser entrer.
-    throw new HttpError(503, 'no_users', "Aucun compte n'est configuré sur ce serveur.")
-  }
-
-  const locked = await lockoutRemaining(env.DB)
-  if (locked > 0) {
-    throw new HttpError(429, 'locked_out', `Trop de tentatives. Réessaie dans ${Math.ceil(locked / 60)} minute(s).`)
-  }
-
-  let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    throw new HttpError(400, 'invalid_body', 'Corps de requête illisible.')
-  }
-
-  const { username, password } = (body ?? {}) as { username?: unknown; password?: unknown }
-  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
-    throw new HttpError(400, 'invalid_body', 'Identifiant et mot de passe requis.')
-  }
-
-  let user
-  try {
-    user = await authenticate(env.DB, username, password)
-  } catch (error) {
-    // Un compte cree avant que le plafond PBKDF2 de la plateforme ne soit
-    // connu porte un nombre d'iterations que Workers refuse de deriver. Sans
-    // ce message, la connexion echoue en « erreur interne » et rien
-    // n'indique quoi faire.
-    if (error instanceof Error && error.name === 'IterationLimitError') {
-      throw new HttpError(
-        500,
-        'stale_hash',
-        'Ce compte a été créé avec des réglages que le serveur refuse désormais. ' +
-          'Recrée-le avec « node scripts/add-user.mjs ».',
-      )
-    }
-    throw error
-  }
-
-  if (!user) {
-    await recordFailure(env.DB)
-    // Volontairement vague : ne pas reveler si c'est l'identifiant ou le mot
-    // de passe qui est faux, cela permettrait d'enumerer les comptes.
-    throw new HttpError(401, 'bad_credentials', 'Identifiant ou mot de passe incorrect.')
-  }
-
-  await resetFailures(env.DB)
-  return new Response(JSON.stringify({ user }), {
-    status: 200,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-      'set-cookie': await issueSession(env.DB, user.id),
-    },
-  })
-})
-
-route('POST', '/api/logout', async () =>
-  new Response(JSON.stringify({ status: 'ok' }), {
-    status: 200,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-      'set-cookie': clearSessionCookie(),
-    },
-  }),
-)
-
-/** Permet au front de savoir s'il doit afficher l'ecran de connexion, et qui est la. */
-route('GET', '/api/session', async ({ env, request }) => {
-  const user = await currentUser(request, env.DB)
-  return json({ authenticated: user !== null, user })
-})
-
-// ---------------------------------------------------------------------------
-// Journal d'activite
-// ---------------------------------------------------------------------------
-
-route('GET', '/api/activity', async ({ env, url }) =>
-  json({ items: await listActivity(env.DB, Number(url.searchParams.get('limit') ?? 50)) }),
-)
-
-// ---------------------------------------------------------------------------
-// Point d'entree
-// ---------------------------------------------------------------------------
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -420,38 +62,36 @@ export default {
     }
 
     // Garde d'authentification, AVANT toute recherche de route.
-    //
-    // La liste des exceptions est explicite et courte : tout ce qui n'y
-    // figure pas est protege par defaut. Proteger route par route serait
-    // l'inverse — et laisserait tot ou tard passer un endpoint oublie.
     const user = await currentUser(request, env.DB)
     if (!PUBLIC_ROUTES.has(url.pathname) && user === null) {
       return fail(401, 'unauthenticated', 'Session expirée. Reconnecte-toi.')
     }
 
-    for (const r of routes) {
-      const match = r.pattern.exec(url.pathname)
-      if (!match) continue
-      if (r.method !== request.method) {
-        return fail(405, 'method_not_allowed', `Méthode ${request.method} non autorisée ici.`)
-      }
-
-      const params: Record<string, string> = {}
-      r.keys.forEach((key, i) => {
-        params[key] = decodeURIComponent(match[i + 1] ?? '')
-      })
-
-      try {
-        return await r.handler({ repos: new Repositories(env.DB), env, url, params, request, user })
-      } catch (error) {
-        if (error instanceof HttpError) return fail(error.status, error.code, error.message)
-        // Le detail part dans les logs Cloudflare, jamais dans la reponse :
-        // un message d'erreur SQL renseigne un attaquant sur le schema.
-        console.error('Erreur non gérée', url.pathname, error)
-        return fail(500, 'internal', 'Une erreur interne est survenue.')
-      }
+    const found = match(url.pathname, request.method)
+    if (found === null) return fail(404, 'not_found', 'Cette adresse ne correspond à aucune API.')
+    if (found === 'method_not_allowed') {
+      return fail(405, 'method_not_allowed', `Méthode ${request.method} non autorisée ici.`)
     }
 
-    return fail(404, 'not_found', 'Cette adresse ne correspond à aucune API.')
+    try {
+      return await found.route.handler({
+        repos: new Repositories(env.DB),
+        env,
+        url,
+        params: found.params,
+        request,
+        user,
+      })
+    } catch (error) {
+      if (error instanceof HttpError) {
+        return fail(error.status, error.code, error.message, error.extra)
+      }
+      // Le detail part dans les logs Cloudflare, jamais dans la reponse :
+      // un message d'erreur SQL renseigne un attaquant sur le schema.
+      console.error('Erreur non gérée', url.pathname, error)
+      return fail(500, 'internal', 'Une erreur interne est survenue.')
+    }
   },
 } satisfies ExportedHandler<Env>
+
+export type { Env }

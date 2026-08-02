@@ -183,6 +183,37 @@ export const recipeSchema = z.object({
 })
 export type Recipe = z.infer<typeof recipeSchema>
 
+/**
+ * Charge utile d'enregistrement d'une recette.
+ *
+ * Distincte de `recipeSchema` : le formulaire envoie des IDENTIFIANTS
+ * d'ingredients et de tags, pas les objets complets. Renvoyer l'ingredient
+ * entier ferait transiter 4 000 caracteres de macros a chaque sauvegarde, et
+ * surtout laisserait croire qu'on peut modifier un ingredient en modifiant une
+ * recette.
+ */
+export const recipeLineWriteSchema = z.object({
+  ingredientId: z.number().int().positive(),
+  quantityG: z.number().positive('La quantité doit être strictement positive.'),
+  unit: z.string().nullable().default(null),
+  notes: z.string().nullable().default(null),
+})
+export type RecipeLineWrite = z.infer<typeof recipeLineWriteSchema>
+
+export const recipeWriteSchema = z.object({
+  name: nonEmpty('Le nom de la recette ne peut pas être vide.'),
+  instructions: z.string().default(''),
+  defaultPortions: z.number().int().min(1, 'Une recette fait au moins une portion.').default(1),
+  imageKey: z.string().nullable().default(null),
+  sourceUrl: z.string().url('Adresse web invalide.').nullable().default(null),
+  prepTimeMin: z.number().int().positive('Le temps de préparation doit être positif.').nullable().default(null),
+  lines: z.array(recipeLineWriteSchema).default([]),
+  tagIds: z.array(z.number().int().positive()).default([]),
+})
+export type RecipeWrite = z.infer<typeof recipeWriteSchema>
+
+export const tagWriteSchema = tagSchema.omit({ id: true, createdAt: true })
+
 // ---------------------------------------------------------------------------
 // Nutrition
 // ---------------------------------------------------------------------------
@@ -215,42 +246,63 @@ const isoWeekString = z
  * `portions` sur une entree ingredient (annexe #22) : c'est resserre ici et
  * dans le CHECK SQL.
  */
-export const mealPlanEntrySchema = z
-  .object({
-    id: z.number().int().positive().nullable().default(null),
-    isoWeek: isoWeekString,
-    dayOfWeek: z.number().int().min(0).max(6),
-    slot: mealSlotSchema,
-    recipeId: z.number().int().positive().nullable().default(null),
-    ingredientId: z.number().int().positive().nullable().default(null),
-    quantityG: z.number().positive('quantity_g et portions doivent être strictement positifs.').nullable().default(null),
-    portions: z.number().positive('quantity_g et portions doivent être strictement positifs.').nullable().default(null),
-    ordinal: z.number().int().min(0).default(0),
-  })
-  .superRefine((entry, ctx) => {
-    const hasRecipe = entry.recipeId !== null
-    const hasIngredient = entry.ingredientId !== null
-    if (hasRecipe === hasIngredient) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Une entrée du calendrier référence soit une recette, soit un ingrédient — pas les deux, pas aucun.',
-      })
-      return
-    }
-    if (hasRecipe && entry.portions === null) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['portions'], message: 'Le nombre de portions est requis pour une recette.' })
-    }
-    if (hasRecipe && entry.quantityG !== null) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['quantityG'], message: 'Une entrée recette ne porte pas de quantité en grammes.' })
-    }
-    if (hasIngredient && entry.quantityG === null) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['quantityG'], message: 'La quantité est requise pour un ingrédient.' })
-    }
-    if (hasIngredient && entry.portions !== null) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['portions'], message: 'Une entrée ingrédient ne porte pas de portions.' })
-    }
-  })
+const mealPlanEntryFields = {
+  id: z.number().int().positive().nullable().default(null),
+  isoWeek: isoWeekString,
+  dayOfWeek: z.number().int().min(0).max(6),
+  slot: mealSlotSchema,
+  recipeId: z.number().int().positive().nullable().default(null),
+  ingredientId: z.number().int().positive().nullable().default(null),
+  quantityG: z.number().positive('quantity_g et portions doivent être strictement positifs.').nullable().default(null),
+  portions: z.number().positive('quantity_g et portions doivent être strictement positifs.').nullable().default(null),
+  ordinal: z.number().int().min(0).default(0),
+}
+
+/**
+ * La regle XOR, extraite pour etre appliquee a PLUSIEURS schemas.
+ *
+ * Ne surtout pas la reintroduire via `mealPlanEntrySchema.innerType()` : cette
+ * methode rend l'objet SANS son raffinement, et la regle disparait
+ * silencieusement — l'erreur ressort alors du CHECK SQLite, en 500 opaque.
+ */
+function checkMealPlanXor(
+  entry: { recipeId: number | null; ingredientId: number | null; quantityG: number | null; portions: number | null },
+  ctx: z.RefinementCtx,
+): void {
+  const hasRecipe = entry.recipeId !== null
+  const hasIngredient = entry.ingredientId !== null
+  if (hasRecipe === hasIngredient) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Une entrée du calendrier référence soit une recette, soit un ingrédient — pas les deux, pas aucun.',
+    })
+    return
+  }
+  if (hasRecipe && entry.portions === null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['portions'], message: 'Le nombre de portions est requis pour une recette.' })
+  }
+  if (hasRecipe && entry.quantityG !== null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['quantityG'], message: 'Une entrée recette ne porte pas de quantité en grammes.' })
+  }
+  if (hasIngredient && entry.quantityG === null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['quantityG'], message: 'La quantité est requise pour un ingrédient.' })
+  }
+  if (hasIngredient && entry.portions !== null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['portions'], message: 'Une entrée ingrédient ne porte pas de portions.' })
+  }
+}
+
+export const mealPlanEntrySchema = z.object(mealPlanEntryFields).superRefine(checkMealPlanXor)
 export type MealPlanEntry = z.infer<typeof mealPlanEntrySchema>
+
+/**
+ * Creation d'une entree : meme regle XOR, sans les champs que le serveur
+ * attribue lui-meme (identifiant et rang dans le creneau).
+ */
+export const mealPlanEntryWriteSchema = z
+  .object(mealPlanEntryFields)
+  .omit({ id: true, ordinal: true })
+  .superRefine(checkMealPlanXor)
 
 export const weeklyCostSnapshotSchema = z.object({
   isoWeek: isoWeekString,
@@ -298,6 +350,33 @@ export const pantryStockSchema = z.object({
   updatedAt: utcTimestamp.nullable().default(null),
 })
 export type PantryStock = z.infer<typeof pantryStockSchema>
+
+// ---------------------------------------------------------------------------
+// Charges utiles d'ecriture
+// ---------------------------------------------------------------------------
+//
+// Declarees ici, apres les schemas dont elles derivent : `omit()` s'evalue au
+// chargement du module, donc une reference plus haut dans le fichier leverait
+// avant meme le premier appel.
+
+/** Deplacement d'une entree vers un autre jour ou creneau. */
+export const mealPlanMoveSchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  slot: mealSlotSchema,
+})
+
+/** Changement de quantite ou de portions, sans toucher au reste. */
+export const mealPlanAmountSchema = z.object({
+  quantityG: z.number().positive('La quantité doit être strictement positive.').nullable().default(null),
+  portions: z.number().positive('Le nombre de portions doit être strictement positif.').nullable().default(null),
+})
+
+/** Ajout ou modification d'un lot au frigo. */
+export const pantryStockWriteSchema = pantryStockSchema.omit({ id: true, addedAt: true, updatedAt: true })
+export type PantryStockWrite = z.infer<typeof pantryStockWriteSchema>
+
+/** Journal de cuisson — `recipeId` vient du chemin, pas du corps. */
+export const cookingLogWriteSchema = cookingLogEntrySchema.omit({ id: true, recipeId: true, createdAt: true })
 
 // ---------------------------------------------------------------------------
 // Derives calcules cote client
