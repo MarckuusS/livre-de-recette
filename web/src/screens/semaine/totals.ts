@@ -19,6 +19,7 @@ import {
   formatGrams,
   macrosFor,
   mealPlanEntryCost,
+  mealPlanEntryCostDetail,
   type Ingredient,
   type MealPlanEntry,
   type MealSlot,
@@ -122,8 +123,17 @@ export function sumNutrition(
 export interface CostTotal {
   /** `null` quand aucune ligne n'a de prix : « — » plutot que « 0,00 € ». */
   readonly total: Money | null
-  /** Entrees dont le cout est inconnu — sans prix, ou dont la cible a disparu. */
-  readonly missingCount: number
+  /**
+   * Lignes d'ingredient sans prix, sur toutes les entrees.
+   *
+   * Compter les ENTREES au lieu des lignes rendait l'avertissement muet dans
+   * le cas le plus courant : une recette dont deux ingredients sur cinq n'ont
+   * pas de prix produit un cout non nul, donc l'entree passait pour complete,
+   * et la carte annonçait un budget sous-estime sans le moindre signe.
+   */
+  readonly missingLines: number
+  /** Entrees dont la recette ou l'ingredient a disparu : rien n'est chiffrable. */
+  readonly orphanCount: number
 }
 
 /**
@@ -131,25 +141,26 @@ export interface CostTotal {
  *
  * Divergence assumee avec le desktop : celui-ci ignorait purement et
  * simplement une recette introuvable, si bien qu'un total pouvait etre faux
- * sans que rien ne le signale. Ici une reference orpheline compte comme une
- * ligne sans prix — le total reste partiel, mais l'interface peut le dire.
+ * sans que rien ne le signale. Ici une reference orpheline est comptee a part :
+ * le total reste partiel, mais l'interface peut le dire.
  */
 export function entriesCost(entries: readonly MealPlanEntry[], data: CalendarResponse): CostTotal {
   let total: Money | null = null
-  let missingCount = 0
+  let missingLines = 0
+  let orphanCount = 0
 
   for (const entry of entries) {
     const target = targetOf(entry, data)
     if (target === null) {
-      missingCount += 1
+      orphanCount += 1
       continue
     }
-    const cost = mealPlanEntryCost(entry, target)
-    if (cost === null) missingCount += 1
-    else total = total === null ? cost : total.plus(cost)
+    const { cost, missingLines: missing } = mealPlanEntryCostDetail(entry, target)
+    missingLines += missing
+    if (cost !== null) total = total === null ? cost : total.plus(cost)
   }
 
-  return { total, missingCount }
+  return { total, missingLines, orphanCount }
 }
 
 // ---------------------------------------------------------------------------

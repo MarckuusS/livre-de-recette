@@ -30,6 +30,7 @@ import { ConfirmDialog, Sheet } from '../../components/Sheet.js'
 import { useToast } from '../../components/Toast.js'
 import {
   useAddPrice,
+  useAddStock,
   useConsumeStock,
   useDeleteStock,
   useUpdateStock,
@@ -63,6 +64,8 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
   const update = useUpdateStock()
   const consume = useConsumeStock()
   const remove = useDeleteStock()
+  // Sert uniquement a l'annulation : remettre au frigo ce qui vient d'en sortir.
+  const add = useAddStock()
   const addPrice = useAddPrice(lot.stock.ingredientId)
   const toast = useToast()
 
@@ -93,6 +96,23 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
   const priceReading = readPrice(price, quantityG ?? lot.stock.quantityG)
   const priceError = attempted && priceReading.kind === 'invalid' ? priceReading.message : null
 
+  /**
+   * Remet au frigo un lot qui vient d'en sortir.
+   *
+   * Le lot revient avec un NOUVEL identifiant : rien ne permet de ressusciter
+   * une ligne supprimee a l'identique. Sans consequence ici, un lot de frigo
+   * n'etant reference par rien d'autre, contrairement a un ingredient, qu'une
+   * recette peut pointer.
+   */
+  const restore = (quantityG: number) => {
+    void add.mutateAsync({
+      ingredientId: lot.stock.ingredientId,
+      quantityG,
+      expiryDate: lot.stock.expiryDate,
+      notes: lot.stock.notes,
+    })
+  }
+
   /*
    * `mutateAsync` et non `mutate(…, { onSuccess })` : une consommation totale
    * ou une suppression fait disparaitre le lot, donc demonter cette feuille des
@@ -105,18 +125,31 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
    */
   const takeShare = async (fraction: number) => {
     const amount = shareAmount(lot.stock.quantityG, fraction)
+    const before = lot.stock.quantityG
     try {
       const pantry = await consume.mutateAsync({ id: lot.id, quantityG: amount })
       // La route ajoute `removed` et `remainingG` a sa reponse ; queries.ts la
       // type `PantryResponse` sans eux et ne nous appartient pas, d'ou cette
       // lecture explicite plutot qu'une deduction sur les quantites.
       const { removed } = pantry as PantryResponse & { removed?: boolean }
-      toast.show({
-        message: removed
-          ? `${lot.name} : lot terminé, retiré du frigo.`
-          : `${formatGrams(amount)} de ${lot.name} consommés.`,
+      if (removed) {
+        // "Tout" retire le lot en UN seul appui, sans confirmation, dans une
+        // grille de trois boutons de meme allure. Un faux contact en cuisine
+        // suffisait a le perdre sans recours. Le toast d'annulation existait
+        // deja et servait a l'ecran Semaine pour exactement ce cas.
+        toast.showUndo(`${lot.name} : lot terminé, retiré du frigo.`, () => restore(before))
+        onClose()
+        return
+      }
+      toast.showUndo(`${formatGrams(amount)} de ${lot.name} consommés.`, () => {
+        void update.mutateAsync({
+          id: lot.id,
+          ingredientId: lot.stock.ingredientId,
+          quantityG: before,
+          expiryDate: lot.stock.expiryDate,
+          notes: lot.stock.notes,
+        })
       })
-      if (removed) onClose()
     } catch {
       /* voir le commentaire ci-dessus */
     }
@@ -165,9 +198,10 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
   }
 
   const confirmDelete = async () => {
+    const before = lot.stock.quantityG
     try {
       await remove.mutateAsync(lot.id)
-      toast.show({ message: `${lot.name} retiré du frigo.` })
+      toast.showUndo(`${lot.name} retiré du frigo.`, () => restore(before))
       onClose()
     } catch {
       /* voir le commentaire ci-dessus */

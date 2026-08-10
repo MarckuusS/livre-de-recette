@@ -26,11 +26,12 @@ import { IngredientPicker } from '../../components/IngredientPicker.js'
 import { QuantityField } from '../../components/QuantityField.js'
 import { ConfirmDialog } from '../../components/Sheet.js'
 import { useToast } from '../../components/Toast.js'
+import { MacrosDonut } from '../../components/MacrosDonut.js'
+import { ApiError } from '../../lib/api.js'
 import { useDeleteRecipe, useSaveRecipe } from '../../lib/queries.js'
 import { CookingLogCard } from './CookingLog.js'
 import {
   CostCard,
-  MacrosDonut,
   NutritionCard,
   PortionsScaler,
   ScaleBanner,
@@ -70,6 +71,15 @@ export function RecipeEditor({
   const [showProblem, setShowProblem] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  /**
+   * Etat de la recette tel qu'il a ete charge. Sert de jeton d'ecriture
+   * conditionnelle, et n'est PAS resynchronise depuis le cache : sinon un
+   * rafraichissement en arriere-plan validerait a notre place une version que
+   * l'utilisateur n'a jamais vue, ce qui reviendrait a n'avoir aucun garde-fou.
+   */
+  const [loadedUpdatedAt, setLoadedUpdatedAt] = useState<string | null>(recipe.updatedAt)
+  /** Un autre appareil a enregistre entre-temps : on demande quoi faire. */
+  const [conflict, setConflict] = useState(false)
 
   const dirty = useMemo(() => draftSignature(draft) !== baseline, [draft, baseline])
   const problem = draftProblem(draft)
@@ -97,7 +107,14 @@ export function RecipeEditor({
       ],
     }))
 
-  const submit = () => {
+  /**
+   * Envoie le tampon. `force` saute le controle de concurrence.
+   *
+   * `expectedUpdatedAt` vient de la recette telle qu'elle a ete CHARGEE, et non
+   * du cache : c'est bien l'etat que l'utilisateur avait sous les yeux quand il
+   * a commence a taper que l'on declare avoir vu.
+   */
+  const submit = (force = false) => {
     if (problem !== null) {
       setShowProblem(true)
       return
@@ -107,12 +124,22 @@ export function RecipeEditor({
     // marquee comme modifiee.
     const sent = draft
     save.mutate(
-      { id: recipe.id, ...toPayload(sent) },
       {
-        onSuccess: () => {
+        id: recipe.id,
+        ...toPayload(sent),
+        expectedUpdatedAt: force ? null : loadedUpdatedAt,
+      },
+      {
+        onSuccess: (saved) => {
           setBaseline(draftSignature(sent))
           setShowProblem(false)
+          setConflict(false)
+          // La recette vient d'etre reecrite : le jeton suivant est le sien.
+          setLoadedUpdatedAt(saved.updatedAt)
           toast.show({ message: 'Recette enregistrée.' })
+        },
+        onError: (error) => {
+          if (error instanceof ApiError && error.code === 'stale_recipe') setConflict(true)
         },
       },
     )
@@ -268,7 +295,12 @@ export function RecipeEditor({
       />
 
       <NutritionCard derived={derived} />
-      <MacrosDonut per100g={derived.per100g} />
+      <MacrosDonut
+        total={derived.per100g}
+        title="Composition pour 100 g"
+        centerCaption="kcal / 100 g"
+        emptyMessage="Aucune donnée : les ingrédients de cette recette n’ont pas de macros renseignées."
+      />
       <CostCard derived={derived} />
 
       {recipe.id !== null && <CookingLogCard recipeId={recipe.id} />}
@@ -297,11 +329,32 @@ export function RecipeEditor({
         </button>
       </div>
 
+      {/*
+        Conflit d'enregistrement. On ne tranche pas a la place de l'utilisateur :
+        lui seul sait si ce qu'il a tape remplace ou complete ce qui a ete
+        enregistre ailleurs. Recharger perd sa saisie, ecraser perd celle de
+        l'autre appareil ; les deux sont annonces pour ce qu'ils sont.
+      */}
+      <ConfirmDialog
+        open={conflict}
+        title="Modifiée sur un autre appareil"
+        message={
+          'Cette recette a été enregistrée ailleurs pendant que tu la modifiais. ' +
+          'Enregistrer maintenant écrasera cette version. Recharger, au contraire, ' +
+          'abandonnera ce que tu viens de taper.'
+        }
+        confirmLabel="Écraser quand même"
+        busy={save.isPending}
+        error={null}
+        onConfirm={() => submit(true)}
+        onClose={() => setConflict(false)}
+      />
+
       <SaveBar
         dirty={dirty}
         busy={save.isPending}
         error={save.isError ? save.error.message : showProblem ? problem : null}
-        onSave={submit}
+        onSave={() => submit()}
         onDiscard={() => {
           setDraft(toDraft(recipe))
           setBaseline(draftSignature(toDraft(recipe)))

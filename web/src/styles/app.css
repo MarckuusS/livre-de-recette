@@ -233,11 +233,33 @@
   background: var(--color-primary-pressed);
 }
 
+/*
+ * Une VARIANTE porte une apparence, jamais une mise en page.
+ *
+ * `.button--secondary` a longtemps porte `margin-top: var(--space-md)`, pose
+ * pour un seul cas d'empilement. Consequence partout ailleurs : dans une
+ * rangee, un bouton secondaire descendait de 12 px pendant que le primaire
+ * restait en place. `.sheet__actions` avait deja du neutraliser la marge, la
+ * barre d'outils des Ingredients affichait un "Scanner" desaligne de ses deux
+ * voisins, et chaque nouvelle rangee aurait ramene le meme correctif.
+ *
+ * Les conteneurs qui empilent gerent desormais leur propre espacement : `.form`
+ * et `.sheet__actions` ont un `gap`, et le seul empilement nu est traite plus
+ * bas, sur `.card`.
+ */
 .button--secondary {
-  margin-top: var(--space-md);
   color: var(--color-primary);
   background: transparent;
   border-color: var(--color-border);
+}
+
+/*
+ * Seul empilement sans conteneur a `gap` : un bouton pose directement dans une
+ * carte, sous son texte (ScanReview, "Scanner autre chose"). La regle vise le
+ * conteneur, pas la variante, donc elle ne suit plus le bouton partout ou il va.
+ */
+.card > .button {
+  margin-top: var(--space-md);
 }
 
 .button--secondary:active {
@@ -873,3 +895,36 @@
   overflow: visible;
   white-space: normal;
 }
+
+/* ---------- Controle segmente ----------
+   Deux ou trois choix exclusifs, cote a cote. Utilise par la feuille
+   d'ajout au calendrier (recette / ingredient) et par le choix de theme
+   des Reglages. Vit ici, et non dans une feuille d'ecran, parce qu'un
+   composant partage dont le style n'arrive qu'avec un ecran donne se
+   retrouve nu partout ailleurs. */
+
+.segmented {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.segmented__tab {
+  flex: 1;
+  min-height: var(--control-height-lg);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.segmented__tab--active {
+  color: var(--color-text);
+  background: var(--color-surface);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--shadow-subtle);
+}
+

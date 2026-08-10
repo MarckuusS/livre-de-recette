@@ -97,9 +97,21 @@ export function PantryScreen() {
 
   return (
     <section className="screen screen--pantry">
+      {/*
+        Ce texte a longtemps promis deux choses que le code ne fait pas : que le
+        stock etait RETRANCHE de la liste de courses, et qu'un ingredient couvert
+        y arrivait COCHE. L'agregation se contente d'estampiller `inPantryG` et
+        `isCoveredByPantry`, et la ligne arrive decochee, avec un encart qui
+        propose de cocher. Le pre-cochage automatique du desktop a ete abandonne
+        volontairement (une case cochee qu'on n'a pas cochee soi-meme se lit
+        comme une erreur sur telephone), mais la phrase, elle, n'avait pas suivi.
+        On lisait la promesse, on ouvrait la liste, tout etait decoche, et on en
+        concluait que le frigo n'etait pas pris en compte.
+      */}
       <p className="pantry-note">
-        Ce que tu ranges ici est <strong>retranché de ta liste de courses</strong> : un ingrédient
-        déjà couvert par le frigo y arrive coché. <Link to="/courses">Voir la liste</Link>
+        Ce que tu ranges ici est <strong>signalé sur ta liste de courses</strong> : un ingrédient
+        déjà couvert par le frigo y porte un repère, et la liste propose de le cocher d’un geste.{' '}
+        <Link to="/courses">Voir la liste</Link>
       </p>
 
       {query.isPending && <LoadingRows />}

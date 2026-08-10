@@ -71,10 +71,18 @@ const post = <T,>(path: string, body: unknown): Promise<T> =>
     body: JSON.stringify(body),
   })
 
-const put = <T,>(path: string, body: unknown): Promise<T> =>
+/**
+ * `ifMatch` transporte le `updatedAt` lu au chargement, pour une ecriture
+ * conditionnelle : le serveur refuse en 409 si la ressource a bouge entre-temps.
+ * Omis, l'ecriture reste inconditionnelle, conformement a la semantique HTTP.
+ */
+const put = <T,>(path: string, body: unknown, ifMatch?: string | null): Promise<T> =>
   apiFetch<T>(path, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(ifMatch ? { 'if-match': ifMatch } : {}),
+    },
     body: JSON.stringify(body),
   })
 
@@ -423,12 +431,26 @@ export function useRecipe(id: number | null) {
   })
 }
 
-/** Creation et modification partagent le meme formulaire : un seul hook. */
+/**
+ * Creation et modification partagent le meme formulaire : un seul hook.
+ *
+ * `expectedUpdatedAt` est le `updatedAt` de la recette au moment ou l'editeur
+ * l'a chargee. Il part en `If-Match` et fait echouer l'enregistrement en 409
+ * `stale_recipe` si un autre appareil a enregistre entre-temps, au lieu
+ * d'ecraser son travail sans un mot. `null` = enregistrement inconditionnel,
+ * ce que l'utilisateur choisit explicitement apres avoir vu le conflit.
+ */
 export function useSaveRecipe() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: RecipeWrite & { id: number | null }) =>
-      id === null ? post<Recipe>('/api/recipes', body) : put<Recipe>(`/api/recipes/${id}`, body),
+    mutationFn: ({
+      id,
+      expectedUpdatedAt = null,
+      ...body
+    }: RecipeWrite & { id: number | null; expectedUpdatedAt?: string | null }) =>
+      id === null
+        ? post<Recipe>('/api/recipes', body)
+        : put<Recipe>(`/api/recipes/${id}`, body, expectedUpdatedAt),
     onSuccess: (recipe) => {
       void client.invalidateQueries({ queryKey: ['recipes'] })
       client.setQueryData(keys.recipe(recipe.id), recipe)

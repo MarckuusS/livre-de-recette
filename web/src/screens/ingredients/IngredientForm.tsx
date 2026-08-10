@@ -163,6 +163,20 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
   // la ou l'utilisateur peut le corriger, et pas dans la barre d'action.
   const duplicateMessage =
     error instanceof ApiError && error.code === 'duplicate_name' ? error.message : null
+  /**
+   * La fiche que le serveur designe comme deja existante.
+   *
+   * Le 409 portait `existingId` depuis le debut, et personne ne le lisait :
+   * l'utilisateur voyait "ce nom existe deja" sans le moindre moyen d'aller
+   * voir. Il devait quitter le formulaire, perdre sa saisie, et chercher a la
+   * main ce qu'il venait de recreer.
+   */
+  const duplicateId =
+    error instanceof ApiError && error.code === 'duplicate_name'
+      ? typeof error.extra['existingId'] === 'number'
+        ? error.extra['existingId']
+        : null
+      : null
 
   // Le formulaire est « sale » des qu'il s'ecarte de ce qui a ete charge. La
   // comparaison passe par JSON : le brouillon est un objet plat de valeurs
@@ -230,6 +244,14 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
             patch({ sourceRef: code })
           }}
         />
+
+        {duplicateId !== null && (
+          <p className="note" role="alert">
+            Cette fiche existe déjà dans ta bibliothèque.{' '}
+            <Link to={`/ingredients/${duplicateId}`}>Ouvrir la fiche existante</Link>. Ta saisie
+            sera perdue.
+          </p>
+        )}
 
         <fieldset className="ing-form__section">
           <legend className="ing-form__legend">Valeurs nutritionnelles pour 100 g</legend>

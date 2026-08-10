@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 
 import { ToastProvider } from './components/Toast.js'
 import { useTheme } from './lib/theme.js'
@@ -95,7 +95,15 @@ export function App() {
 
         <main className="app-main">
           <Routes>
-            <Route path="/" element={<ShoppingScreen />} />
+            {/* `/` REDIRIGE, il ne rend pas.
+                Rendre ShoppingScreen ici donnait le bon ecran mais aucun onglet
+                en surbrillance : le NavLink de la barre pointe sur `/courses`,
+                et `/` ne lui correspond pas. Comme le manifeste PWA declare
+                `start_url: '/'`, l'application installee s'ouvrait donc
+                systematiquement sans onglet actif. La redirection avec `replace`
+                remet l'adresse sur `/courses` sans laisser d'etape dans
+                l'historique, donc sans casser le bouton Retour. */}
+            <Route path="/" element={<Navigate to="/courses" replace />} />
             <Route path="/ingredients" element={<IngredientsScreen />} />
             {/* Un seul motif, `:id`, y compris pour « /ingredients/nouveau ».
                 L'ecran reconnait lui-meme ce segment et ouvre un formulaire

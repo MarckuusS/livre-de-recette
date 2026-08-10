@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCurrentUser } from '../AuthGate.js'
 import { ApiError, apiFetch, logout, type HealthResponse } from '../lib/api.js'
 import { currentZoomScale } from '../lib/gestures.js'
+import { THEME_CHOICES, useTheme } from '../lib/theme.js'
 
 /**
  * Parametres : qui est connecte, ce que repond le serveur, et ce que
@@ -131,6 +132,7 @@ export function SettingsScreen() {
   const me = useCurrentUser()
   const client = useQueryClient()
   const view = useViewportMetrics()
+  const theme = useTheme()
 
   const health = useQuery({
     queryKey: ['health'],
@@ -192,6 +194,26 @@ export function SettingsScreen() {
             </dl>
           </>
         )}
+      </div>
+
+      <div className="card">
+        <h2 className="card__title">Thème</h2>
+        <p className="card__lead">
+          "Système" suit le réglage du téléphone, donc le passage automatique en sombre le soir.
+        </p>
+        <div className="segmented" role="group" aria-label="Thème de l’application">
+          {THEME_CHOICES.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`segmented__tab${theme.choice === option.value ? ' segmented__tab--active' : ''}`}
+              aria-pressed={theme.choice === option.value}
+              onClick={() => theme.setChoice(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="card">

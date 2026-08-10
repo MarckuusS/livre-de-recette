@@ -273,14 +273,13 @@ export function formatDay(day: string): string {
   return Number.isNaN(date.getTime()) ? day : date.toLocaleDateString('fr-FR')
 }
 
-/** Nombre francais a `decimals` decimales. `—` quand la valeur est inconnue. */
-export function formatNumber(value: number | null, decimals: number): string {
-  if (value === null || !Number.isFinite(value)) return '—'
-  return value.toLocaleString('fr-FR', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })
-}
+/**
+ * Reexportation. La fonction a demenage dans `lib/format.ts` le jour ou
+ * l'anneau de macros est devenu un composant partage : un fichier de
+ * `components/` ne peut pas dependre d'un dossier d'ecran. Les appelants
+ * historiques continuent de l'importer d'ici.
+ */
+export { formatNumber } from '../../lib/format.js'
 
 export const plural = (count: number, singular: string, pluralForm = `${singular}s`): string =>
   count > 1 ? pluralForm : singular

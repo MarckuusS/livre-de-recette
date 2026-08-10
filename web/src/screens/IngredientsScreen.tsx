@@ -55,6 +55,7 @@ import {
   viewOptionsToParams,
   type GroupMode,
   type LibraryFilters,
+  toggleSection,
   type SortField,
   type ViewOptions,
 } from './ingredients/model.js'
@@ -125,6 +126,16 @@ export function IngredientsScreen() {
 
   const shown = sections.reduce((total, section) => total + section.items.length, 0)
   const loaded = list.data?.items.length ?? 0
+
+  /**
+   * Recherche ou filtre en cours : on deplie tout, quoi qu'ait choisi
+   * l'utilisateur.
+   *
+   * Sans cette regle, taper "tomate" repondrait par une pile d'en-tetes replies
+   * et rien d'autre. L'ecran aurait l'air cassé alors qu'il a trouve. Le
+   * repliage sert a lire une bibliotheque entiere, pas a cacher un resultat.
+   */
+  const expandAll = view.query.trim() !== '' || filterCount > 0
 
   return (
     <section className="screen">
@@ -237,16 +248,39 @@ export function IngredientsScreen() {
             {shown} ingrédient{shown > 1 ? 's' : ''}
             {shown !== loaded && ` sur ${loaded}`}
           </p>
-          {sections.map((section) => (
-            <div key={section.key} className="ing-section">
-              {section.key !== '' && <h2 className="section-header ing-section__header">{section.key}</h2>}
-              <ul className="row-list">
-                {section.items.map((ingredient) => (
-                  <IngredientRow key={ingredient.id ?? ingredient.name} ingredient={ingredient} />
-                ))}
-              </ul>
-            </div>
-          ))}
+          {sections.map((section) => {
+            // Une section sans cle est le mode "Aucun groupement" : elle n'a
+            // pas d'en-tete, donc rien pour la rouvrir. Toujours depliee.
+            const collapsible = section.key !== ''
+            const open = !collapsible || expandAll || view.open.includes(section.key)
+            return (
+              <div key={section.key} className="ing-section">
+                {collapsible && (
+                  <button
+                    type="button"
+                    className="section-header ing-section__header"
+                    aria-expanded={open}
+                    onClick={() => setView({ open: toggleSection(view.open, section.key) })}
+                  >
+                    <span className="ing-section__chevron" aria-hidden="true">
+                      {open ? '▾' : '▸'}
+                    </span>
+                    <span className="ing-section__name">{section.key}</span>
+                    {/* Le compte reste visible repliee : sinon une section
+                        fermee ne dit rien de ce qu'elle contient. */}
+                    <span className="ing-section__count">{section.items.length}</span>
+                  </button>
+                )}
+                {open && (
+                  <ul className="row-list">
+                    {section.items.map((ingredient) => (
+                      <IngredientRow key={ingredient.id ?? ingredient.name} ingredient={ingredient} />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
         </>
       )}
 

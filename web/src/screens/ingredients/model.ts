@@ -161,6 +161,10 @@ export interface IngredientSection {
   readonly items: readonly Ingredient[]
 }
 
+/** Ouvre ou referme une section, sans muter la liste d'origine. */
+export const toggleSection = (open: readonly string[], key: string): string[] =>
+  open.includes(key) ? open.filter((k) => k !== key) : [...open, key]
+
 /**
  * Decoupe la liste DEJA triee en sections.
  *
@@ -303,6 +307,14 @@ export interface ViewOptions {
   readonly sort: SortField
   readonly desc: boolean
   readonly group: GroupMode
+  /**
+   * Sections depliees, par cle de groupe.
+   *
+   * Vit dans l'URL comme le reste des options de vue, et pas dans un `useState`,
+   * pour une raison tres concrete : ouvrir un rayon, toucher un ingredient puis
+   * revenir en arriere refermerait tout si l'etat mourait avec l'ecran.
+   */
+  readonly open: readonly string[]
   readonly filters: LibraryFilters
 }
 
@@ -310,7 +322,12 @@ export const DEFAULT_VIEW: ViewOptions = {
   query: '',
   sort: 'name',
   desc: false,
-  group: 'none',
+  // Regroupe par rayon d'entree de jeu : une bibliotheque de 80 lignes a plat
+  // se parcourt mal, et le rayon est l'axe qui sert aussi en magasin.
+  group: 'rayon',
+  // Tout replie au depart. Ce qui compte a l'ouverture, c'est de voir la
+  // STRUCTURE de sa bibliotheque, pas de faire defiler 80 lignes.
+  open: [],
   filters: NO_FILTERS,
 }
 
@@ -318,6 +335,19 @@ const isSource = (value: string): value is Source => (SOURCES as readonly string
 
 const splitCsv = (value: string | null): string[] =>
   value === null ? [] : value.split(',').map((part) => part.trim()).filter((part) => part !== '')
+
+/**
+ * `decodeURIComponent` leve sur une sequence `%` malformee, ce qu'une URL
+ * bricolee a la main produit facilement. Une option de vue illisible ne doit
+ * jamais faire tomber l'ecran : on garde la valeur brute et on continue.
+ */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
 
 /**
  * Relit les options depuis la query string.
@@ -343,6 +373,7 @@ export function readViewOptions(params: URLSearchParams): ViewOptions {
     sort,
     desc: rawDirection === 'desc',
     group,
+    open: splitCsv(params.get('ouverts')).map(safeDecode),
     filters: {
       sources: splitCsv(params.get('sources')).filter(isSource),
       rayons: splitCsv(params.get('rayons')),
@@ -362,6 +393,13 @@ export function viewOptionsToParams(view: ViewOptions): URLSearchParams {
     params.set('tri', `${view.sort}.${view.desc ? 'desc' : 'asc'}`)
   }
   if (view.group !== DEFAULT_VIEW.group) params.set('groupe', view.group)
+  // Chaque cle est encodee AVANT d'etre jointe : les rayons viennent de
+  // `category_l1`, saisi librement, et une virgule dans un nom couperait la
+  // liste en deux a la relecture. Remplacer la virgule serait plus simple mais
+  // la section ne se retrouverait plus a l'ouverture suivante.
+  if (view.open.length > 0) {
+    params.set('ouverts', view.open.map(encodeURIComponent).join(','))
+  }
   if (view.filters.sources.length > 0) params.set('sources', view.filters.sources.join(','))
   if (view.filters.rayons.length > 0) params.set('rayons', view.filters.rayons.join(','))
 

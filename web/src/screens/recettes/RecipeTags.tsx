@@ -2,6 +2,13 @@
  * Tags d'une recette : la rangee de pastilles du formulaire, et la feuille qui
  * ouvre le catalogue complet.
  *
+ * Le web a longtemps ouvert la CREATION sans ouvrir la CORRECTION, ce que le
+ * desktop ne faisait pas non plus mais ou il ne risquait rien : son catalogue
+ * etait en lecture seule. Ici, une faute de frappe ou une couleur mal choisie
+ * s'installait pour toujours dans la rangee de filtres de l'ecran Recettes, et
+ * le seul recours etait de detacher le tag recette par recette. `PUT` et
+ * `DELETE /api/tags/:id` existaient pourtant depuis le debut, sans appelant.
+ *
  * Deux ecarts avec le desktop, tous deux dictes par l'API :
  *
  *   1. Le desktop persistait un tag AU CLIC, hors du tampon d'edition. Ici il
@@ -18,7 +25,13 @@ import { useState } from 'react'
 
 import { TextField } from '../../components/Field.js'
 import { Sheet } from '../../components/Sheet.js'
-import { useCreateTag, useTags, type TagItem } from '../../lib/queries.js'
+import {
+  useCreateTag,
+  useDeleteTag,
+  useTags,
+  useUpdateTag,
+  type TagItem,
+} from '../../lib/queries.js'
 import '../../styles/recipes.css'
 
 /**
@@ -99,11 +112,41 @@ export function TagSheet({
 }) {
   const tags = useTags()
   const create = useCreateTag()
+  const update = useUpdateTag()
+  const remove = useDeleteTag()
   const [name, setName] = useState('')
   const [color, setColor] = useState<string>(TAG_COLORS[0])
+  /** Tag en cours de correction. `null` = le formulaire cree un nouveau tag. */
+  const [editing, setEditing] = useState<TagItem | null>(null)
+  /** La suppression se confirme sur place : imbriquer une feuille dans une feuille ne tient pas. */
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const pending = create.isPending || update.isPending || remove.isPending
+  const error = create.error ?? update.error ?? remove.error
+
+  const resetForm = () => {
+    setEditing(null)
+    setConfirmDelete(false)
+    setName('')
+    setColor(TAG_COLORS[0])
+  }
+
+  const startEdit = (tag: TagItem) => {
+    setEditing(tag)
+    setConfirmDelete(false)
+    setName(tag.name)
+    setColor(tag.colorHex)
+  }
 
   const submit = () => {
     if (name.trim() === '') return
+    if (editing !== null) {
+      update.mutate(
+        { id: editing.id, name: name.trim(), colorHex: color },
+        { onSuccess: resetForm },
+      )
+      return
+    }
     create.mutate(
       { name: name.trim(), colorHex: color },
       {
@@ -115,6 +158,20 @@ export function TagSheet({
         },
       },
     )
+  }
+
+  const destroy = () => {
+    if (editing === null) return
+    const { id } = editing
+    remove.mutate(id, {
+      onSuccess: () => {
+        // Le serveur a detache le tag de toutes les recettes, y compris celle
+        // en cours d'edition : son tampon local doit suivre, sans quoi
+        // l'enregistrement suivant renverrait un identifiant devenu inconnu.
+        if (tagIds.includes(id)) onToggle(id)
+        resetForm()
+      },
+    })
   }
 
   return (
@@ -134,23 +191,35 @@ export function TagSheet({
 
       <div className="recipe-chips recipe-chips--sheet">
         {(tags.data?.items ?? []).map((tag) => (
-          <TagChip
-            key={tag.id}
-            tag={tag}
-            selected={tagIds.includes(tag.id)}
-            onClick={() => onToggle(tag.id)}
-          />
+          <span key={tag.id} className="tag-row">
+            <TagChip
+              tag={tag}
+              selected={tagIds.includes(tag.id)}
+              onClick={() => onToggle(tag.id)}
+            />
+            {/* Le crayon est un bouton a part, et non un appui long sur la
+                pastille : un appui long ne se devine pas, et il entrerait en
+                conflit avec le menu de selection du navigateur. */}
+            <button
+              type="button"
+              className="tag-row__edit"
+              aria-label={`Modifier le tag ${tag.name}`}
+              onClick={() => startEdit(tag)}
+            >
+              ✎
+            </button>
+          </span>
         ))}
       </div>
 
       <div className="form tag-create">
         <TextField
-          label="Nouveau tag"
+          label={editing === null ? 'Nouveau tag' : `Modifier "${editing.name}"`}
           value={name}
           onChange={setName}
           placeholder="Végétarien"
           maxLength={40}
-          error={create.isError ? create.error.message : null}
+          error={error !== null ? error.message : null}
         />
         <div className="field">
           <span className="field__label" id="tag-color-label">
@@ -174,10 +243,51 @@ export function TagSheet({
           type="button"
           className="button button--primary button--block"
           onClick={submit}
-          disabled={name.trim() === '' || create.isPending}
+          disabled={name.trim() === '' || pending}
         >
-          {create.isPending ? 'Création…' : 'Créer le tag'}
+          {editing === null
+            ? create.isPending
+              ? 'Création…'
+              : 'Créer le tag'
+            : update.isPending
+              ? 'Enregistrement…'
+              : 'Enregistrer'}
         </button>
+
+        {editing !== null && (
+          <>
+            <button
+              type="button"
+              className="button button--secondary button--block"
+              onClick={resetForm}
+              disabled={pending}
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              className="button button--danger button--block"
+              onClick={() => (confirmDelete ? destroy() : setConfirmDelete(true))}
+              disabled={pending}
+            >
+              {remove.isPending
+                ? 'Suppression…'
+                : confirmDelete
+                  ? 'Confirmer la suppression'
+                  : 'Supprimer ce tag'}
+            </button>
+            {confirmDelete && (
+              <p className="note">
+                {editing.recipeCount === 0
+                  ? 'Ce tag n’est utilisé par aucune recette.'
+                  : editing.recipeCount === 1
+                    ? 'Ce tag sera retiré de la recette qui le porte.'
+                    : `Ce tag sera retiré des ${editing.recipeCount} recettes qui le portent.`}{' '}
+                Les recettes, elles, ne sont pas touchées.
+              </p>
+            )}
+          </>
+        )}
       </div>
     </Sheet>
   )

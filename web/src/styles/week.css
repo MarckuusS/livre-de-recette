@@ -239,32 +239,9 @@
   color: var(--color-text-placeholder);
 }
 
-/* ---------- Onglets segmentes (feuille d'ajout) ---------- */
-
-.segmented {
-  display: flex;
-  gap: var(--space-xs);
-  padding: var(--space-xs);
-  background: var(--color-surface-hover);
-  border-radius: var(--radius-md);
-}
-
-.segmented__tab {
-  flex: 1;
-  min-height: var(--control-height-lg);
-  font-size: var(--font-size-lg);
-  color: var(--color-text-secondary);
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-}
-
-.segmented__tab--active {
-  color: var(--color-text);
-  background: var(--color-surface);
-  font-weight: var(--font-weight-semibold);
-  box-shadow: var(--shadow-subtle);
-}
+/* Le controle segmente a ete promu dans app.css : il sert aussi aux
+   Reglages (choix du theme), et une feuille d'ecran n'est chargee qu'avec
+   son ecran. Le laisser ici donnait un controle non style ailleurs. */
 
 /* ---------- Ingredient retenu ---------- */
 

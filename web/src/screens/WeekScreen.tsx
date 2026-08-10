@@ -32,6 +32,7 @@ import {
   type NutritionTotal,
 } from '@livre/shared'
 
+import { MacrosDonut } from '../components/MacrosDonut.js'
 import { NutrientLabel } from '../components/NutrientLabel.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
 import { useToast } from '../components/Toast.js'
@@ -476,6 +477,24 @@ function DayTotals({
         </div>
       </div>
 
+      {/*
+        Repartition du jour selectionne, en pourcentage.
+        Le tableau ci-dessus donne les nombres, pas les proportions : savoir
+        qu'une journee pese 92 g de lipides ne dit pas qu'elle est a 55 %
+        lipidique. C'est la lecture qui manquait, et c'est celle qui se fait
+        d'un coup d'oeil. Le meme composant sert a la fiche recette.
+      */}
+      <MacrosDonut
+        total={dayTotal}
+        title="Répartition du jour"
+        centerCaption="kcal ce jour"
+        emptyMessage={
+          dayEntries.length === 0
+            ? 'Rien de prévu ce jour.'
+            : 'Aucune donnée : les repas de ce jour n’ont pas de macros renseignées.'
+        }
+      />
+
       <div className="card">
         <h3 className="card__title">Coût</h3>
         <dl className="kv">
@@ -488,10 +507,22 @@ function DayTotals({
             <dd>{formatEuros(weekCost.total)}</dd>
           </div>
         </dl>
-        {weekCost.missingCount > 0 && (
+        {weekCost.missingLines > 0 && (
           <p className="note">
             <span aria-hidden="true">⚠ </span>
-            {weekCost.missingCount} repas sans prix connu cette semaine : le total est partiel.
+            {weekCost.missingLines === 1
+              ? 'Un ingrédient de la semaine n’a pas de prix'
+              : `${weekCost.missingLines} ingrédients de la semaine n’ont pas de prix`}{' '}
+            : le total ci-dessus est <strong>sous-estimé</strong>.
+          </p>
+        )}
+        {weekCost.orphanCount > 0 && (
+          <p className="note">
+            <span aria-hidden="true">⚠ </span>
+            {weekCost.orphanCount === 1
+              ? 'Un repas pointe vers une recette ou un ingrédient supprimé'
+              : `${weekCost.orphanCount} repas pointent vers une recette ou un ingrédient supprimé`}{' '}
+            : rien n’a pu être chiffré pour {weekCost.orphanCount === 1 ? 'lui' : 'eux'}.
           </p>
         )}
       </div>

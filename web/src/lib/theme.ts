@@ -7,9 +7,15 @@
  * defaut est le comportement attendu.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 
 export type ThemeChoice = 'system' | 'light' | 'dark'
+
+export const THEME_CHOICES: readonly { value: ThemeChoice; label: string }[] = [
+  { value: 'light', label: 'Clair' },
+  { value: 'dark', label: 'Sombre' },
+  { value: 'system', label: 'Système' },
+]
 
 const STORAGE_KEY = 'theme'
 
@@ -40,12 +46,48 @@ export function isDarkNow(choice: ThemeChoice): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-export function useTheme() {
-  const [choice, setChoice] = useState<ThemeChoice>(read)
+// ---------------------------------------------------------------------------
+// Un seul choix pour toute l'application
+// ---------------------------------------------------------------------------
 
-  useEffect(() => {
-    apply(choice)
-  }, [choice])
+/**
+ * Le choix vit au niveau du MODULE, pas dans un `useState` de composant.
+ *
+ * Il etait local, et tant qu'un seul bouton le manipulait ça tenait. Des que
+ * les Reglages proposent le meme reglage, deux `useTheme()` cohabitent : le
+ * second ecrit dans le DOM et dans localStorage, mais le premier garde son
+ * ancienne valeur en memoire, si bien que l'icone de l'en-tete continue
+ * d'afficher l'inverse de ce que l'ecran montre. `useSyncExternalStore` evite
+ * d'avoir a envelopper l'application dans un fournisseur de contexte
+ * supplementaire pour un seul booleen.
+ */
+let currentChoice: ThemeChoice = read()
+const listeners = new Set<() => void>()
+
+const subscribe = (listener: () => void): (() => void) => {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+const getChoice = (): ThemeChoice => currentChoice
+
+/** Pose le theme, partout a la fois. Exporte pour les tests et les reglages. */
+export function setThemeChoice(choice: ThemeChoice): void {
+  if (choice === currentChoice) return
+  currentChoice = choice
+  apply(choice)
+  for (const listener of listeners) listener()
+}
+
+// Le script inline de index.html a deja pose `data-theme` avant le premier
+// rendu, pour eviter l'eclair blanc. On rejoue `apply` malgre tout : il est
+// idempotent, et il rattrape le cas ou ce script aurait ete retire.
+apply(currentChoice)
+
+export function useTheme() {
+  const choice = useSyncExternalStore(subscribe, getChoice, getChoice)
 
   // Suit les changements systeme tant qu'aucun choix explicite n'est fait
   // (bascule automatique au coucher du soleil sur iOS).
@@ -59,9 +101,24 @@ export function useTheme() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
+  /**
+   * Bascule rapide de l'en-tete : clair ou sombre, jamais 'system'.
+   *
+   * Ce bouton etait le SEUL acces au theme, et il ne connaissait que deux
+   * valeurs : une fois touche, plus rien ne ramenait a la preference du
+   * telephone, et le basculement automatique jour / nuit d'iOS etait perdu
+   * definitivement. Le troisieme etat se choisit maintenant dans les Reglages,
+   * ou il tient dans un libelle explicite plutot que dans un troisieme dessin
+   * d'icone que personne ne saurait interpreter.
+   */
   const toggle = useCallback(() => {
-    setChoice((c) => (isDarkNow(c) ? 'light' : 'dark'))
+    setThemeChoice(isDarkNow(getChoice()) ? 'light' : 'dark')
   }, [])
 
-  return { choice, setChoice, toggle, isDark: choice === 'system' ? systemDark : choice === 'dark' }
+  return {
+    choice,
+    setChoice: setThemeChoice,
+    toggle,
+    isDark: choice === 'system' ? systemDark : choice === 'dark',
+  }
 }

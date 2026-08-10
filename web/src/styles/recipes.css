@@ -379,64 +379,9 @@
   border-radius: var(--radius-full);
 }
 
-/* ---------- Donut de composition ---------- */
+/* Le donut de composition a ete promu dans components.css : il sert aussi
+   a l'ecran Semaine, et une feuille d'ecran n'est chargee qu'avec son ecran. */
 
-.macros {
-  display: flex;
-  gap: var(--space-lg);
-  align-items: center;
-  flex-wrap: wrap;
-  margin-top: var(--space-md);
-}
-
-.macros__chart {
-  flex: none;
-  width: 140px;
-  height: 140px;
-}
-
-.macros__track {
-  stroke: var(--color-border);
-}
-
-.macros__center {
-  fill: var(--color-text);
-  font-size: 20px;
-  font-weight: var(--font-weight-bold);
-}
-
-.macros__center-sub {
-  fill: var(--color-text-secondary);
-  font-size: 9px;
-}
-
-.macros__legend {
-  flex: 1;
-  min-width: 180px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.macros__item {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: baseline;
-  padding: var(--space-xs) 0;
-}
-
-.macros__label {
-  flex: none;
-  font-weight: var(--font-weight-medium);
-}
-
-.macros__value {
-  flex: 1;
-  font-size: var(--font-size-md);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-secondary);
-  text-align: right;
-}
 
 /* ---------- Journal de cuisson ---------- */
 
@@ -519,4 +464,30 @@
   margin-top: 0;
   margin-left: auto;
   font-size: var(--font-size-md);
+}
+
+/* ---------- Tag modifiable (feuille des tags) ----------
+   La pastille bascule l'appartenance a la recette, le crayon ouvre la
+   correction du tag lui-meme. Deux gestes distincts sur deux cibles
+   distinctes : confondre les deux sur une seule pastille rendait l'un des
+   deux inatteignable au doigt. */
+
+.tag-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.tag-row__edit {
+  min-width: var(--control-height-lg);
+  min-height: var(--control-height-lg);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+.tag-row__edit:active {
+  background: var(--color-surface-hover);
 }

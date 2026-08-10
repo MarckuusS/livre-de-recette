@@ -782,3 +782,52 @@
   width: 100%;
   margin-top: 0;
 }
+
+/* ---------- En-tete de section pliable ----------
+   L'en-tete etait un <h2> decoratif ; c'est maintenant un bouton pleine
+   largeur, donc une cible tactile a part entiere. La hauteur suit
+   --control-height-lg pour la meme raison. */
+
+.ing-section__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: var(--control-height-lg);
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  /* Colle en haut pendant le defilement : dans une longue section on ne sait
+     plus quel rayon on lit. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.ing-section__header:active {
+  background: var(--color-surface-pressed);
+}
+
+.ing-section__chevron {
+  flex: none;
+  width: 1em;
+  color: var(--color-text-secondary);
+}
+
+.ing-section__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le compte reste lisible section repliee : c'est la seule information qui
+   subsiste alors sur ce qu'elle contient. */
+.ing-section__count {
+  flex: none;
+  padding: 0 var(--space-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border-radius: var(--radius-full);
+}
