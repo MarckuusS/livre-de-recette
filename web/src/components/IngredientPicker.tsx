@@ -27,6 +27,7 @@ import { formatGrams, type Ingredient } from '@livre/shared'
 
 import { useIngredients } from '../lib/queries.js'
 import { FieldShell, useFieldIds } from './Field.js'
+import { Icon, iconForIngredient, rayonSlug } from '../icons/index.js'
 import { SourceBadge } from './States.js'
 import '../styles/components.css'
 
@@ -207,15 +208,25 @@ export function IngredientPicker({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => pick(ingredient)}
               >
-                <span className="picker__name">{ingredient.name}</span>
-                <span className="picker__meta">
-                  <SourceBadge source={ingredient.source} />
-                  {ingredient.kcal !== null && <span>{Math.round(ingredient.kcal)} kcal/100 g</span>}
-                  {ingredient.pieceWeightG !== null && (
-                    <span className="picker__piece">
-                      1 pc = {formatGrams(ingredient.pieceWeightG)}
-                    </span>
-                  )}
+                <span
+                  className="icon-chip icon-chip--sm"
+                  data-rayon={rayonSlug(ingredient.categoryL1)}
+                >
+                  <Icon name={iconForIngredient(ingredient)} size={18} strokeWidth={1.8} />
+                </span>
+                <span className="picker__body">
+                  <span className="picker__name">{ingredient.name}</span>
+                  <span className="picker__meta">
+                    <SourceBadge source={ingredient.source} />
+                    {ingredient.kcal !== null && (
+                      <span>{Math.round(ingredient.kcal)} kcal/100 g</span>
+                    )}
+                    {ingredient.pieceWeightG !== null && (
+                      <span className="picker__piece">
+                        1 pc = {formatGrams(ingredient.pieceWeightG)}
+                      </span>
+                    )}
+                  </span>
                 </span>
               </li>
             ))}

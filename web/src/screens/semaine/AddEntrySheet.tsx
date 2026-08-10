@@ -33,6 +33,7 @@ import { NumberField, SelectField, TextField } from '../../components/Field.js'
 import { IngredientPicker } from '../../components/IngredientPicker.js'
 import { QuantityField } from '../../components/QuantityField.js'
 import { Sheet } from '../../components/Sheet.js'
+import { Icon } from '../../icons/index.js'
 import { useAddEntry, useRecipes, type EntryDraft } from '../../lib/queries.js'
 import '../../styles/week.css'
 
@@ -113,10 +114,10 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
     >
       <div className="segmented" role="tablist" aria-label="Type de repas">
         <SegmentedTab id="tab-recipe" panelId="panel-recipe" active={tab === 'recipe'} onSelect={() => setTab('recipe')}>
-          <span aria-hidden="true">🍽</span> Recette
+          <Icon name="ui-utensils" size={16} className="icon--inline" /> Recette
         </SegmentedTab>
         <SegmentedTab id="tab-ingredient" panelId="panel-ingredient" active={tab === 'ingredient'} onSelect={() => setTab('ingredient')}>
-          <span aria-hidden="true">🥕</span> Ingrédient
+          <Icon name="carotte" size={16} className="icon--inline" /> Ingrédient
         </SegmentedTab>
       </div>
 
@@ -151,7 +152,7 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
                   onClick={() => setIngredient(null)}
                   aria-label={`Choisir un autre ingrédient que ${ingredient.name}`}
                 >
-                  <span aria-hidden="true">✕</span>
+                  <Icon name="ui-close" size={16} />
                 </button>
               </div>
               <QuantityField

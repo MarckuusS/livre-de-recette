@@ -27,6 +27,7 @@ import type { Ingredient } from '@livre/shared'
 import { BarcodeScanner } from '../../components/BarcodeScanner.js'
 import { SelectField } from '../../components/Field.js'
 import { Sheet } from '../../components/Sheet.js'
+import { Icon } from '../../icons/index.js'
 import { EmptyState, ErrorState, LoadingRows, SourceBadge } from '../../components/States.js'
 import { ApiError } from '../../lib/api.js'
 import {
@@ -634,8 +635,8 @@ function CandidateRow({
           selectionner ne produirait rien. L'espace est conserve pour que les
           lignes restent alignees. */}
       {known ? (
-        <span className="ing-result__slot" aria-hidden="true">
-          🌟
+        <span className="ing-result__slot" title="Déjà dans ta bibliothèque">
+          <Icon name="ui-check-circle" size={18} label="Déjà dans ta bibliothèque" />
         </span>
       ) : (
         <input

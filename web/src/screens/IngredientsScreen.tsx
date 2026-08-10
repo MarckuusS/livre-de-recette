@@ -59,6 +59,7 @@ import {
   type SortField,
   type ViewOptions,
 } from './ingredients/model.js'
+import { Icon, iconForIngredient, rayonSlug } from '../icons/index.js'
 import '../styles/ingredients.css'
 
 const SOURCE_CHOICES = [
@@ -198,7 +199,7 @@ export function IngredientsScreen() {
             aria-pressed={view.filters[toggle.code]}
             onClick={() => setView({ filters: toggleQuickFilter(view.filters, toggle.code) })}
           >
-            {toggle.label}
+            <Icon name={toggle.icon} size={14} className="icon--inline" /> {toggle.label}
           </button>
         ))}
         <button
@@ -206,10 +207,12 @@ export function IngredientsScreen() {
           className={`ing-chip${filterCount > 0 ? ' ing-chip--on' : ''}`}
           onClick={() => setFiltersOpen(true)}
         >
-          🔧 Filtres{filterCount > 0 ? ` · ${filterCount}` : ''}
+          <Icon name="ui-filter" size={16} className="icon--inline" /> Filtres
+          {filterCount > 0 ? ` · ${filterCount}` : ''}
         </button>
         <button type="button" className="ing-chip" onClick={() => setSortOpen(true)}>
-          ↕ {SORT_FIELDS.find((field) => field.code === view.sort)?.label ?? 'Nom'}
+          <Icon name="ui-sort" size={16} className="icon--inline" />{' '}
+          {SORT_FIELDS.find((field) => field.code === view.sort)?.label ?? 'Nom'}
         </button>
       </div>
 
@@ -330,11 +333,20 @@ function IngredientRow({ ingredient }: { ingredient: Ingredient }) {
   return (
     <li className="row">
       <Link to={`/ingredients/${ingredient.id}`} className="row__link">
+        {/* La pastille porte la couleur du rayon : dans une bibliotheque de
+            plusieurs centaines de lignes, c'est ce qui rend le balayage utile. */}
+        <span className="icon-chip" data-rayon={rayonSlug(ingredient.categoryL1)}>
+          <Icon name={iconForIngredient(ingredient)} size={22} strokeWidth={1.7} />
+        </span>
         <span className="row__body">
           <span className="row__title">{ingredient.name}</span>
           <span className="row__meta">
             <SourceBadge source={ingredient.source} />
-            {isInSeasonNow(ingredient) && <span className="badge badge--season">🌱 saison</span>}
+            {isInSeasonNow(ingredient) && (
+              <span className="badge badge--season">
+                <Icon name="ui-leaf" size={12} /> saison
+              </span>
+            )}
             {ingredient.kcal !== null && <span>{Math.round(ingredient.kcal)} kcal</span>}
             {macros.map((macro) => (
               <span key={macro.key} className={`ing-macro ing-macro--${macro.key}`}>
@@ -346,8 +358,8 @@ function IngredientRow({ ingredient }: { ingredient: Ingredient }) {
             )}
           </span>
         </span>
-        <span className="row__chevron" aria-hidden="true">
-          ›
+        <span className="row__chevron">
+          <Icon name="ui-chevron-right" size={18} />
         </span>
       </Link>
     </li>
@@ -457,7 +469,7 @@ function FiltersSheet({
       actions={
         <>
           <button type="button" className="button button--secondary" onClick={() => onChange(NO_FILTERS)}>
-            ↺ Réinitialiser
+            <Icon name="ui-refresh" size={16} className="icon--inline" /> Réinitialiser
           </button>
           <button type="button" className="button button--primary" onClick={onClose}>
             Voir les résultats
@@ -509,7 +521,7 @@ function FiltersSheet({
             aria-pressed={filters[toggle.code]}
             onClick={() => onChange(toggleQuickFilter(filters, toggle.code))}
           >
-            {toggle.label}
+            <Icon name={toggle.icon} size={14} className="icon--inline" /> {toggle.label}
           </button>
         ))}
         <p className="field__hint">

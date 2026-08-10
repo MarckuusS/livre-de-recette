@@ -35,6 +35,22 @@ Consequences:
   narrower: **no desktop wrapper** — no Electron/Tauri shell around the web app. On desktop the app
   is simply opened in the browser (and installable from there if wanted).
 
+## Jeu d'icônes (web) — `web/src/icons/`
+
+L'application web n'utilise **plus d'émoji**. 202 icônes maison les remplacent et illustrent les
+rayons. Règles de dessin, organisation et procédure d'ajout : `web/src/icons/README.md`. Les points
+qui ne se devinent pas :
+
+- Grille 24, trait 1,6, `currentColor`, zone utile 3 → 21. Les fichiers de `paths/` ne contiennent
+  que le **contenu** du `<svg>` : les attributs communs sont posés par `Icon.tsx`.
+- `resolve.ts` fait la correspondance libellé → icône. Le mot-clé **le plus long gagne**, à longueur
+  égale le plus à gauche. Les mots-clés s'écrivent **au singulier** : le pluriel est géré à la
+  compilation. Ajouter un mot-clé n'exige donc aucun ordre particulier dans le tableau.
+- Un ingrédient sans mot-clé reconnu prend l'icône de son rayon ; sans rayon, la cagette. Le taux de
+  repli se lit dans **Paramètres → Jeu d'icônes**.
+- `node scripts/export-icons.mjs` régénère `docs/icones/` (SVG autonomes + galerie). Sens unique :
+  la source de vérité reste `web/src/icons/paths/`.
+
 ## Common commands
 
 ```bash

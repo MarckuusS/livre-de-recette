@@ -16,6 +16,7 @@ import { formatEuros } from '@livre/shared'
 
 import { NumberField, TextField } from '../../components/Field.js'
 import { QuantityField } from '../../components/QuantityField.js'
+import { Icon } from '../../icons/index.js'
 import type { ObservedPrice } from '../../lib/queries.js'
 import type { ItemDraft } from './sessionDraft.js'
 
@@ -61,7 +62,8 @@ export function SessionItemFields({
           et elle ne doit pas etre a decouvrir sous le clavier. */}
       {onList === true && (
         <p className="status status--ok session-match" role="status">
-          ✓ Cet article était sur ta liste
+          <Icon name="ui-check" size={16} className="icon--inline" /> Cet article était sur ta
+          liste
         </p>
       )}
 

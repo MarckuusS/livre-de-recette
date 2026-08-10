@@ -30,6 +30,7 @@ import {
 } from '@livre/shared'
 
 import { NumberField } from '../../components/Field.js'
+import { Icon } from '../../icons/index.js'
 import { formatNumber, plural, scaleLines, toRecipeLines, type RecipeDraft } from './draft.js'
 
 // ---------------------------------------------------------------------------
@@ -318,7 +319,8 @@ export function CostCard({ derived }: { readonly derived: Derived }) {
       </dl>
       {missing > 0 && (
         <p className="note note--warning">
-          ⚠ {missing} {plural(missing, 'ingrédient')} sans prix, {plural(missing, 'exclu')} du total.
+          <Icon name="ui-alert" size={14} className="icon--inline" /> {missing}{' '}
+          {plural(missing, 'ingrédient')} sans prix, {plural(missing, 'exclu')} du total.
         </p>
       )}
     </div>

@@ -23,6 +23,8 @@ import {
   type Source,
 } from '@livre/shared'
 
+import type { IconName } from '../../icons/index.js'
+
 // ---------------------------------------------------------------------------
 // Tri
 // ---------------------------------------------------------------------------
@@ -147,7 +149,7 @@ function groupKey(ingredient: Ingredient, mode: GroupMode, now: Date): string {
     case 'rayon':
       return ingredient.categoryL1 ?? 'Sans rayon'
     case 'season':
-      if (isInSeasonNow(ingredient, now)) return '🌱 De saison'
+      if (isInSeasonNow(ingredient, now)) return 'De saison'
       return parseSeasonMonths(ingredient).length > 0 ? 'Hors saison' : 'Saisonnalité inconnue'
     case 'kcal':
       return kcalBucket(ingredient.kcal)
@@ -227,13 +229,19 @@ export const NO_FILTERS: LibraryFilters = {
   withPrice: false,
 }
 
-/** Les bascules, dans l'ordre d'affichage. Le libelle sert aussi de puce. */
+/**
+ * Les bascules, dans l'ordre d'affichage.
+ *
+ * L'icone est nommee ici plutot que dessinee dans l'ecran : la liste est une
+ * donnee, et un composant React dans une constante de modele rendrait ce
+ * fichier intestable hors du navigateur.
+ */
 export const QUICK_TOGGLES = [
-  { code: 'inSeason', label: '🌱 De saison' },
-  { code: 'withPrice', label: '💰 Avec un prix' },
-  { code: 'withPieceWeight', label: '● Poids unitaire' },
-  { code: 'withBrand', label: '🏷️ Avec une marque' },
-] as const
+  { code: 'inSeason', icon: 'ui-leaf', label: 'De saison' },
+  { code: 'withPrice', icon: 'ui-price', label: 'Avec un prix' },
+  { code: 'withPieceWeight', icon: 'ui-scale', label: 'Poids unitaire' },
+  { code: 'withBrand', icon: 'ui-tag', label: 'Avec une marque' },
+] as const satisfies ReadonlyArray<{ code: string; icon: IconName; label: string }>
 
 export type QuickToggle = (typeof QUICK_TOGGLES)[number]['code']
 

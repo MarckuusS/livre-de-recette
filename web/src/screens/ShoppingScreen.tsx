@@ -21,6 +21,7 @@ import {
   type ShoppingListResponse,
 } from '../lib/queries.js'
 import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
+import { Icon, iconForIngredient, iconForRayon, rayonSlug } from '../icons/index.js'
 import { CostHistorySheet } from './courses/CostHistorySheet.js'
 import { LineDetailSheet } from './courses/LineDetailSheet.js'
 import { SessionBar } from './courses/SessionBar.js'
@@ -193,7 +194,7 @@ function ShoppingContent({
               attendre une session de scan en magasin, alors qu'il ne s'agit que
               d'un confort de lecture. Le grossissement seul, sans explication,
               passait pour un zoom parasite. */}
-          <span aria-hidden="true">🔆</span> Écran allumé
+          <Icon name="ui-screen-awake" size={16} className="icon--inline" /> Écran allumé
         </button>
 
         {list.missingPriceCount > 0 && (
@@ -203,7 +204,8 @@ function ShoppingContent({
             aria-pressed={filtering}
             onClick={() => setOnlyMissingPrice((value) => !value)}
           >
-            <span aria-hidden="true">⚠</span> {list.missingPriceCount} sans prix
+            <Icon name="ui-alert" size={16} className="icon--inline" /> {list.missingPriceCount} sans
+            prix
           </button>
         )}
       </div>
@@ -272,8 +274,11 @@ function ShoppingContent({
                   })
                 }
               >
-                <span className="shopping-section__chevron" aria-hidden="true">
-                  {isCollapsed ? '▸' : '▾'}
+                <span className="shopping-section__chevron">
+                  <Icon name={isCollapsed ? 'ui-chevron-right' : 'ui-chevron-down'} size={16} />
+                </span>
+                <span className="icon-chip icon-chip--sm" data-rayon={rayonSlug(section.category)}>
+                  <Icon name={iconForRayon(section.category)} size={18} strokeWidth={1.8} />
                 </span>
                 <span className="shopping-section__name">{section.category}</span>
                 <span className="shopping-section__count">
@@ -375,6 +380,12 @@ function ShoppingRow({
           checked={checked}
           onChange={(event) => onToggle(event.target.checked)}
         />
+        {/* L'icone est PORTEUSE ici, pas decorative : en magasin on balaie la
+            colonne de gauche du regard et la forme arrive avant le mot. Elle
+            reste hors du champ des lecteurs d'ecran, le nom suit juste apres. */}
+        <span className="icon-chip icon-chip--sm" data-rayon={rayonSlug(item.categoryL1)}>
+          <Icon name={iconForIngredient(item)} size={18} strokeWidth={1.8} />
+        </span>
         <span className="shopping-row__body">
           <span className="shopping-row__name">{item.name}</span>
           <span className="shopping-row__meta">
@@ -407,7 +418,7 @@ function ShoppingRow({
         onClick={onOpenDetail}
         aria-label={`Détail de ${item.name}`}
       >
-        <span aria-hidden="true">›</span>
+        <Icon name="ui-chevron-right" size={18} />
       </button>
     </li>
   )
@@ -542,25 +553,25 @@ function ActionsSheet({
               void copyList(list, onFlash).then(onClose)
             }}
           >
-            <span aria-hidden="true">📋</span> Copier la liste
+            <Icon name="ui-copy" size={18} /> Copier la liste
           </button>
         </li>
         <li>
           <button type="button" className="action-list__item" onClick={onOpenCost}>
-            <span aria-hidden="true">💶</span> Coût &amp; historique
+            <Icon name="ui-price" size={18} /> Coût &amp; historique
           </button>
         </li>
         {pantryCount > 0 && (
           <li>
             <button type="button" className="action-list__item" onClick={run(onCheckPantry)}>
-              <span aria-hidden="true">🥫</span> Cocher ce qui est déjà au frigo ({pantryCount})
+              <Icon name="ui-fridge" size={18} /> Cocher ce qui est déjà au frigo ({pantryCount})
             </button>
           </li>
         )}
         {checkedCount > 0 && (
           <li>
             <button type="button" className="action-list__item" onClick={run(onUncheckAll)}>
-              <span aria-hidden="true">↺</span> Tout décocher ({checkedCount})
+              <Icon name="ui-refresh" size={18} /> Tout décocher ({checkedCount})
             </button>
           </li>
         )}

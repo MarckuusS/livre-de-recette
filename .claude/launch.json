@@ -9,6 +9,13 @@
       "port": 5173
     },
     {
+      "// icones": "Galerie statique du jeu d'icones, sans authentification ni API. Regenerer d'abord : node scripts/export-icons.mjs",
+      "name": "icones",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "4321", "--directory", "docs/icones"],
+      "port": 4321
+    },
+    {
       "// pages": "Site + API tels qu'en production. Necessite un build prealable (npm --workspace @livre/web run build) : ce serveur sert web/dist, il ne compile rien.",
       "name": "pages",
       "runtimeExecutable": "npx",

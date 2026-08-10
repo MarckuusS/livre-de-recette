@@ -191,8 +191,9 @@
 }
 
 .tabbar__icon {
-  font-size: 1.25rem;
-  line-height: 1;
+  display: grid;
+  place-items: center;
+  height: 24px;
 }
 
 .tabbar__label {

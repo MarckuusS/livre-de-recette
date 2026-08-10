@@ -429,9 +429,11 @@
 }
 
 .cook-entry__stars {
+  display: flex;
+  gap: 2px;
+  align-items: center;
   font-size: var(--font-size-md);
   color: var(--color-warning);
-  letter-spacing: 0.1em;
 }
 
 .cook-entry__notes {

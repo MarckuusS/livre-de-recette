@@ -1,7 +1,9 @@
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 
 import { ToastProvider } from './components/Toast.js'
+import { Icon, type IconName } from './icons/index.js'
 import { useTheme } from './lib/theme.js'
+import { IconGalleryScreen } from './screens/IconGalleryScreen.js'
 import { IngredientDetailScreen, IngredientsScreen } from './screens/IngredientsScreen.js'
 import { PantryScreen } from './screens/PantryScreen.js'
 import { RecipeDetailScreen, RecipesScreen } from './screens/RecipesScreen.js'
@@ -15,13 +17,13 @@ import { WeekScreen } from './screens/WeekScreen.js'
  * devient « Semaine » : sur un ecran de telephone on affiche un jour a la fois,
  * et le mot decrit mieux ce qu'on y trouve.
  */
-export const TABS = [
-  { to: '/ingredients', icon: '🥕', label: 'Ingrédients' },
-  { to: '/recettes', icon: '🍽', label: 'Recettes' },
-  { to: '/semaine', icon: '📅', label: 'Semaine' },
-  { to: '/courses', icon: '🛒', label: 'Courses' },
-  { to: '/frigo', icon: '🥫', label: 'Frigo' },
-] as const
+export const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string }> = [
+  { to: '/ingredients', icon: 'carotte', label: 'Ingrédients' },
+  { to: '/recettes', icon: 'ui-utensils', label: 'Recettes' },
+  { to: '/semaine', icon: 'ui-calendar', label: 'Semaine' },
+  { to: '/courses', icon: 'ui-cart', label: 'Courses' },
+  { to: '/frigo', icon: 'ui-fridge', label: 'Frigo' },
+]
 
 /**
  * Titres de l'en-tete, testes DANS L'ORDRE : le premier motif qui accroche
@@ -41,12 +43,14 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/semaine$/, 'Ma semaine'],
   [/^\/courses$/, 'Liste de courses'],
   [/^\/frigo$/, 'Frigo & cellier'],
+  [/^\/parametres\/icones$/, 'Jeu d’icônes'],
   [/^\/(parametres|diagnostic)$/, 'Paramètres'],
   [/^\/activite$/, 'Journal d’activité'],
 ]
 
 /** Les vues empilees sur une liste : elles ont besoin d'un retour visible. */
-const STACKED = /^\/(ingredients|recettes)\/[^/]+$|^\/(parametres|diagnostic|activite)$/
+const STACKED =
+  /^\/(ingredients|recettes)\/[^/]+$|^\/(parametres|diagnostic|activite)$|^\/parametres\/icones$/
 
 export function App() {
   const { isDark, toggle } = useTheme()
@@ -70,7 +74,7 @@ export function App() {
               onClick={() => void navigate(-1)}
               aria-label="Retour"
             >
-              ‹
+              <Icon name="ui-chevron-left" size={22} strokeWidth={1.9} />
             </button>
           ) : (
             <span className="icon-button icon-button--spacer" aria-hidden="true" />
@@ -85,10 +89,10 @@ export function App() {
               onClick={toggle}
               aria-label={isDark ? 'Passer en thème clair' : 'Passer en thème sombre'}
             >
-              {isDark ? '☀️' : '🌙'}
+              <Icon name={isDark ? 'ui-sun' : 'ui-moon'} size={20} strokeWidth={1.7} />
             </button>
             <NavLink to="/parametres" className="icon-button" aria-label="Paramètres">
-              ⚙️
+              <Icon name="ui-settings" size={20} strokeWidth={1.7} />
             </NavLink>
           </div>
         </header>
@@ -117,6 +121,9 @@ export function App() {
             <Route path="/courses" element={<ShoppingScreen />} />
             <Route path="/frigo" element={<PantryScreen />} />
             <Route path="/parametres" element={<SettingsScreen />} />
+            {/* Galerie du jeu d'icones : verifier un dessin sur l'appareil reel
+                vaut mieux que sur un ecran de bureau, ou tout parait lisible. */}
+            <Route path="/parametres/icones" element={<IconGalleryScreen />} />
             {/* Ancienne adresse : elle a pu etre mise en favori, et un lien
                 mort au moment ou l'on cherche a diagnostiquer serait ironique. */}
             <Route path="/diagnostic" element={<SettingsScreen />} />
@@ -142,8 +149,8 @@ export function App() {
               to={tab.to}
               className={({ isActive }) => `tabbar__item${isActive ? ' tabbar__item--active' : ''}`}
             >
-              <span className="tabbar__icon" aria-hidden="true">
-                {tab.icon}
+              <span className="tabbar__icon">
+                <Icon name={tab.icon} size={24} strokeWidth={1.7} />
               </span>
               <span className="tabbar__label">{tab.label}</span>
             </NavLink>

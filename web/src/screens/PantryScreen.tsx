@@ -23,6 +23,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
+import { Icon } from '../icons/index.js'
 
 import { SelectField } from '../components/Field.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
@@ -134,7 +135,8 @@ export function PantryScreen() {
             </span>
             {soonCount > 0 && (
               <span className="pantry-summary__alert">
-                <span aria-hidden="true">⚠️</span> {soonCount} à consommer rapidement
+                <Icon name="ui-alert" size={16} className="icon--inline" /> {soonCount} à consommer
+                rapidement
               </span>
             )}
           </p>
@@ -225,7 +227,7 @@ function PantryToolbar({
             onClick={() => onFilterChange('')}
             aria-label="Effacer le filtre"
           >
-            <span aria-hidden="true">✕</span>
+            <Icon name="ui-close" size={16} />
           </button>
         )}
       </div>

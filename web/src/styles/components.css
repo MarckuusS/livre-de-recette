@@ -238,12 +238,21 @@
 
 .picker__option {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  justify-content: center;
+  gap: var(--space-md);
+  align-items: center;
   min-height: 56px;
   padding: var(--space-sm) var(--space-md);
   cursor: pointer;
+}
+
+/* Le nom et ses metadonnees s'empilent A DROITE de la pastille : sans ce
+   conteneur, l'icone devenait la premiere ligne d'une colonne. */
+.picker__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .picker__option + .picker__option {

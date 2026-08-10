@@ -160,8 +160,10 @@
 }
 
 .shopping-section__chevron {
+  display: grid;
+  place-items: center;
   flex: none;
-  font-size: var(--font-size-md);
+  color: var(--color-text-placeholder);
 }
 
 .shopping-section__name {
@@ -201,10 +203,23 @@
   place-items: center;
   flex: none;
   width: var(--control-height-lg);
-  font-size: var(--font-size-xl);
   color: var(--color-text-placeholder);
   background: transparent;
   border: 0;
+}
+
+/* Ligne cochee : la pastille s'eteint avec le texte. Sans cette regle, un
+   article deja pris restait le point le plus colore de la ligne. */
+.shopping-row--checked .icon-chip {
+  color: var(--color-text-disabled);
+  background: transparent;
+}
+
+/* Mode « ecran allumé » : tout grossit, la pastille comprise, sinon elle
+   devient un detail perdu a cote d'un nom en 1,125 rem. */
+.screen--store .shopping-row__label .icon-chip {
+  width: 34px;
+  height: 34px;
 }
 
 .shopping-row__detail:active {

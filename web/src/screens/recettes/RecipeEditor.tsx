@@ -19,6 +19,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { Icon } from '../../icons/index.js'
 import type { Ingredient, Recipe } from '@livre/shared'
 
 import { NumberField, TextArea, TextField } from '../../components/Field.js'
@@ -470,7 +471,7 @@ function LineEditor({
             onClick={onRemove}
             aria-label={`Retirer ${line.ingredient.name}`}
           >
-            <span aria-hidden="true">✕</span>
+            <Icon name="ui-close" size={16} />
           </button>
         </div>
       </div>

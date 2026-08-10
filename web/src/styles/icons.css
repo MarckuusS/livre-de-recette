@@ -1,0 +1,131 @@
+/*
+ * Icones : socle commun et pastilles de rayon.
+ *
+ * Le jeu remplace les emojis, qui posaient trois problemes qu'aucune retouche
+ * de CSS ne reglait : leur dessin change d'un telephone a l'autre, ils gardent
+ * leurs couleurs propres en theme sombre, et il n'existe pas d'emoji pour
+ * « rayon boucherie ».
+ */
+
+.icon {
+  flex: none;
+  display: block;
+}
+
+/* Dans un texte courant, l'icone doit s'asseoir sur la ligne de base. */
+.icon--inline {
+  display: inline-block;
+  vertical-align: -0.16em;
+}
+
+/* ---------- Pastille d'ingredient ----------
+ *
+ * En liste, l'icone seule flotte : le fond teinte lui donne une assise et,
+ * surtout, porte la couleur du rayon. C'est ce qui permet de balayer une liste
+ * de courses en cherchant « le vert » plutot qu'en lisant chaque ligne.
+ */
+
+.icon-chip {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  color: var(--rayon-color, var(--color-text-secondary));
+  background: color-mix(in srgb, var(--rayon-color, var(--color-text-secondary)) 12%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.icon-chip--sm {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+}
+
+/* Ligne barree (« deja au frigo », article coche) : la pastille doit reculer
+   avec le texte, sinon elle reste le point le plus vif d'une ligne terminee. */
+.row--done .icon-chip,
+.shopping-item--checked .icon-chip {
+  color: var(--color-text-disabled);
+  background: transparent;
+}
+
+/* ---------- Teintes de rayon ----------
+ *
+ * Dix teintes, choisies pour rester distinctes cote a cote — les sections
+ * d'une liste de courses sont triees par nom, donc n'importe quelles deux
+ * peuvent se retrouver voisines. Elles ne suivent PAS le theme au sens strict :
+ * ce sont des codes de lecture, comme les badges de source, et les inverser
+ * casserait la reconnaissance. Elles sont seulement eclaircies en sombre pour
+ * tenir le contraste sur fond ardoise.
+ */
+
+[data-rayon='fruits-legumes'] { --rayon-color: #16a34a; }
+[data-rayon='boulangerie'] { --rayon-color: #b45309; }
+[data-rayon='boucherie'] { --rayon-color: #dc2626; }
+[data-rayon='poissonnerie'] { --rayon-color: #0d9488; }
+[data-rayon='produits-laitiers'] { --rayon-color: #7c3aed; }
+[data-rayon='boissons'] { --rayon-color: #2563eb; }
+[data-rayon='surgeles'] { --rayon-color: #0891b2; }
+[data-rayon='epicerie'] { --rayon-color: #ea580c; }
+[data-rayon='snacks-confiseries'] { --rayon-color: #db2777; }
+[data-rayon='autre'] { --rayon-color: #64748b; }
+
+/* Selecteurs a plat, sans imbrication : l'imbrication CSS native n'arrive qu'a
+   partir de Safari 17.2, et la cible de ce projet est un iPhone qui peut etre
+   reste en 16. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) [data-rayon='fruits-legumes'] { --rayon-color: #4ade80; }
+  :root:not([data-theme='light']) [data-rayon='boulangerie'] { --rayon-color: #fbbf24; }
+  :root:not([data-theme='light']) [data-rayon='boucherie'] { --rayon-color: #f87171; }
+  :root:not([data-theme='light']) [data-rayon='poissonnerie'] { --rayon-color: #2dd4bf; }
+  :root:not([data-theme='light']) [data-rayon='produits-laitiers'] { --rayon-color: #a78bfa; }
+  :root:not([data-theme='light']) [data-rayon='boissons'] { --rayon-color: #60a5fa; }
+  :root:not([data-theme='light']) [data-rayon='surgeles'] { --rayon-color: #22d3ee; }
+  :root:not([data-theme='light']) [data-rayon='epicerie'] { --rayon-color: #fb923c; }
+  :root:not([data-theme='light']) [data-rayon='snacks-confiseries'] { --rayon-color: #f472b6; }
+  :root:not([data-theme='light']) [data-rayon='autre'] { --rayon-color: #94a3b8; }
+}
+
+:root[data-theme='dark'] [data-rayon='fruits-legumes'] { --rayon-color: #4ade80; }
+:root[data-theme='dark'] [data-rayon='boulangerie'] { --rayon-color: #fbbf24; }
+:root[data-theme='dark'] [data-rayon='boucherie'] { --rayon-color: #f87171; }
+:root[data-theme='dark'] [data-rayon='poissonnerie'] { --rayon-color: #2dd4bf; }
+:root[data-theme='dark'] [data-rayon='produits-laitiers'] { --rayon-color: #a78bfa; }
+:root[data-theme='dark'] [data-rayon='boissons'] { --rayon-color: #60a5fa; }
+:root[data-theme='dark'] [data-rayon='surgeles'] { --rayon-color: #22d3ee; }
+:root[data-theme='dark'] [data-rayon='epicerie'] { --rayon-color: #fb923c; }
+:root[data-theme='dark'] [data-rayon='snacks-confiseries'] { --rayon-color: #f472b6; }
+:root[data-theme='dark'] [data-rayon='autre'] { --rayon-color: #94a3b8; }
+
+/* ---------- Galerie (Parametres -> Jeu d'icones) ---------- */
+
+.icon-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: var(--space-sm);
+}
+
+.icon-gallery__cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: center;
+  padding: var(--space-sm) var(--space-xs);
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.icon-gallery__name {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.icon-gallery__count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}

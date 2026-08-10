@@ -47,6 +47,7 @@ import {
 } from '../../components/Field.js'
 import { ConfirmDialog } from '../../components/Sheet.js'
 import { SourceBadge } from '../../components/States.js'
+import { Icon } from '../../icons/index.js'
 import { ApiError } from '../../lib/api.js'
 import {
   useBarcode,
@@ -369,7 +370,15 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
             className={`button ${savedAt > 0 ? 'button--saved' : 'button--primary'}`}
             disabled={isPending}
           >
-            {savedAt > 0 ? '✓ Enregistré' : isPending ? 'Enregistrement…' : 'Enregistrer'}
+            {savedAt > 0 ? (
+              <>
+                <Icon name="ui-check" size={16} className="icon--inline" /> Enregistré
+              </>
+            ) : isPending ? (
+              'Enregistrement…'
+            ) : (
+              'Enregistrer'
+            )}
           </button>
         </div>
       </form>
@@ -545,7 +554,8 @@ function Identity({
               // celle-ci par `window.opener`. En PWA iOS le lien quitte
               // l'application, d'ou le libelle explicite.
               <a href={link} target="_blank" rel="noopener noreferrer" className="ing-readonly__link">
-                {ingredient.sourceRef} — ouvrir la fiche d’origine ↗
+                {ingredient.sourceRef} - ouvrir la fiche d’origine{' '}
+                <Icon name="ui-external-link" size={14} className="icon--inline" />
               </a>
             ) : (
               <span>{SOURCE_LABELS[ingredient.source]}</span>
@@ -688,7 +698,10 @@ function ScannedFill({
   if (applied) {
     return (
       <div className="ing-scan-fill">
-        <p className="status status--ok">✓ Informations reprises depuis OpenFoodFacts.</p>
+        <p className="status status--ok">
+          <Icon name="ui-check" size={16} className="icon--inline" /> Informations reprises depuis
+          OpenFoodFacts.
+        </p>
         {/* Rien n'est parti au serveur : le dire evite le classique « je croyais
             que c'était enregistré » sur un formulaire quitte au bouton Retour. */}
         <p className="card__lead">Relis les valeurs, puis « Enregistrer ».</p>
@@ -776,7 +789,7 @@ function SeasonPicker({
     <fieldset className="ing-form__section">
       <legend className="ing-form__legend">Saisonnalité</legend>
       <p className="field__hint">
-        Coche les mois où l’ingrédient est de saison. Vide = pas de badge « 🌱 de saison ».
+        Coche les mois où l’ingrédient est de saison. Vide = pas de badge « de saison ».
       </p>
 
       {/* Deux rangees de six et non une de douze : douze cibles alignees sur
@@ -836,7 +849,8 @@ function PriceSummary({
           {ingredient.priceQuantityG ? `pour ${formatGrams(ingredient.priceQuantityG)}` : 'aucun relevé'}
         </span>
         <span className="ing-price__cta" aria-hidden="true">
-          📊 Historique ›
+          <Icon name="ui-chart" size={16} className="icon--inline" /> Historique{' '}
+          <Icon name="ui-chevron-right" size={14} className="icon--inline" />
         </span>
       </button>
 

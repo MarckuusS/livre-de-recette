@@ -27,6 +27,7 @@
 
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { Icon } from '../../icons/index.js'
 import { formatEuros, formatGrams, formatShoppingQuantity, type ShoppingSession } from '@livre/shared'
 
 import { ConfirmDialog } from '../../components/Sheet.js'
@@ -105,7 +106,7 @@ export function SessionScreen({ state, session, onShowList, onCommitted }: Sessi
         <div className="session-head__top">
           <div className="session-head__store">
             <p className="session-head__name">
-              <span aria-hidden="true">🛒</span> {session.store}
+              <Icon name="ui-cart" size={16} className="icon--inline" /> {session.store}
             </p>
             <p className="session-head__count">
               {itemCount} article{itemCount > 1 ? 's' : ''} dans le chariot
@@ -198,7 +199,9 @@ export function SessionScreen({ state, session, onShowList, onCommitted }: Sessi
                       <span className="session-line__meta">
                         <span>{formatGrams(item.quantityG)}</span>
                         {item.brand !== null && <span>{item.brand}</span>}
-                        {onList && <span className="badge badge--pantry">✓ sur ta liste</span>}
+                        {onList && <span className="badge badge--pantry">
+                            <Icon name="ui-check" size={12} /> sur ta liste
+                          </span>}
                       </span>
                     </span>
                     <span

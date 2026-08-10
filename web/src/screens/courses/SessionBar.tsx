@@ -19,6 +19,7 @@ import { useState, useMemo } from 'react'
 import { formatEuros } from '@livre/shared'
 
 import { TextField } from '../../components/Field.js'
+import { Icon } from '../../icons/index.js'
 import { Sheet } from '../../components/Sheet.js'
 import { ApiError } from '../../lib/api.js'
 import { useShoppingSession, useStartSession, useStores } from '../../lib/queries.js'
@@ -47,7 +48,8 @@ export function SessionBar({ isoWeek, onEnterCart }: SessionBarProps) {
       <div className="session-resume">
         <div className="session-resume__body">
           <p className="session-resume__title">
-            <span aria-hidden="true">🛒</span> Courses en cours chez {session.store}
+            <Icon name="ui-cart" size={16} className="icon--inline" /> Courses en cours chez{' '}
+            {session.store}
           </p>
           <p className="session-resume__meta">
             {count} article{count > 1 ? 's' : ''}

@@ -20,6 +20,7 @@ import { daysUntil, todayLocalIsoDate } from '@livre/shared'
 import { DateField, TextArea } from '../../components/Field.js'
 import { ConfirmDialog, Sheet } from '../../components/Sheet.js'
 import { ErrorState, LoadingRows } from '../../components/States.js'
+import { Icon } from '../../icons/index.js'
 import {
   useAddCooking,
   useCookingLog,
@@ -197,8 +198,19 @@ function CookingHistorySheet({
           <li key={entry.id} className="cook-entry">
             <div className="cook-entry__body">
               <span className="cook-entry__date">{formatDay(entry.cookedAt)}</span>
-              <span className="cook-entry__stars">
-                {entry.rating === null ? '—' : `${'★'.repeat(entry.rating)}${'☆'.repeat(5 - entry.rating)}`}
+              <span
+                className="cook-entry__stars"
+                aria-label={entry.rating === null ? 'Sans note' : `${entry.rating} sur 5`}
+              >
+                {entry.rating === null
+                  ? '-'
+                  : [1, 2, 3, 4, 5].map((star) => (
+                      <Icon
+                        key={star}
+                        name={star <= entry.rating! ? 'ui-star-filled' : 'ui-star'}
+                        size={14}
+                      />
+                    ))}
               </span>
               {entry.notes && <span className="cook-entry__notes">{entry.notes}</span>}
             </div>
@@ -208,7 +220,7 @@ function CookingHistorySheet({
               onClick={() => setPendingDelete(entry)}
               aria-label={`Supprimer la cuisson du ${formatDay(entry.cookedAt)}`}
             >
-              <span aria-hidden="true">✕</span>
+              <Icon name="ui-close" size={16} />
             </button>
           </li>
         ))}
@@ -266,7 +278,7 @@ function StarPicker({
             aria-label={`${star} ${plural(star, 'étoile')}`}
             onClick={() => onChange(star)}
           >
-            <span aria-hidden="true">{value !== null && star <= value ? '★' : '☆'}</span>
+            <Icon name={value !== null && star <= value ? 'ui-star-filled' : 'ui-star'} size={22} />
           </button>
         ))}
         <button

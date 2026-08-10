@@ -31,6 +31,7 @@ import { useMemo, useRef, useState } from 'react'
 import type { Ingredient } from '@livre/shared'
 
 import { BarcodeScanner } from '../../components/BarcodeScanner.js'
+import { Icon } from '../../icons/index.js'
 import { Sheet } from '../../components/Sheet.js'
 import { useToast } from '../../components/Toast.js'
 import { ApiError } from '../../lib/api.js'
@@ -83,7 +84,7 @@ export function ScanToCart({ listIngredientIds }: ScanToCartProps) {
           className="button button--primary session-scan__main"
           onClick={() => setScanning(true)}
         >
-          <span aria-hidden="true">📷</span> Scanner un produit
+          <Icon name="ui-camera" size={18} className="icon--inline" /> Scanner un produit
         </button>
         {/* Le vrac, la boucherie et le marche n'ont pas de code-barres, et ils
             pesent lourd dans un chariot. Sans cette porte, la session ne

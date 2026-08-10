@@ -8,6 +8,7 @@ import { ApiError } from './lib/api.js'
 import { preventBrowserZoom } from './lib/gestures.js'
 import './styles/theme.css'
 import './styles/app.css'
+import './styles/icons.css'
 
 /**
  * Un 401 sur N'IMPORTE QUELLE requete bascule immediatement l'application sur

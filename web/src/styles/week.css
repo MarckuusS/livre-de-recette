@@ -83,8 +83,11 @@
 }
 
 .tool-list__icon {
+  display: grid;
+  place-items: center;
   flex: none;
-  font-size: var(--font-size-xl);
+  width: 20px;
+  color: var(--color-text-secondary);
 }
 
 .tool-list__body {
@@ -205,10 +208,8 @@
   background: var(--color-surface-pressed);
 }
 
-.meal__icon {
-  flex: none;
-  font-size: var(--font-size-xl);
-}
+/* `.meal__icon` a laisse place a `.icon-chip` (styles/icons.css) : la pastille
+   du repas est la meme brique que celle des listes, teinte de rayon comprise. */
 
 .meal__body {
   display: flex;

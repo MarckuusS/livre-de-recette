@@ -145,6 +145,32 @@ Note sur la vue semaine : `web/src/styles/week.css` est le seul fichier de style
 règle de largeur, alors que Recettes, Ingrédients, Frigo et Session en ont toutes une. Ouverte sur un
 navigateur de bureau, la page reste une colonne d'un seul jour.
 
+### 1.a bis Le jeu d'icônes — livré le 2026-08-10
+
+Les émojis ont disparu de l'interface web. Ils posaient trois problèmes qu'aucune retouche de CSS ne
+réglait : leur dessin change d'un appareil à l'autre (le 🥕 d'un iPhone n'est pas celui d'un
+Android), ils gardent leurs couleurs propres en thème sombre, et il n'existe pas d'émoji pour
+"rayon boucherie".
+
+**202 icônes** maison, dans `web/src/icons/` : 45 d'interface, 10 de rayon, et le reste par famille
+d'aliment. Grille 24, trait 1,6, `currentColor`, zone utile 3 → 21. Coût dans le bundle :
+**11,4 ko gzip** pour l'ensemble, contre 58 ko pour les seuls huit pictogrammes PNG de nutriments.
+
+- `Icon.tsx` pose les attributs communs une fois pour toutes — aucune icône ne peut dériver du
+  système en redéfinissant les siens.
+- `resolve.ts` va du libellé au dessin : mot-clé reconnu → icône de l'aliment, sinon icône du rayon,
+  sinon cagette. Le mot-clé **le plus long** gagne, ce qui donne une cacahuète à
+  "Beurre de cacahuètes" et un tubercule à "Pomme de terre" sans dépendre de l'ordre du tableau.
+  Couverture mesurée sur la bibliothèque réelle : **98 %** (57 ingrédients sur 58).
+- Chaque rayon porte une teinte (`web/src/styles/icons.css`, attribut `data-rayon`). C'est ce qui
+  permet de balayer une liste de courses en cherchant "le vert" plutôt qu'en lisant chaque ligne.
+- Galerie de contrôle : **Paramètres → Jeu d'icônes**, avec le taux de repli sur la bibliothèque.
+- `node scripts/export-icons.mjs` régénère `docs/icones/` (fichiers `.svg` autonomes + galerie HTML).
+  Robinet à sens unique : éditer un `.svg` exporté n'a aucun effet sur l'application.
+
+Reste ouvert : les pictogrammes de nutriments sont toujours des PNG (`web/public/icons/nutrient/`).
+Les redessiner dans le même système supprimerait 58 ko et huit requêtes.
+
 ### 1.b Le catalogue CIQUAL redevient exploitable
 
 - **Pagination** : `GET /api/catalog` accepte déjà `limit` (max 200) et `offset` et renvoie

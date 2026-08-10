@@ -25,6 +25,7 @@ import { useState, type FormEvent } from 'react'
 import { formatEuros, formatGrams, pricePerG, todayLocalIsoDate, type Ingredient } from '@livre/shared'
 
 import { DateField, NumberField, TextField } from '../../components/Field.js'
+import { Icon } from '../../icons/index.js'
 import { ConfirmDialog, Sheet } from '../../components/Sheet.js'
 import { ErrorState, LoadingRows } from '../../components/States.js'
 import {
@@ -244,7 +245,7 @@ function PriceList({ ingredientId, entries }: { ingredientId: number; entries: r
               onClick={() => setPending(entry)}
               aria-label={`Supprimer le relevé du ${entry.recordedAt}`}
             >
-              <span aria-hidden="true">✕</span>
+              <Icon name="ui-close" size={16} />
             </button>
           </li>
         ))}

@@ -25,6 +25,7 @@ import { useState } from 'react'
 
 import { TextField } from '../../components/Field.js'
 import { Sheet } from '../../components/Sheet.js'
+import { Icon } from '../../icons/index.js'
 import {
   useCreateTag,
   useDeleteTag,
@@ -206,7 +207,7 @@ export function TagSheet({
               aria-label={`Modifier le tag ${tag.name}`}
               onClick={() => startEdit(tag)}
             >
-              ✎
+              <Icon name="ui-edit" size={14} />
             </button>
           </span>
         ))}

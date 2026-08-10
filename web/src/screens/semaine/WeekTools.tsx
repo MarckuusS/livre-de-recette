@@ -20,6 +20,7 @@ import { DAY_LABELS, nextIsoWeek, previousIsoWeek } from '@livre/shared'
 import { TextField } from '../../components/Field.js'
 import { ConfirmDialog, Sheet } from '../../components/Sheet.js'
 import { useToast } from '../../components/Toast.js'
+import { Icon, type IconName } from '../../icons/index.js'
 import {
   useApplyTemplate,
   useCalendar,
@@ -61,24 +62,24 @@ export function WeekTools({
       return (
         <Sheet open onClose={close} title="Outils de la semaine">
           <ul className="tool-list">
-            <ToolItem icon="📋" label="Reprendre une autre semaine" hint="Recopie les repas d’une semaine passée." onSelect={() => onTool('copy')} />
+            <ToolItem icon="ui-copy" label="Reprendre une autre semaine" hint="Recopie les repas d’une semaine passée." onSelect={() => onTool('copy')} />
             <ToolItem
-              icon="💾"
+              icon="ui-save"
               label="Enregistrer comme modèle"
               hint={weekEntryCount === 0 ? 'La semaine est vide.' : `${mealCount(weekEntryCount)} seront mémorisés.`}
               disabled={weekEntryCount === 0}
               onSelect={() => onTool('save-template')}
             />
-            <ToolItem icon="📁" label="Appliquer un modèle" hint="Composer la semaine en un geste." onSelect={() => onTool('templates')} />
+            <ToolItem icon="ui-folder" label="Appliquer un modèle" hint="Composer la semaine en un geste." onSelect={() => onTool('templates')} />
             <ToolItem
-              icon="🧹"
+              icon="ui-eraser"
               label={`Vider ${dayLabel.toLowerCase()}`}
               hint={dayEntryCount === 0 ? 'Rien de prévu ce jour-là.' : mealCount(dayEntryCount)}
               disabled={dayEntryCount === 0}
               onSelect={() => onTool('clear-day')}
             />
             <ToolItem
-              icon="🗑"
+              icon="ui-trash"
               label="Vider la semaine"
               hint={weekEntryCount === 0 ? 'La semaine est déjà vide.' : mealCount(weekEntryCount)}
               disabled={weekEntryCount === 0}
@@ -117,7 +118,7 @@ function ToolItem({
   disabled,
   onSelect,
 }: {
-  icon: string
+  icon: IconName
   label: string
   hint: string
   disabled?: boolean
@@ -126,8 +127,8 @@ function ToolItem({
   return (
     <li>
       <button type="button" className="tool-list__item" onClick={onSelect} disabled={disabled}>
-        <span className="tool-list__icon" aria-hidden="true">
-          {icon}
+        <span className="tool-list__icon">
+          <Icon name={icon} size={20} />
         </span>
         <span className="tool-list__body">
           <span className="tool-list__label">{label}</span>
@@ -401,7 +402,7 @@ function TemplatesSheet({
                 onClick={() => setPendingDelete({ id: template.id, name: template.name })}
                 aria-label={`Supprimer le modèle ${template.name}`}
               >
-                <span aria-hidden="true">✕</span>
+                <Icon name="ui-close" size={16} />
               </button>
             </li>
           ))}

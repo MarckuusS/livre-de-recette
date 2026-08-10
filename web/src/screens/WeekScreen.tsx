@@ -59,6 +59,7 @@ import {
   sumNutrition,
   type SavedEntry,
 } from './semaine/totals.js'
+import { Icon, iconForIngredient, rayonSlug } from '../icons/index.js'
 import '../styles/week.css'
 
 const DAY_PANEL_ID = 'jour-panneau'
@@ -389,8 +390,24 @@ function MealRow({
           retrait y sont reunis. Le desktop n'exposait qu'un ✕ de 22 px, sous la
           cible tactile minimale. */}
       <button type="button" className="meal__button" onClick={() => onEdit(entry)}>
-        <span className="meal__icon" aria-hidden="true">
-          {entry.recipeId !== null ? '🍽' : '🥕'}
+        {/* Une recette porte la cloche, un ingredient porte SON dessin : dans
+            une journee de cinq lignes, c'est ce qui distingue « Curry » d'un
+            simple yaourt sans avoir a lire. */}
+        <span
+          className="icon-chip icon-chip--sm"
+          data-rayon={target?.kind === 'ingredient' ? rayonSlug(target.ingredient.categoryL1) : 'autre'}
+        >
+          <Icon
+            name={
+              target === null
+                ? 'ui-alert'
+                : target.kind === 'recipe'
+                  ? 'plat-prepare'
+                  : iconForIngredient(target.ingredient)
+            }
+            size={18}
+            strokeWidth={1.8}
+          />
         </span>
         <span className="meal__body">
           <span className="meal__name">{name}</span>
@@ -509,7 +526,7 @@ function DayTotals({
         </dl>
         {weekCost.missingLines > 0 && (
           <p className="note">
-            <span aria-hidden="true">⚠ </span>
+            <Icon name="ui-alert" size={14} className="icon--inline" />{' '}
             {weekCost.missingLines === 1
               ? 'Un ingrédient de la semaine n’a pas de prix'
               : `${weekCost.missingLines} ingrédients de la semaine n’ont pas de prix`}{' '}
@@ -518,7 +535,7 @@ function DayTotals({
         )}
         {weekCost.orphanCount > 0 && (
           <p className="note">
-            <span aria-hidden="true">⚠ </span>
+            <Icon name="ui-alert" size={14} className="icon--inline" />{' '}
             {weekCost.orphanCount === 1
               ? 'Un repas pointe vers une recette ou un ingrédient supprimé'
               : `${weekCost.orphanCount} repas pointent vers une recette ou un ingrédient supprimé`}{' '}
