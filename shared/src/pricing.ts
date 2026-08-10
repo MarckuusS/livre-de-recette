@@ -113,24 +113,63 @@ export function recipeCost(recipe: Pick<Recipe, 'lines' | 'defaultPortions'>): R
   }
 }
 
+/** Ce que designe une entree de calendrier, une fois resolue. */
+export type MealPlanTarget =
+  | { readonly kind: 'recipe'; readonly recipe: Pick<Recipe, 'lines' | 'defaultPortions'> }
+  | {
+      readonly kind: 'ingredient'
+      readonly ingredient: Pick<Ingredient, 'priceEur' | 'priceQuantityG'>
+    }
+
+export interface MealPlanEntryCost {
+  /** Cout de l'entree. PARTIEL des que `missingLines > 0`. `null` = rien de chiffrable. */
+  readonly cost: Decimal | null
+  /**
+   * Nombre de LIGNES d'ingredient sans prix, pas d'entrees.
+   *
+   * C'est toute la difference : une recette de cinq ingredients dont deux n'ont
+   * pas de prix rend un cout non nul, donc l'appelant qui se contentait de
+   * tester `cost === null` la comptait comme entierement connue et affichait un
+   * budget sous-estime en le presentant comme sur. Le desktop, lui, comptait
+   * bien les lignes (`shopping_service`). Une entree ingredient sans prix vaut
+   * une ligne.
+   */
+  readonly missingLines: number
+}
+
 /**
- * Cout d'une entree de calendrier.
+ * Cout d'une entree de calendrier, avec le detail de ce qui manque.
  * Recette : cout total x (portions servies / portions par defaut).
  * Ingredient : cout de la quantite.
  */
-export function mealPlanEntryCost(
+export function mealPlanEntryCostDetail(
   entry: { readonly portions: number | null; readonly quantityG: number | null },
-  target:
-    | { readonly kind: 'recipe'; readonly recipe: Pick<Recipe, 'lines' | 'defaultPortions'> }
-    | { readonly kind: 'ingredient'; readonly ingredient: Pick<Ingredient, 'priceEur' | 'priceQuantityG'> },
-): Decimal | null {
+  target: MealPlanTarget,
+): MealPlanEntryCost {
   if (target.kind === 'recipe') {
     const { total, missing } = recipeCost(target.recipe)
-    if (missing.length > 0 && total.isZero()) return null
+    if (missing.length > 0 && total.isZero()) {
+      return { cost: null, missingLines: missing.length }
+    }
     const ratio = new Decimal(entry.portions ?? 1).div(
       new Decimal(Math.max(target.recipe.defaultPortions, 1)),
     )
-    return toCents(total.mul(ratio))
+    return { cost: toCents(total.mul(ratio)), missingLines: missing.length }
   }
-  return ingredientCost(target.ingredient, entry.quantityG ?? 0)
+  const cost = ingredientCost(target.ingredient, entry.quantityG ?? 0)
+  return { cost, missingLines: cost === null ? 1 : 0 }
+}
+
+/**
+ * Cout seul d'une entree de calendrier.
+ *
+ * Garde-fou : ce raccourci perd l'information de cout partiel. Ne l'utiliser
+ * que la ou un seul montant est affiche sans commentaire. Pour un total qui
+ * doit dire ce qu'il ignore, passer par `mealPlanEntryCostDetail`.
+ */
+export function mealPlanEntryCost(
+  entry: { readonly portions: number | null; readonly quantityG: number | null },
+  target: MealPlanTarget,
+): Decimal | null {
+  return mealPlanEntryCostDetail(entry, target).cost
 }

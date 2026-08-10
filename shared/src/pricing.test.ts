@@ -7,7 +7,14 @@
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { ingredientSchema, recipeSchema, type Ingredient, type Recipe } from './models.js'
-import { formatEuros, ingredientCost, pricePerG, recipeCost } from './pricing.js'
+import {
+  formatEuros,
+  ingredientCost,
+  mealPlanEntryCost,
+  mealPlanEntryCostDetail,
+  pricePerG,
+  recipeCost,
+} from './pricing.js'
 
 const priced = (name: string, priceEur: string, qtyRefG: number): Ingredient =>
   ingredientSchema.parse({ name, source: 'manual', priceEur, priceQuantityG: qtyRefG })
@@ -106,5 +113,77 @@ describe('formatEuros', () => {
     // Et surtout PAS avec une espace ordinaire : c'est l'erreur qu'on ne voit
     // pas en relisant, et qui fait echouer une comparaison de chaines.
     expect(formatEuros('1234.567')).not.toBe(`1 234,57 €`)
+  })
+})
+
+describe('mealPlanEntryCostDetail', () => {
+  const flour = priced('Flour', '1.00', 1000) // 0,001 EUR/g
+  const butter = priced('Butter', '4.00', 250) // 0,016 EUR/g
+
+  /**
+   * Le cas qui a motive la correction : une recette partiellement valorisee.
+   *
+   * L'ancien code ne rendait que le montant. Comme il n'etait pas `null`,
+   * l'ecran Semaine concluait que le cout etait complet, affichait
+   * "0 repas sans prix" et presentait un budget sous-estime comme sur.
+   */
+  it('compte les LIGNES sans prix, meme quand le cout est chiffrable', () => {
+    const cake = recipeOf('Cake', 4, [
+      { ingredient: flour, quantityG: 500, unit: null, notes: null, ordinal: 0 }, // 0,50
+      { ingredient: butter, quantityG: 250, unit: null, notes: null, ordinal: 1 }, // 4,00
+      { ingredient: unpriced('Vanille'), quantityG: 5, unit: null, notes: null, ordinal: 2 },
+      { ingredient: unpriced('Sel'), quantityG: 2, unit: null, notes: null, ordinal: 3 },
+    ])
+    const detail = mealPlanEntryCostDetail(
+      { portions: 4, quantityG: null },
+      { kind: 'recipe', recipe: cake },
+    )
+    expect(detail.cost?.toFixed(2)).toBe('4.50')
+    expect(detail.missingLines).toBe(2)
+  })
+
+  it('rend un cout complet et zero ligne manquante quand tout est valorise', () => {
+    const bread = recipeOf('Bread', 4, [
+      { ingredient: flour, quantityG: 400, unit: null, notes: null, ordinal: 0 },
+    ])
+    const detail = mealPlanEntryCostDetail(
+      { portions: 2, quantityG: null },
+      { kind: 'recipe', recipe: bread },
+    )
+    expect(detail.cost?.toFixed(2)).toBe('0.20') // 0,40 x 2/4
+    expect(detail.missingLines).toBe(0)
+  })
+
+  it('rend un cout nul et toutes les lignes quand pas une seule na de prix', () => {
+    const soup = recipeOf('Soupe', 2, [
+      { ingredient: unpriced('Eau'), quantityG: 500, unit: null, notes: null, ordinal: 0 },
+      { ingredient: unpriced('Herbes'), quantityG: 10, unit: null, notes: null, ordinal: 1 },
+    ])
+    const detail = mealPlanEntryCostDetail(
+      { portions: 1, quantityG: null },
+      { kind: 'recipe', recipe: soup },
+    )
+    expect(detail.cost).toBeNull()
+    expect(detail.missingLines).toBe(2)
+  })
+
+  it('compte une entree ingredient sans prix pour une ligne', () => {
+    const detail = mealPlanEntryCostDetail(
+      { portions: null, quantityG: 150 },
+      { kind: 'ingredient', ingredient: unpriced('Pomme') },
+    )
+    expect(detail.cost).toBeNull()
+    expect(detail.missingLines).toBe(1)
+  })
+
+  it('laisse mealPlanEntryCost inchange pour les appelants existants', () => {
+    const cake = recipeOf('Cake', 2, [
+      { ingredient: flour, quantityG: 500, unit: null, notes: null, ordinal: 0 },
+      { ingredient: unpriced('Vanille'), quantityG: 5, unit: null, notes: null, ordinal: 1 },
+    ])
+    const target = { kind: 'recipe', recipe: cake } as const
+    expect(mealPlanEntryCost({ portions: 2, quantityG: null }, target)?.toFixed(2)).toBe(
+      mealPlanEntryCostDetail({ portions: 2, quantityG: null }, target).cost?.toFixed(2),
+    )
   })
 })

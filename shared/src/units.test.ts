@@ -112,4 +112,29 @@ describe('formatGrams', () => {
     expect(formatGrams(1500)).toBe('1,5 kg')
     expect(formatGrams(12.5)).toBe('12,5 g')
   })
+
+  // Regression : `formatGrams` a longtemps arrondi a UNE decimale partout,
+  // ce qui affichait 1250 g en "1,3 kg". 50 g d'ecart sur une ligne de
+  // courses. Ces cas verrouillent la regle du desktop, qu'aucun test ne
+  // gardait jusqu'ici.
+  it('garde deux decimales sous 10 kg, une seule au-dela', () => {
+    expect(formatGrams(1250)).toBe('1,25 kg')
+    expect(formatGrams(2450)).toBe('2,45 kg')
+    expect(formatGrams(9990)).toBe('9,99 kg')
+    expect(formatGrams(12500)).toBe('12,5 kg')
+    expect(formatGrams(12550)).toBe('12,6 kg')
+  })
+
+  it('ne laisse jamais de zero de fin', () => {
+    expect(formatGrams(2000)).toBe('2 kg')
+    expect(formatGrams(1200)).toBe('1,2 kg')
+    expect(formatGrams(60)).toBe('60 g')
+  })
+
+  it('reste plus fin que le desktop sous 100 g', () => {
+    // Le QML arrondissait a l'entier des 10 g. On garde la decimale :
+    // plus precis, et aucune lecture n'en devient fausse.
+    expect(formatGrams(12.5)).toBe('12,5 g')
+    expect(formatGrams(250.4)).toBe('250 g')
+  })
 })

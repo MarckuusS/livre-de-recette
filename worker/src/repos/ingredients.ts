@@ -246,14 +246,28 @@ export class IngredientRepo {
    * lui, scanner un produit que le voisin possede deja repondrait « ce nom
    * existe déjà » en designant une fiche que l'on ne peut ni ouvrir ni
    * modifier.
+   *
+   * `inLibraryOnly` repond au meme probleme, d'un cran plus subtil : la table
+   * `ingredient` porte AUSSI les 3 500 lignes du catalogue CIQUAL et les fiches
+   * OpenFoodFacts mises en cache, qui n'apparaissent nulle part dans la
+   * bibliotheque tant que `in_personal_library` vaut 0. Chercher un doublon sur
+   * toute la table refusait donc de creer un ingredient nomme comme une entree
+   * de catalogue jamais importee, en designant une fiche invisible : une
+   * impasse, sans aucun moyen d'en sortir depuis l'ecran. Le desktop, lui, ne
+   * comparait qu'aux ingredients de source `manual`.
    */
-  async findByNormalizedName(name: string, exceptId: number | null = null): Promise<Ingredient | null> {
+  async findByNormalizedName(
+    name: string,
+    exceptId: number | null = null,
+    { inLibraryOnly = false }: { inLibraryOnly?: boolean } = {},
+  ): Promise<Ingredient | null> {
     const row = await this.db
       .prepare(
         `SELECT ${INGREDIENT_COLUMNS} FROM ingredient
-         WHERE household_id = ? AND name_normalized = ? AND (? IS NULL OR id <> ?) LIMIT 1`,
+         WHERE household_id = ? AND name_normalized = ? AND (? IS NULL OR id <> ?)
+           AND (? = 0 OR in_personal_library = 1) LIMIT 1`,
       )
-      .bind(this.householdId, normalizeName(name), exceptId, exceptId)
+      .bind(this.householdId, normalizeName(name), exceptId, exceptId, inLibraryOnly ? 1 : 0)
       .first<IngredientRow>()
     return row ? toIngredient(row) : null
   }

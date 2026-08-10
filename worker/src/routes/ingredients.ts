@@ -29,20 +29,23 @@ route('GET', '/api/ingredients', async ({ repos, url }) => {
 route('POST', '/api/ingredients', async ({ repos, request, env, user }) => {
   const payload = parseOrThrow(ingredientCreateSchema, await readJson(request))
 
-  // Un doublon exact de nom rend la bibliotheque inutilisable : deux « Tomate »
+  // Un doublon exact de nom rend la bibliotheque inutilisable : deux "Tomate"
   // que rien ne distingue dans un menu deroulant. On refuse tot, avec le nom
   // exact du coupable plutot qu'une violation de contrainte.
-  const existing = await repos.ingredients.findByNormalizedName(payload.name)
+  //
+  // `inLibraryOnly` est essentiel : sans lui, le controle portait aussi sur les
+  // milliers de lignes de catalogue jamais importees, et refusait une creation
+  // en designant une fiche que l'utilisateur ne voit nulle part.
+  const existing = await repos.ingredients.findByNormalizedName(payload.name, null, {
+    inLibraryOnly: true,
+  })
   if (existing) {
     // L'identifiant accompagne le message : l'interface peut alors proposer
     // d'ouvrir la fiche existante, au lieu de laisser l'utilisateur chercher
     // lui-meme ce qu'il vient de recreer.
-    throw new HttpError(
-      409,
-      'duplicate_name',
-      `« ${existing.name} » existe déjà dans ta bibliothèque.`,
-      { existingId: existing.id },
-    )
+    throw new HttpError(409, 'duplicate_name', `"${existing.name}" est déjà dans ta bibliothèque.`, {
+      existingId: existing.id,
+    })
   }
 
   const id = await repos.ingredients.create({ ...payload, inLibrary: true })
@@ -70,9 +73,14 @@ route('PATCH', '/api/ingredients/:id', async ({ repos, params, request, env, use
   const patch = parseOrThrow(ingredientPatchSchema, await readJson(request))
 
   if (typeof patch.name === 'string') {
-    const clash = await repos.ingredients.findByNormalizedName(patch.name, id)
+    // Meme perimetre qu'a la creation : renommer en heurtant une ligne de
+    // catalogue invisible serait tout aussi bloquant, et tout aussi
+    // incomprehensible.
+    const clash = await repos.ingredients.findByNormalizedName(patch.name, id, {
+      inLibraryOnly: true,
+    })
     if (clash) {
-      throw new HttpError(409, 'duplicate_name', `« ${clash.name} » existe déjà.`, {
+      throw new HttpError(409, 'duplicate_name', `"${clash.name}" est déjà dans ta bibliothèque.`, {
         existingId: clash.id,
       })
     }

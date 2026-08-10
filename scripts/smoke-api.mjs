@@ -53,13 +53,14 @@ let pass = 0
 let fail = 0
 const failures = []
 
-async function call(method, path, body) {
+async function call(method, path, body, extraHeaders) {
   const res = await fetch(BASE + path, {
     method,
     headers: {
       Accept: 'application/json',
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       ...(cookie ? { cookie } : {}),
+      ...(extraHeaders ?? {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
@@ -241,6 +242,42 @@ try {
   check('  lignes VIDEES', (replaced.body?.lines ?? []).length === 0, replaced.body?.lines)
   check('  tags VIDES', (replaced.body?.tags ?? []).length === 0, replaced.body?.tags)
   check('  renommee', replaced.body?.name === 'Recette de test renommée', replaced.body?.name)
+
+  // --- ecriture concurrente -------------------------------------------------
+  // Simule deux appareils : celui-ci a charge la recette AVANT le PUT
+  // ci-dessus, il tient donc un `updatedAt` perime. Sans ce controle, son
+  // enregistrement ecrasait l'autre sans un mot, ce qui est exactement le
+  // scenario que le passage en foyer partage rend quotidien.
+  const staleBody = {
+    name: 'Version concurrente',
+    instructions: '',
+    defaultPortions: 2,
+    lines: [],
+    tagIds: [],
+  }
+  const stale = await call('PUT', `/api/recipes/${recipeId}`, staleBody, {
+    'if-match': '2000-01-01T00:00:00Z',
+  })
+  check('PUT avec un If-Match perime -> 409', stale.status === 409, stale.body)
+  check('  code stale_recipe', stale.body?.error?.code === 'stale_recipe', stale.body?.error)
+  check(
+    '  la recette n a PAS ete ecrasee',
+    (await call('GET', `/api/recipes/${recipeId}`)).body?.name === 'Recette de test renommée',
+  )
+
+  const fresh = await call('GET', `/api/recipes/${recipeId}`)
+  const onTime = await call('PUT', `/api/recipes/${recipeId}`, staleBody, {
+    'if-match': fresh.body?.updatedAt,
+  })
+  check('PUT avec le bon If-Match -> 200', onTime.status === 200, onTime.body)
+
+  // Sans en-tete, l'ecriture reste inconditionnelle : c'est la semantique HTTP
+  // de If-Match, et ce script comme un futur client s'en passent.
+  const unconditional = await call('PUT', `/api/recipes/${recipeId}`, {
+    ...staleBody,
+    name: 'Recette de test renommée',
+  })
+  check('PUT sans If-Match reste accepte -> 200', unconditional.status === 200, unconditional.body)
 
   // ingredient utilise par une recette : suppression refusee
   await call('PUT', `/api/recipes/${recipeId}`, {

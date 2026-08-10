@@ -100,15 +100,34 @@ export function isKnownUnit(unitCode: string): boolean {
   return unitCode === PIECE_UNIT_CODE || UNIT_BY_CODE.has(unitCode)
 }
 
-/** Formate une masse pour l'affichage : `1,5 kg`, `250 g`, `12,5 g`. */
+/**
+ * Formate une masse pour l'affichage : `1,25 kg`, `250 g`, `12,5 g`.
+ *
+ * La branche des kilos suit la regle du desktop (`ShoppingPage.qml:288`) :
+ * deux decimales sous 10 kg, une seule au-dela. Arrondir a une decimale partout
+ * faisait lire "1,3 kg" pour 1250 g, soit 50 g d'ecart sur une ligne, ce qui se
+ * voit en boucherie et au rayon fruits et legumes. Cette fonction alimente la
+ * liste de courses, le texte partage, la session en magasin et le frigo :
+ * l'erreur se propageait partout.
+ *
+ * Les zeros de fin restent supprimes (`minimumFractionDigits: 0`), pour ecrire
+ * "1 kg" et non "1,00 kg" comme le faisait le desktop.
+ *
+ * Sous le kilo, on garde une decimale entre 10 et 100 g la ou le desktop
+ * arrondissait a l'entier. Divergence assumee : plus precis, jamais trompeur.
+ *
+ * L'espace avant l'unite est INSECABLE (U+00A0), ecrit en echappement plutot
+ * qu'en litteral : un caractere invisible dans un gabarit ne survit pas au
+ * premier editeur distrait.
+ */
 export function formatGrams(grams: number): string {
-  const [value, suffix] = grams >= 1000 ? [grams / 1000, 'kg'] : [grams, 'g']
-  const decimals = Number.isInteger(value) ? 0 : value >= 100 ? 0 : 1
-  // Espace insecable ici aussi : « 250 g » ne doit pas se couper.
+  const kilos = grams >= 1000
+  const value = kilos ? grams / 1000 : grams
+  const maxDecimals = kilos ? (value < 10 ? 2 : 1) : value >= 100 ? 0 : 1
   return `${value.toLocaleString('fr-FR', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })} ${suffix}`
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxDecimals,
+  })} ${kilos ? 'kg' : 'g'}`
 }
 
 /**

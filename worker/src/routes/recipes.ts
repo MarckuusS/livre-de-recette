@@ -41,6 +41,33 @@ route('PUT', '/api/recipes/:id', async ({ repos, params, request, env, user }) =
   const before = await repos.recipes.get(id)
   if (!before) throw notFound('Recette introuvable.')
 
+  /*
+   * Ecriture conditionnelle. `PUT` REMPLACE integralement lignes et tags : sans
+   * garde-fou, ouvrir la recette sur le telephone le matin et l'enregistrer le
+   * soir effaçait en silence tout ce qui avait ete ajoute depuis le bureau
+   * entre-temps. Sur un desktop mono-poste ça ne coutait rien ; ici les donnees
+   * appartiennent a un foyer partage entre plusieurs appareils, ce qui est la
+   * raison d'etre du portage.
+   *
+   * `If-Match` porte le `updated_at` lu au chargement. Absent, la requete reste
+   * inconditionnelle : c'est la semantique HTTP de l'en-tete, et les scripts de
+   * fumee comme un futur client s'en passent legitimement. Le front, lui,
+   * l'envoie toujours.
+   *
+   * Limite connue : `updated_at` a la SECONDE. Deux enregistrements concurrents
+   * dans la meme seconde passent tous les deux. La fenetre est trop etroite
+   * pour justifier une colonne de version supplementaire aujourd'hui.
+   */
+  const expected = request.headers.get('If-Match')
+  if (expected !== null && expected !== '*' && expected !== before.updatedAt) {
+    throw new HttpError(
+      409,
+      'stale_recipe',
+      'Cette recette a été modifiée ailleurs depuis que tu l’as ouverte.',
+      { currentUpdatedAt: before.updatedAt },
+    )
+  }
+
   const payload = parseOrThrow(recipeWriteSchema, await readJson(request))
   await assertIngredientsExist(repos, payload.lines)
 
