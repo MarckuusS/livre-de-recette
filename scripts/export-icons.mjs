@@ -8,8 +8,6 @@
  * A quoi ca sert :
  *   - relire les deux cents dessins d'un coup d'oeil, ce qu'aucune revue de
  *     `d="M12 9.8c-1.3..."` ne permettra jamais ;
- *   - mesurer la couverture reelle du resolveur sur la bibliotheque locale,
- *     c'est-a-dire combien d'ingredients retombent sur l'icone de leur rayon ;
  *   - disposer de fichiers reutilisables hors de l'application (maquettes,
  *     documentation, application de bureau tant qu'elle vit).
  *
@@ -46,7 +44,6 @@ async function loadModule(entry) {
 }
 
 const { ICON_PATHS, ICON_FAMILIES } = await loadModule('web/src/icons/registry.ts')
-const { iconForIngredient } = await loadModule('web/src/icons/resolve.ts')
 
 // ---------------------------------------------------------------------------
 // Fichiers .svg
@@ -95,34 +92,6 @@ const cell = (name) => `
         <div class="sizes">${[16, 20, 24, 32].map((size) => useTag(name, size)).join('')}</div>
         <figcaption>${name}</figcaption>
       </figure>`
-
-/**
- * Table « libelle -> icone », alimentee par la variable ICON_SAMPLE.
- *
- * Optionnelle, et volontairement : les libelles viennent de la bibliotheque
- * personnelle, qui n'a rien a faire dans un fichier versionne. Sans la
- * variable, la section n'est pas rendue du tout — mieux vaut son absence
- * qu'un tableau vide qui laisserait croire a zero correspondance.
- *
- *   ICON_SAMPLE="Carotte, crue~Fruits et légumes|Fusilli~Epicerie" node scripts/export-icons.mjs
- */
-function resolutionTable() {
-  const sample = (process.env.ICON_SAMPLE ?? '').split('|').filter(Boolean)
-  if (sample.length === 0) return ''
-
-  const rows = sample.map((line) => {
-    const [name, rayon = ''] = line.split('~')
-    const icon = iconForIngredient({ name, categoryL1: rayon || null })
-    const isFallback = icon.startsWith('rayon-')
-    return `<tr><td>${name}</td><td class="${isFallback ? 'fallback' : ''}">${icon}</td></tr>`
-  })
-  const fallbacks = rows.filter((row) => row.includes('class="fallback"')).length
-
-  return `<section>
-    <h2>Résolution des libellés <span class="count">${sample.length - fallbacks}/${sample.length}</span></h2>
-    <table>${rows.join('')}</table>
-  </section>`
-}
 
 const sections = ICON_FAMILIES.map(
   (family) => `
@@ -175,9 +144,6 @@ const html = `<!doctype html>
     background-size: 48px 48px; background-position: center; background-repeat: no-repeat; }
   .sizes { display: flex; align-items: flex-end; justify-content: center; gap: 8px; height: 34px; }
   figcaption { margin-top: 6px; font-size: 11px; color: var(--muted); word-break: break-all; }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  td, th { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--line); }
-  .fallback { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -186,7 +152,6 @@ const html = `<!doctype html>
   <p class="lead">${Object.keys(ICON_PATHS).length} icônes. Grille 24, trait 1,6, zone utile 3&nbsp;→&nbsp;21 (repères gris).
      Rendu à 16, 20, 24 et 32&nbsp;px sous chaque dessin.</p>
   ${sections}
-  ${resolutionTable()}
 </body>
 </html>
 `

@@ -37,17 +37,20 @@ Consequences:
 
 ## Jeu d'icônes (web) — `web/src/icons/`
 
-L'application web n'utilise **plus d'émoji**. 202 icônes maison les remplacent et illustrent les
-rayons. Règles de dessin, organisation et procédure d'ajout : `web/src/icons/README.md`. Les points
+L'application web n'utilise **plus d'émoji**. 67 icônes maison les remplacent : **10 rayons** et
+57 icônes d'interface. Règles de dessin et procédure d'ajout : `web/src/icons/README.md`. Les points
 qui ne se devinent pas :
 
+- **Il n'y a pas d'icône par aliment, et c'est délibéré.** Un ingrédient porte l'icône de son
+  rayon (`category_l1`), donnée qu'il a déjà. Dessiner par aliment supposerait une table de
+  mots-clés qui se trompe en silence et rend un dessin faux — pire qu'un dessin générique.
 - Grille 24, trait 1,6, `currentColor`, zone utile 3 → 21. Les fichiers de `paths/` ne contiennent
   que le **contenu** du `<svg>` : les attributs communs sont posés par `Icon.tsx`.
-- `resolve.ts` fait la correspondance libellé → icône. Le mot-clé **le plus long gagne**, à longueur
-  égale le plus à gauche. Les mots-clés s'écrivent **au singulier** : le pluriel est géré à la
-  compilation. Ajouter un mot-clé n'exige donc aucun ordre particulier dans le tableau.
-- Un ingrédient sans mot-clé reconnu prend l'icône de son rayon ; sans rayon, la cagette. Le taux de
-  repli se lit dans **Paramètres → Jeu d'icônes**.
+- Dans `RAYON_RULES` (`resolve.ts`) **l'ordre compte**, contrairement au reste du projet : la
+  première règle qui accroche gagne. Deux paires en dépendent, toutes deux couvertes par un test
+  (`surgelés` avant `légumes`, `fruits de mer` avant `fruits`).
+- Chaque rayon doit avoir sa teinte dans `styles/icons.css`, sous les deux thèmes. Un test échoue
+  sinon. Rayon vide ou inconnu → cagette et teinte ardoise.
 - `node scripts/export-icons.mjs` régénère `docs/icones/` (SVG autonomes + galerie). Sens unique :
   la source de vérité reste `web/src/icons/paths/`.
 

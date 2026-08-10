@@ -27,7 +27,7 @@ import { formatGrams, type Ingredient } from '@livre/shared'
 
 import { useIngredients } from '../lib/queries.js'
 import { FieldShell, useFieldIds } from './Field.js'
-import { Icon, iconForIngredient, rayonSlug } from '../icons/index.js'
+import { Icon, iconForRayon, rayonSlug } from '../icons/index.js'
 import { SourceBadge } from './States.js'
 import '../styles/components.css'
 
@@ -212,7 +212,7 @@ export function IngredientPicker({
                   className="icon-chip icon-chip--sm"
                   data-rayon={rayonSlug(ingredient.categoryL1)}
                 >
-                  <Icon name={iconForIngredient(ingredient)} size={18} strokeWidth={1.8} />
+                  <Icon name={iconForRayon(ingredient.categoryL1)} size={18} strokeWidth={1.8} />
                 </span>
                 <span className="picker__body">
                   <span className="picker__name">{ingredient.name}</span>

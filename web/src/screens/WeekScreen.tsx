@@ -59,7 +59,7 @@ import {
   sumNutrition,
   type SavedEntry,
 } from './semaine/totals.js'
-import { Icon, iconForIngredient, rayonSlug } from '../icons/index.js'
+import { Icon, iconForRayon, rayonSlug } from '../icons/index.js'
 import '../styles/week.css'
 
 const DAY_PANEL_ID = 'jour-panneau'
@@ -390,9 +390,9 @@ function MealRow({
           retrait y sont reunis. Le desktop n'exposait qu'un ✕ de 22 px, sous la
           cible tactile minimale. */}
       <button type="button" className="meal__button" onClick={() => onEdit(entry)}>
-        {/* Une recette porte la cloche, un ingredient porte SON dessin : dans
-            une journee de cinq lignes, c'est ce qui distingue « Curry » d'un
-            simple yaourt sans avoir a lire. */}
+        {/* Une recette porte les couverts, un ingredient l'icone de son rayon :
+            dans une journee de cinq lignes, c'est ce qui distingue un plat
+            cuisine d'un simple yaourt sans avoir a lire. */}
         <span
           className="icon-chip icon-chip--sm"
           data-rayon={target?.kind === 'ingredient' ? rayonSlug(target.ingredient.categoryL1) : 'autre'}
@@ -402,8 +402,8 @@ function MealRow({
               target === null
                 ? 'ui-alert'
                 : target.kind === 'recipe'
-                  ? 'plat-prepare'
-                  : iconForIngredient(target.ingredient)
+                  ? 'ui-utensils'
+                  : iconForRayon(target.ingredient.categoryL1)
             }
             size={18}
             strokeWidth={1.8}

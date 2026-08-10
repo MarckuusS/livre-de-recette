@@ -152,21 +152,30 @@ réglait : leur dessin change d'un appareil à l'autre (le 🥕 d'un iPhone n'es
 Android), ils gardent leurs couleurs propres en thème sombre, et il n'existe pas d'émoji pour
 "rayon boucherie".
 
-**202 icônes** maison, dans `web/src/icons/` : 45 d'interface, 10 de rayon, et le reste par famille
-d'aliment. Grille 24, trait 1,6, `currentColor`, zone utile 3 → 21. Coût dans le bundle :
-**11,4 ko gzip** pour l'ensemble, contre 58 ko pour les seuls huit pictogrammes PNG de nutriments.
+**67 icônes** maison dans `web/src/icons/` : **10 rayons** et 57 icônes d'interface. Grille 24,
+trait 1,6, `currentColor`, zone utile 3 → 21. Coût dans le bundle : **3,3 ko gzip**, contre 58 ko
+pour les seuls huit pictogrammes PNG de nutriments.
+
+**Un SVG par rayon, aucun par aliment.** Un dessin par ingrédient obligerait à en ajouter un à
+chaque produit scanné, et à faire deviner par une table de mots-clés ce que contient un nom
+commercial. Cette table se trompe en silence : elle rend un dessin plausible mais faux, ce que
+personne ne va vérifier. Le rayon, lui, est une donnée que l'ingrédient porte déjà.
 
 - `Icon.tsx` pose les attributs communs une fois pour toutes — aucune icône ne peut dériver du
   système en redéfinissant les siens.
-- `resolve.ts` va du libellé au dessin : mot-clé reconnu → icône de l'aliment, sinon icône du rayon,
-  sinon cagette. Le mot-clé **le plus long** gagne, ce qui donne une cacahuète à
-  "Beurre de cacahuètes" et un tubercule à "Pomme de terre" sans dépendre de l'ordre du tableau.
-  Couverture mesurée sur la bibliothèque réelle : **98 %** (57 ingrédients sur 58).
+- `resolve.ts` va du libellé de rayon à son icône, par fragment reconnu sur un libellé normalisé :
+  "Primeur" et "Fruits et légumes" tombent sur le même dessin. Rayon vide ou inconnu → cagette.
 - Chaque rayon porte une teinte (`web/src/styles/icons.css`, attribut `data-rayon`). C'est ce qui
   permet de balayer une liste de courses en cherchant "le vert" plutôt qu'en lisant chaque ligne.
-- Galerie de contrôle : **Paramètres → Jeu d'icônes**, avec le taux de repli sur la bibliothèque.
+- Galerie de contrôle : **Paramètres → Jeu d'icônes**, qui liste aussi les rayons réellement
+  présents dans la bibliothèque et combien d'ingrédients n'en ont aucun.
 - `node scripts/export-icons.mjs` régénère `docs/icones/` (fichiers `.svg` autonomes + galerie HTML).
   Robinet à sens unique : éditer un `.svg` exporté n'a aucun effet sur l'application.
+
+Où les icônes apparaissent : les cinq onglets, l'en-tête, les en-têtes de section de la liste de
+courses, les lignes de la bibliothèque d'ingrédients, le sélecteur d'ingrédient et les repas de la
+semaine. **Pas** sur les lignes de la liste de courses : elles sont déjà groupées par rayon, et
+répéter l'icône de l'en-tête sur chacun de ses articles n'ajouterait que du bruit.
 
 Reste ouvert : les pictogrammes de nutriments sont toujours des PNG (`web/public/icons/nutrient/`).
 Les redessiner dans le même système supprimerait 58 ko et huit requêtes.

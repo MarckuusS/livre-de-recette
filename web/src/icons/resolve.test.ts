@@ -1,104 +1,63 @@
 /**
  * Le resolveur est la seule partie du jeu d'icones qui puisse se tromper en
- * silence : un dessin rate se voit, une correspondance ratee non — elle rend
- * simplement l'icone du rayon, qui reste plausible.
+ * silence : un dessin rate se voit, un rayon mal reconnu non — il rend
+ * simplement la cagette, qui reste plausible.
  *
- * Les cas ci-dessous sont pris tels quels dans la bibliotheque reelle, sources
- * CIQUAL et OpenFoodFacts melangees. Ils couvrent les quatre pieges :
- * le mot-cle englobant, le pluriel interne, l'accent et l'apostrophe.
+ * Les libelles testes sont ceux que l'utilisateur a reellement saisis, plus
+ * leurs variantes previsibles.
  */
+
+import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { ICON_PATHS, type IconName } from './registry.js'
-import { iconForIngredient, iconForRayon, normalizeLabel, rayonSlug } from './resolve.js'
-
-const icon = (name: string, categoryL1: string | null = null): IconName =>
-  iconForIngredient({ name, categoryL1 })
+import { ICON_PATHS } from './registry.js'
+import { iconForRayon, normalizeLabel, rayonSlug } from './resolve.js'
 
 describe('normalizeLabel', () => {
   it('deplie les ligatures que NFD laisse intactes', () => {
-    // Sans la substitution explicite, « Œuf » se reduit a « uf ».
-    expect(normalizeLabel('Œuf fermier')).toBe('oeuf fermier')
+    // Sans la substitution explicite, « Œufs » se reduit a « ufs ».
+    expect(normalizeLabel('Œufs & laitages')).toBe('oeufs laitages')
   })
 
   it('retire accents et ponctuation', () => {
-    expect(normalizeLabel("Huile d'olive vierge extra")).toBe('huile d olive vierge extra')
-    expect(normalizeLabel('Épinard, cru')).toBe('epinard cru')
-  })
-})
-
-describe('iconForIngredient — le mot-cle le plus long gagne', () => {
-  it('prefere le mot-cle englobant a celui qu’il contient', () => {
-    expect(icon('Beurre de cacahuètes')).toBe('cacahuete')
-    expect(icon('Beurre à 80% MG minimum, doux, tendre')).toBe('beurre')
-
-    expect(icon('Pomme de terre, sans peau, crue')).toBe('pomme-de-terre')
-    expect(icon('Pur jus pomme')).toBe('pomme')
-
-    expect(icon('Pain de mie grandes tranches')).toBe('pain-de-mie')
-    expect(icon('Pain complet')).toBe('pain')
-
-    expect(icon('Fromage blanc 0%')).toBe('yaourt')
-    expect(icon('Fromage de chèvre')).toBe('fromage')
-  })
-
-  it('departage a longueur egale par la position dans le libelle', () => {
-    // « bouillon » et « volaille » font huit lettres : c'est le premier lu qui
-    // l'emporte, sans quoi le resultat dependrait de l'ordre du tableau.
-    expect(icon('Bouillon de volaille, déshydraté')).toBe('bouillon')
-    expect(icon('Sorbet plein fruit Orange Sanguine')).toBe('sorbet')
-  })
-})
-
-describe('iconForIngredient — pluriels', () => {
-  it('reconnait le pluriel, y compris au milieu du mot-cle', () => {
-    expect(icon('Tomates cerises allongées')).toBe('tomate')
-    expect(icon('Pommes de terre nouvelles')).toBe('pomme-de-terre')
-    expect(icon('Petits pois carottes')).toBe('petit-pois')
-    expect(icon('Œufs bio')).toBe('oeuf')
-    expect(icon('Choux de Bruxelles')).toBe('chou')
-  })
-
-  it('ne coupe pas un mot qui finit deja par s', () => {
-    // « mais » et « jus » perdraient leur sens si on leur otait la finale.
-    expect(icon('Maïs doux bio')).toBe('mais')
-    expect(icon('Jus multivitaminé')).toBe('jus')
-  })
-})
-
-describe('iconForIngredient — replis', () => {
-  it('retombe sur le rayon quand aucun mot-cle ne correspond', () => {
-    expect(icon('Chaussée aux moines', 'Produits laitiers & oeufs')).toBe(
-      'rayon-produits-laitiers',
-    )
-  })
-
-  it('retombe sur la cagette sans nom ni rayon exploitable', () => {
-    expect(icon('Zorglub 500g')).toBe('rayon-autre')
-    expect(icon('Zorglub 500g', '')).toBe('rayon-autre')
+    expect(normalizeLabel('Fruits et légumes')).toBe('fruits et legumes')
+    expect(normalizeLabel('Produits laitiers & oeufs')).toBe('produits laitiers oeufs')
   })
 })
 
 describe('iconForRayon', () => {
-  it('reconnait un rayon a un fragment de son libelle', () => {
+  it('reconnait les rayons de la bibliotheque', () => {
     expect(iconForRayon('Fruits et légumes')).toBe('rayon-fruits-legumes')
-    expect(iconForRayon('Primeur')).toBe('rayon-fruits-legumes')
+    expect(iconForRayon('Boucherie')).toBe('rayon-boucherie')
+    expect(iconForRayon('Poissonnerie')).toBe('rayon-poissonnerie')
+    expect(iconForRayon('Boulangerie')).toBe('rayon-boulangerie')
     expect(iconForRayon('Produits laitiers & oeufs')).toBe('rayon-produits-laitiers')
+    expect(iconForRayon('Boissons')).toBe('rayon-boissons')
+    expect(iconForRayon('Surgelés')).toBe('rayon-surgeles')
+    expect(iconForRayon('Epicerie')).toBe('rayon-epicerie')
     expect(iconForRayon('Snacks et confiseries')).toBe('rayon-snacks-confiseries')
   })
 
-  it('range « fruits de mer » avec la poissonnerie, pas avec les fruits', () => {
+  it('reconnait un synonyme, pas seulement le libelle exact', () => {
+    expect(iconForRayon('Primeur')).toBe('rayon-fruits-legumes')
+    expect(iconForRayon('Crèmerie')).toBe('rayon-produits-laitiers')
+    expect(iconForRayon('Charcuterie')).toBe('rayon-boucherie')
+    expect(iconForRayon('Produits congelés')).toBe('rayon-surgeles')
+  })
+
+  it('respecte l’ordre des regles la ou il est signifiant', () => {
+    // Les deux seules paires dont l'ordre compte. Les inverser dans
+    // RAYON_RULES casserait exactement ces deux assertions, et rien d'autre.
+    expect(iconForRayon('Légumes surgelés')).toBe('rayon-surgeles')
     expect(iconForRayon('Fruits de mer')).toBe('rayon-poissonnerie')
   })
 
-  it('range « légumes surgelés » avec les surgelés, pas avec les légumes', () => {
-    expect(iconForRayon('Légumes surgelés')).toBe('rayon-surgeles')
-  })
-
-  it('rend la cagette pour l’absence de rayon', () => {
+  it('rend la cagette pour l’absence de rayon ou un rayon inconnu', () => {
     expect(iconForRayon(null)).toBe('rayon-autre')
+    expect(iconForRayon(undefined)).toBe('rayon-autre')
     expect(iconForRayon('   ')).toBe('rayon-autre')
+    expect(iconForRayon('Zorglub')).toBe('rayon-autre')
   })
 })
 
@@ -107,9 +66,26 @@ describe('rayonSlug', () => {
     expect(rayonSlug('Primeur')).toBe(rayonSlug('Fruits et légumes'))
     expect(rayonSlug(null)).toBe('autre')
   })
+
+  it('rend un identifiant utilisable tel quel comme attribut', () => {
+    expect(rayonSlug('Snacks et confiseries')).toBe('snacks-confiseries')
+  })
 })
 
 describe('registre', () => {
+  it('a une teinte CSS declaree pour chaque rayon', () => {
+    // Un rayon sans teinte tomberait sur la couleur de repli, en silence.
+    //
+    // Lu depuis le disque et non par `import ... ?raw` : sous vitest, le
+    // transformateur CSS de Vite rend une chaine VIDE, et l'assertion passait
+    // donc pour de mauvaises raisons sur tout ce qu'on lui demandait.
+    const css = readFileSync(new URL('../styles/icons.css', import.meta.url), 'utf8')
+    for (const name of Object.keys(ICON_PATHS)) {
+      if (!name.startsWith('rayon-')) continue
+      expect(css, name).toContain(`[data-rayon='${name.replace('rayon-', '')}']`)
+    }
+  })
+
   it('ne contient que du contenu de svg, jamais la balise elle-meme', () => {
     // Une icone qui reintroduirait son propre `<svg>` echapperait aux attributs
     // communs poses par `<Icon>` : trait, epaisseur et couleur deriveraient.

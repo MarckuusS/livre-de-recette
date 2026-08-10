@@ -5,31 +5,36 @@
  * 20 px sur un telephone tenu a bout de bras : cet ecran existe pour verifier
  * sur l'appareil reel, la ou le defaut se voit.
  *
- * Il affiche aussi la COUVERTURE du resolveur sur la bibliotheque personnelle,
- * c'est-a-dire la part d'ingredients qui retombent sur l'icone de leur rayon
- * faute de mot-cle reconnu. C'est la seule mesure qui dise s'il faut enrichir
- * le tableau de `resolve.ts`, et elle depend des ingredients reellement
- * presents — donc de personne d'autre que l'utilisateur.
+ * Il montre aussi les rayons REELLEMENT presents dans la bibliotheque, avec
+ * leur effectif. C'est ce qui dit si un rayon merite son propre dessin, et
+ * surtout combien d'ingredients n'ont pas de rayon du tout — ceux-la tombent
+ * sur la cagette, et c'est le seul cas ou l'icone n'apprend rien.
  */
 
 import { useMemo, useState } from 'react'
 
-import { Icon, ICON_FAMILIES, iconForIngredient, type IconName } from '../icons/index.js'
+import { Icon, ICON_FAMILIES, iconForRayon, rayonSlug, type IconName } from '../icons/index.js'
 import { useIngredients } from '../lib/queries.js'
+
+const UNCATEGORIZED = 'Sans rayon'
 
 export function IconGalleryScreen() {
   const [size, setSize] = useState(24)
 
   const ingredients = useIngredients('')
 
-  const coverage = useMemo(() => {
-    const items = ingredients.data?.items ?? []
-    if (items.length === 0) return null
-    const missing = items
-      .map((item) => ({ name: item.name, icon: iconForIngredient(item) }))
-      .filter((entry) => entry.icon.startsWith('rayon-'))
-    return { total: items.length, missing }
+  /** Rayons de la bibliotheque, du plus fourni au moins fourni. */
+  const rayons = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const item of ingredients.data?.items ?? []) {
+      const label = item.categoryL1 ?? UNCATEGORIZED
+      counts.set(label, (counts.get(label) ?? 0) + 1)
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])
   }, [ingredients.data])
+
+  const total = ingredients.data?.items.length ?? 0
+  const orphans = rayons.find(([label]) => label === UNCATEGORIZED)?.[1] ?? 0
 
   return (
     <section className="screen">
@@ -37,7 +42,9 @@ export function IconGalleryScreen() {
         <h2 className="card__title">Jeu d’icônes</h2>
         <p className="card__lead">
           {ICON_FAMILIES.reduce((sum, family) => sum + family.names.length, 0)} dessins, grille 24,
-          trait 1,6. Ils remplacent les émojis, qui changeaient d’un appareil à l’autre.
+          trait 1,6. Ils remplacent les émojis, qui changeaient d’un appareil à l’autre. Un
+          ingrédient porte l’icône de son <strong>rayon</strong> : il n’y a pas de dessin par
+          aliment.
         </p>
         <label className="field">
           <span className="field__label">Taille d’affichage — {size} px</span>
@@ -52,28 +59,27 @@ export function IconGalleryScreen() {
         </label>
       </div>
 
-      {coverage !== null && (
+      {rayons.length > 0 && (
         <div className="card">
-          <h2 className="card__title">Couverture</h2>
+          <h2 className="card__title">Tes rayons</h2>
           <p className="card__lead">
-            <span className="icon-gallery__count">
-              {coverage.total - coverage.missing.length}/{coverage.total}
-            </span>{' '}
-            ingrédients de la bibliothèque ont une icône propre. Les autres prennent celle de leur
-            rayon, ce qui reste juste mais moins parlant.
+            {orphans === 0
+              ? `Les ${total} ingrédients de la bibliothèque ont un rayon.`
+              : `${orphans} ingrédient${orphans > 1 ? 's' : ''} sur ${total} n’${orphans > 1 ? 'ont' : 'a'} pas de rayon : ${orphans > 1 ? 'ils prennent' : 'il prend'} la cagette. Leur en attribuer un leur donne une icône et une couleur.`}
           </p>
-          {coverage.missing.length > 0 && (
-            <ul className="row-list row-list--flush">
-              {coverage.missing.map((entry) => (
-                <li className="row row--static" key={entry.name}>
-                  <Icon name={entry.icon} size={22} />
-                  <span className="row__body">
-                    <span className="row__title">{entry.name}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="row-list row-list--flush">
+            {rayons.map(([label, count]) => (
+              <li className="row row--static" key={label}>
+                <span className="icon-chip" data-rayon={rayonSlug(label)}>
+                  <Icon name={iconForRayon(label)} size={22} strokeWidth={1.7} />
+                </span>
+                <span className="row__body">
+                  <span className="row__title">{label}</span>
+                </span>
+                <span className="row__value">{count}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

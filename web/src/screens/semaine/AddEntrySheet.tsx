@@ -117,7 +117,7 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
           <Icon name="ui-utensils" size={16} className="icon--inline" /> Recette
         </SegmentedTab>
         <SegmentedTab id="tab-ingredient" panelId="panel-ingredient" active={tab === 'ingredient'} onSelect={() => setTab('ingredient')}>
-          <Icon name="carotte" size={16} className="icon--inline" /> Ingrédient
+          <Icon name="ui-basket" size={16} className="icon--inline" /> Ingrédient
         </SegmentedTab>
       </div>
 

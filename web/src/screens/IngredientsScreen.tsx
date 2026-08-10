@@ -59,7 +59,7 @@ import {
   type SortField,
   type ViewOptions,
 } from './ingredients/model.js'
-import { Icon, iconForIngredient, rayonSlug } from '../icons/index.js'
+import { Icon, iconForRayon, rayonSlug } from '../icons/index.js'
 import '../styles/ingredients.css'
 
 const SOURCE_CHOICES = [
@@ -333,10 +333,11 @@ function IngredientRow({ ingredient }: { ingredient: Ingredient }) {
   return (
     <li className="row">
       <Link to={`/ingredients/${ingredient.id}`} className="row__link">
-        {/* La pastille porte la couleur du rayon : dans une bibliotheque de
-            plusieurs centaines de lignes, c'est ce qui rend le balayage utile. */}
+        {/* La liste est triee par nom par defaut, donc les rayons y sont
+            melanges : la pastille est le seul endroit ou l'on voit d'un coup
+            d'oeil a quel rayon appartient chaque ingredient. */}
         <span className="icon-chip" data-rayon={rayonSlug(ingredient.categoryL1)}>
-          <Icon name={iconForIngredient(ingredient)} size={22} strokeWidth={1.7} />
+          <Icon name={iconForRayon(ingredient.categoryL1)} size={22} strokeWidth={1.7} />
         </span>
         <span className="row__body">
           <span className="row__title">{ingredient.name}</span>

@@ -21,7 +21,7 @@ import {
   type ShoppingListResponse,
 } from '../lib/queries.js'
 import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
-import { Icon, iconForIngredient, iconForRayon, rayonSlug } from '../icons/index.js'
+import { Icon, iconForRayon, rayonSlug } from '../icons/index.js'
 import { CostHistorySheet } from './courses/CostHistorySheet.js'
 import { LineDetailSheet } from './courses/LineDetailSheet.js'
 import { SessionBar } from './courses/SessionBar.js'
@@ -380,12 +380,10 @@ function ShoppingRow({
           checked={checked}
           onChange={(event) => onToggle(event.target.checked)}
         />
-        {/* L'icone est PORTEUSE ici, pas decorative : en magasin on balaie la
-            colonne de gauche du regard et la forme arrive avant le mot. Elle
-            reste hors du champ des lecteurs d'ecran, le nom suit juste apres. */}
-        <span className="icon-chip icon-chip--sm" data-rayon={rayonSlug(item.categoryL1)}>
-          <Icon name={iconForIngredient(item)} size={18} strokeWidth={1.8} />
-        </span>
+        {/* Pas de pastille sur la ligne : elle est DEJA dans l'en-tete de la
+            section, et la liste est groupee par rayon. La repeter a l'identique
+            sur chacun des articles du rayon n'ajouterait aucune information,
+            seulement du bruit sous le pouce. */}
         <span className="shopping-row__body">
           <span className="shopping-row__name">{item.name}</span>
           <span className="shopping-row__meta">

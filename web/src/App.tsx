@@ -18,7 +18,7 @@ import { WeekScreen } from './screens/WeekScreen.js'
  * et le mot decrit mieux ce qu'on y trouve.
  */
 export const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string }> = [
-  { to: '/ingredients', icon: 'carotte', label: 'Ingrédients' },
+  { to: '/ingredients', icon: 'ui-basket', label: 'Ingrédients' },
   { to: '/recettes', icon: 'ui-utensils', label: 'Recettes' },
   { to: '/semaine', icon: 'ui-calendar', label: 'Semaine' },
   { to: '/courses', icon: 'ui-cart', label: 'Courses' },
