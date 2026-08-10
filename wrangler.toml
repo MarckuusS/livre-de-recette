@@ -44,10 +44,17 @@ migrations_dir = "migrations"
 OFF_USER_AGENT = "livre-de-recettes/0.2.0 (+https://github.com/MarckuusS/livre-de-recette)"
 ENVIRONMENT = "production"
 
-# --- A ajouter plus tard -----------------------------------------------------
-# R2 (photos de recettes, PDF de tickets) : le jeton wrangler actuel n'a pas la
-# portee `r2`. Il faudra la reautoriser avant de creer le bucket.
+# --- Stockage d'objets -------------------------------------------------------
+# Photos de recettes, et plus tard les PDF de tickets.
 #
-# [[r2_buckets]]
-# binding = "MEDIA"
-# bucket_name = "livre-de-recettes-media"
+# Le commentaire precedent attribuait le blocage a un jeton sans la portee `r2`.
+# C'etait faux : R2 n'avait simplement jamais ete active sur le compte, et
+# l'API repondait 10042 a tout le monde, wrangler comme dashboard. Active le
+# 2026-08-10, bucket cree dans la foulee.
+#
+# Zone WEUR, comme D1. R2 place les buckets en ENAM par defaut, et une zone ne
+# se change plus apres la creation : il faut passer `--location weur` a la
+# creation, sous peine de faire traverser l'Atlantique a chaque photo.
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "livre-de-recettes-media"

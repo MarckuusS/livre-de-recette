@@ -23,6 +23,14 @@ export interface Env {
    * inaccessible, y compris index.html.
    */
   readonly ASSETS: { fetch: (request: Request) => Promise<Response> }
+  /**
+   * Stockage d'objets : photos de recettes, et plus tard les PDF de tickets.
+   *
+   * Bucket `livre-de-recettes-media`, zone WEUR comme D1. Les cles suivent la
+   * convention deja inscrite dans le schema : `recipes/<id>.jpg`
+   * (migrations/0001_core.sql:72).
+   */
+  readonly MEDIA: R2Bucket
 }
 
 // ---------------------------------------------------------------------------
