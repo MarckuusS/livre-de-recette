@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router'
 
 import { AuthGate } from './AuthGate.js'
 import { ApiError } from './lib/api.js'
+import { keepAppUpToDate } from './lib/appUpdate.js'
 import { preventBrowserZoom } from './lib/gestures.js'
 import './styles/theme.css'
 import './styles/app.css'
@@ -43,6 +44,11 @@ const queryClient = new QueryClient({
 // Avant le premier rendu : le pincement ne doit jamais avoir l'occasion de
 // zoomer, pas meme pendant le chargement.
 preventBrowserZoom()
+
+// Le script de chargement genere par vite-plugin-pwa enregistre le service
+// worker et s'arrete la. Sans ce complement, une PWA installee peut continuer
+// d'afficher une version publiee des jours plus tot. Voir lib/appUpdate.ts.
+keepAppUpToDate()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('#root introuvable')

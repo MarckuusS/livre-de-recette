@@ -95,7 +95,52 @@ liaison correspondante est commentée dans `wrangler.toml`.
 
 ---
 
-## 3. Vérifier
+## 3. « Le site n'a pas changé » — la version affichée sur l'appareil
+
+Le déploiement peut être terminé et l'appareil montrer encore l'ancienne
+version. Ce sont deux choses différentes, à diagnostiquer séparément.
+
+**Ce que le serveur envoie** — sans ambiguïté possible, le numéro du commit est
+compilé dans le bundle :
+
+```bash
+curl -s https://livre-de-recette.pages.dev/ | grep -o 'assets/index-[A-Za-z0-9_-]*\.js'
+```
+
+**Ce que l'appareil exécute** : **Paramètres → Application → Version**. C'est le
+même numéro de commit. S'il diffère de celui du dépôt, la page tourne sur une
+copie en cache, et le déploiement n'y est pour rien.
+
+### Pourquoi ça arrivait
+
+`vite-plugin-pwa` injecte un script de chargement qui se contente
+d'enregistrer le service worker. Avec `skipWaiting`, le nouveau worker prend
+bien la main sur le cache — mais la page déjà ouverte continue d'exécuter le
+JavaScript qu'elle a chargé la veille, et rien ne la recharge.
+
+Sur un navigateur de bureau le défaut se corrige seul à la visite suivante. Sur
+une PWA installée sur iPhone, non : iOS ne ferme jamais l'application, il la
+suspend. Il n'y a donc pas de visite suivante, et l'écran peut rester
+plusieurs jours en arrière.
+
+`web/src/lib/appUpdate.ts` comble le trou : vérification d'une nouvelle version
+à chaque passage au premier plan et à chaque mise en arrière-plan, puis
+rechargement **quand la page n'est pas sous les yeux de l'utilisateur** — jamais
+pendant la frappe, le tampon d'édition d'une recette ne vivant qu'en mémoire.
+
+### Forcer la mise à jour maintenant
+
+Le correctif ne peut pas sauver une page déjà bloquée : c'est l'ancien code qui
+tourne, et il ne contient pas encore la surveillance. Une fois, à la main :
+
+- **PWA installée sur iPhone** : fermer l'application depuis le sélecteur
+  d'applications (glisser vers le haut), puis la rouvrir. Si elle résiste, la
+  retirer de l'écran d'accueil et la réinstaller depuis Safari.
+- **Navigateur** : rechargement forcé, `Ctrl+Shift+R` (`Cmd+Shift+R` sur Mac).
+
+---
+
+## 4. Vérifier
 
 ```bash
 curl https://livre-de-recette.pages.dev/api/health
@@ -107,7 +152,7 @@ le nombre d'ingrédients.
 
 ---
 
-## 4. Installer sur l'iPhone
+## 5. Installer sur l'iPhone
 
 Ouvrir https://livre-de-recette.pages.dev dans **Safari** (Chrome iOS ne sait pas
 installer de PWA), puis *Partager* → **Sur l'écran d'accueil**.
