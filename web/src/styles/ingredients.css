@@ -89,6 +89,20 @@
   flex-direction: column;
 }
 
+/*
+ * Repliee, la section EST la carte : ses quatre coins doivent etre arrondis, et
+ * le filet du bas n'a plus rien a separer. Depliee, elle se pose sur la liste
+ * des ingredients et ne s'arrondit qu'en haut — d'ou le `0 0` par defaut.
+ *
+ * Le selecteur s'appuie sur `aria-expanded`, que le bouton porte deja pour le
+ * lecteur d'ecran : l'etat n'est pas duplique dans une classe qui pourrait se
+ * desynchroniser.
+ */
+.ing-section__header[aria-expanded='false'] {
+  border-radius: var(--radius-md);
+  border-bottom: 0;
+}
+
 .ing-section__header {
   position: sticky;
   /* Se cale sous l'en-tete, encoche comprise : en defilant, on sait toujours

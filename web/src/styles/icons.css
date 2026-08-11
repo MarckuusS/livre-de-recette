@@ -65,6 +65,7 @@
 [data-rayon='boucherie'] { --rayon-color: #dc2626; }
 [data-rayon='poissonnerie'] { --rayon-color: #0d9488; }
 [data-rayon='produits-laitiers'] { --rayon-color: #7c3aed; }
+[data-rayon='frais'] { --rayon-color: #4f46e5; }
 [data-rayon='boissons'] { --rayon-color: #2563eb; }
 [data-rayon='surgeles'] { --rayon-color: #0891b2; }
 [data-rayon='epicerie'] { --rayon-color: #ea580c; }
@@ -81,6 +82,7 @@
   :root:not([data-theme='light']) [data-rayon='boucherie'] { --rayon-color: #f87171; }
   :root:not([data-theme='light']) [data-rayon='poissonnerie'] { --rayon-color: #2dd4bf; }
   :root:not([data-theme='light']) [data-rayon='produits-laitiers'] { --rayon-color: #a78bfa; }
+  :root:not([data-theme='light']) [data-rayon='frais'] { --rayon-color: #818cf8; }
   :root:not([data-theme='light']) [data-rayon='boissons'] { --rayon-color: #60a5fa; }
   :root:not([data-theme='light']) [data-rayon='surgeles'] { --rayon-color: #22d3ee; }
   :root:not([data-theme='light']) [data-rayon='epicerie'] { --rayon-color: #fb923c; }
@@ -93,6 +95,7 @@
 :root[data-theme='dark'] [data-rayon='boucherie'] { --rayon-color: #f87171; }
 :root[data-theme='dark'] [data-rayon='poissonnerie'] { --rayon-color: #2dd4bf; }
 :root[data-theme='dark'] [data-rayon='produits-laitiers'] { --rayon-color: #a78bfa; }
+:root[data-theme='dark'] [data-rayon='frais'] { --rayon-color: #818cf8; }
 :root[data-theme='dark'] [data-rayon='boissons'] { --rayon-color: #60a5fa; }
 :root[data-theme='dark'] [data-rayon='surgeles'] { --rayon-color: #22d3ee; }
 :root[data-theme='dark'] [data-rayon='epicerie'] { --rayon-color: #fb923c; }

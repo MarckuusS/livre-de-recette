@@ -46,8 +46,9 @@ describe('iconForRayon', () => {
     expect(iconForRayon('Crèmerie')).toBe('rayon-produits-laitiers')
     expect(iconForRayon('Charcuterie')).toBe('rayon-boucherie')
     expect(iconForRayon('Produits congelés')).toBe('rayon-surgeles')
-    // « Frais » tout court, tel qu'il existe dans la bibliotheque.
-    expect(iconForRayon('Frais')).toBe('rayon-produits-laitiers')
+    // « Frais » a son propre dessin, et ne doit PLUS tomber sur les laitiers.
+    expect(iconForRayon('Frais')).toBe('rayon-frais')
+    expect(iconForRayon('Produits frais')).toBe('rayon-frais')
   })
 
   it('laisse la cagette aux rayons qu’aucun dessin ne couvre', () => {
@@ -61,6 +62,9 @@ describe('iconForRayon', () => {
     // RAYON_RULES casserait exactement ces deux assertions, et rien d'autre.
     expect(iconForRayon('Légumes surgelés')).toBe('rayon-surgeles')
     expect(iconForRayon('Fruits de mer')).toBe('rayon-poissonnerie')
+    // « Frais » avant les laitiers, mais apres la poissonnerie.
+    expect(iconForRayon('Crèmerie')).toBe('rayon-produits-laitiers')
+    expect(iconForRayon('Poissonnerie fraîche')).toBe('rayon-poissonnerie')
   })
 
   it('rend la cagette pour l’absence de rayon ou un rayon inconnu', () => {

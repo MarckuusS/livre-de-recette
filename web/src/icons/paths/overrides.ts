@@ -40,4 +40,21 @@ export const OVERRIDE_PATHS = {
     '<path d="M13.4 9.8 19 6.8v11.6l-5.6 3"/>' +
     '<path d="m12.4 4.8 6.6 2"/>' +
     '<path d="M3.6 12.6h9.8M3.6 18h9.8"/>',
+  /*
+   * Pot de yaourt, opercule decolle.
+   *
+   * Le rayon « Frais » partageait la brique des produits laitiers, et deux
+   * sections voisines au meme dessin ne se distinguent plus — c'est ce que la
+   * capture de l'ecran Ingredients montrait.
+   *
+   * La bouche est une ellipse et non un trait : c'est ce qui dit que le pot est
+   * OUVERT. L'opercule est un rabat ferme, attache au bord gauche et dresse en
+   * pointe : parmi trois versions rendues a 16, 20, 24, 32 et 64 px, c'est la
+   * seule dont on lit encore le decollement a 24 px. La version enroulee
+   * ressemblait a une cuillere, la version rabattue a un couvercle pose.
+   */
+  'rayon-frais':
+    '<path d="M6.6 11.2 8 20a1.8 1.8 0 0 0 1.8 1.5h4.4A1.8 1.8 0 0 0 16 20l1.4-8.8"/>' +
+    '<ellipse cx="12" cy="11" rx="5.4" ry="1.7"/>' +
+    '<path d="M7.4 9.8c-1.5-3.4.5-6.2 4.4-6.6-1.4 2.3-1 4.2 1 5.6Z"/>',
 } as const

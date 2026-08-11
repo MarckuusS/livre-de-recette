@@ -123,6 +123,9 @@ const MAP = {
   'rayon-boucherie': 'beef',
   'rayon-poissonnerie': 'fish',
   'rayon-produits-laitiers': 'milk',
+  // Lucide n'a pas de pot de yaourt : `milk` n'est ici qu'un repli, le dessin
+  // reel vit dans paths/overrides.ts.
+  'rayon-frais': 'milk',
   'rayon-boissons': 'cup-soda',
   'rayon-surgeles': 'snowflake',
   'rayon-epicerie': 'shopping-bag',

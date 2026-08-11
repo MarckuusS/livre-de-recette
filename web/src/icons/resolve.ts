@@ -51,11 +51,13 @@ const RAYON_RULES: ReadonlyArray<readonly [readonly string[], IconName]> = [
   [['boulanger', 'patisser', 'viennoiser'], 'rayon-boulangerie'],
   [['boucher', 'volaille', 'charcut', 'viande'], 'rayon-boucherie'],
   [['poissonner', 'maree', 'poisson', 'fruits de mer'], 'rayon-poissonnerie'],
-  // « Frais » tout court est un rayon reel de la bibliotheque. En grande
-  // surface il designe le refrigere — yaourts, cremes, traiteur — d'ou la
-  // brique. Il vient APRES boucherie et poissonnerie, sinon « poissonnerie
-  // fraiche » tomberait ici.
-  [['laitier', 'cremerie', 'fromage', 'oeuf', 'frais'], 'rayon-produits-laitiers'],
+  // « Frais » a son propre dessin — un pot de yaourt a l'opercule decolle —
+  // parce qu'il partageait sinon la brique des produits laitiers, et que deux
+  // sections voisines au meme dessin ne se distinguent plus. Il passe AVANT la
+  // regle des laitiers, qui l'attraperait sur « cremerie » ; et apres
+  // poissonnerie, sinon « poissonnerie fraiche » tomberait ici.
+  [['frais'], 'rayon-frais'],
+  [['laitier', 'cremerie', 'fromage', 'oeuf'], 'rayon-produits-laitiers'],
   [['boisson', 'cave', 'liquide'], 'rayon-boissons'],
   [['snack', 'confiserie', 'sucrerie', 'apero', 'biscuit'], 'rayon-snacks-confiseries'],
   [['fruit', 'legume', 'primeur', 'marche'], 'rayon-fruits-legumes'],
