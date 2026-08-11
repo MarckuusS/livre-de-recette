@@ -26,6 +26,7 @@ import { formatEuros, formatGrams, pricePerG, todayLocalIsoDate, type Ingredient
 
 import { DateField, NumberField, TextField } from '../../components/Field.js'
 import { Icon } from '../../icons/index.js'
+import { useStores } from '../../lib/queries.js'
 import { ConfirmDialog, Sheet } from '../../components/Sheet.js'
 import { ErrorState, LoadingRows } from '../../components/States.js'
 import {
@@ -89,10 +90,24 @@ function PriceForm({
   const [price, setPrice] = useState<number | null>(null)
   const [notes, setNotes] = useState('')
 
-  // Enseignes deja saisies pour CET ingredient. Le desktop interrogeait toute
-  // la table (`SELECT DISTINCT store`) ; il n'existe pas de route `/api/stores`
-  // pour cela — signale dans le rapport de portage.
-  const knownStores = [...new Set(entries.map((entry) => entry.store).filter((s): s is string => !!s))]
+  /*
+   * Enseignes proposees pendant la frappe.
+   *
+   * Deux sources, dans cet ordre : celles deja saisies pour CET ingredient —
+   * les plus probables, on rachete au meme endroit — puis toutes celles du
+   * foyer, les plus frequentes d'abord.
+   *
+   * Le commentaire precedent affirmait qu'aucune route `/api/stores` n'existait
+   * et se limitait donc a l'ingredient courant. Elle existe : elle a ete
+   * ajoutee pour la session de courses, et personne n'est revenu ici.
+   */
+  const stores = useStores()
+  const knownStores = [
+    ...new Set([
+      ...entries.map((entry) => entry.store).filter((s): s is string => !!s),
+      ...(stores.data?.items ?? []).map((s) => s.store),
+    ]),
+  ]
 
   const canSubmit =
     price !== null && price > 0 && quantityG !== null && quantityG > 0 && recordedAt !== null
@@ -133,6 +148,7 @@ function PriceForm({
         onChange={setStore}
         placeholder="Lidl, Auchan…"
         autoComplete="off"
+        suggestions={knownStores}
         id="price-store"
       />
       {knownStores.length > 0 && (

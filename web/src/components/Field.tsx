@@ -233,6 +233,17 @@ export interface TextFieldProps extends BaseFieldProps {
   readonly autoFocus?: boolean | undefined
   readonly maxLength?: number | undefined
   readonly inputRef?: Ref<HTMLInputElement> | undefined
+  /**
+   * Valeurs proposees pendant la frappe, via un `<datalist>` natif.
+   *
+   * Natif et non liste maison : sous iOS il s'affiche au-dessus du clavier, ce
+   * qu'aucune liste positionnee en absolu ne sait faire dans une feuille
+   * modale defilante — c'est le meme obstacle qui avait fait descendre les
+   * suggestions d'ingredient DANS le flux. Et le champ reste librement
+   * saisissable, ce qu'un `<select>` interdirait : on doit pouvoir entrer une
+   * enseigne ou l'on n'a jamais releve de prix.
+   */
+  readonly suggestions?: readonly string[] | undefined
 }
 
 export function TextField({
@@ -247,6 +258,7 @@ export function TextField({
   autoFocus,
   maxLength,
   inputRef,
+  suggestions,
   hint,
   error,
   required,
@@ -254,6 +266,8 @@ export function TextField({
   id,
 }: TextFieldProps) {
   const ids = useFieldIds(id, { hint, error })
+  const listId = `${ids.controlId}-suggestions`
+  const hasSuggestions = suggestions !== undefined && suggestions.length > 0
   return (
     <FieldShell ids={ids} label={label} required={required} hint={hint} error={error}>
       <input
@@ -273,7 +287,15 @@ export function TextField({
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={ids.describedBy}
+        list={hasSuggestions ? listId : undefined}
       />
+      {hasSuggestions && (
+        <datalist id={listId}>
+          {suggestions.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
+      )}
     </FieldShell>
   )
 }
