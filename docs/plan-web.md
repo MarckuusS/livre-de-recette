@@ -152,9 +152,18 @@ réglait : leur dessin change d'un appareil à l'autre (le 🥕 d'un iPhone n'es
 Android), ils gardent leurs couleurs propres en thème sombre, et il n'existe pas d'émoji pour
 "rayon boucherie".
 
-**67 icônes** maison dans `web/src/icons/` : **10 rayons** et 57 icônes d'interface. Grille 24,
-trait 1,6, `currentColor`, zone utile 3 → 21. Coût dans le bundle : **3,3 ko gzip**, contre 58 ko
-pour les seuls huit pictogrammes PNG de nutriments.
+**67 icônes** dans `web/src/icons/` : **10 rayons** et 57 d'interface. Les dessins viennent de
+[Lucide](https://lucide.dev) (version figée 0.469.0, ISC + MIT pour ce qui dérive de Feather ;
+`LICENSE-lucide.txt` est à conserver, le dépôt est public). Ils ont remplacé un jeu dessiné à la
+main, qui aurait demandé d'être maintenu à chaque icône manquante et aurait vieilli seul.
+
+Pas de dépendance `lucide-react` : le paquet laisse chaque icône poser ses propres attributs, ce que
+`Icon.tsx` interdit. On prend les chemins, on garde le cadre — ce qui permet au passage de rendre à
+1,6 d'épaisseur ce que Lucide publie à 2. `paths/*.ts` est **généré** par
+`scripts/import-lucide.mjs` ; une retouche à la main serait écrasée.
+
+Coût dans le bundle : **3,9 ko gzip**, contre 58 ko pour les seuls huit pictogrammes PNG de
+nutriments.
 
 **Un SVG par rayon, aucun par aliment.** Un dessin par ingrédient obligerait à en ajouter un à
 chaque produit scanné, et à faire deviner par une table de mots-clés ce que contient un nom

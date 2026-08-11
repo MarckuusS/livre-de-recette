@@ -1,71 +1,86 @@
 # Jeu d'icônes
 
-Jeu maison, dessiné pour cette application. Il remplace les émojis, qui
+67 icônes : **10 rayons** et 57 d'interface. Elles remplacent les émojis, qui
 changeaient de dessin d'un appareil à l'autre, ne suivaient pas le thème sombre
 et ne pouvaient pas illustrer un rayon.
 
-Deux familles, et deux seulement : **les rayons** et **l'interface**.
+## Les dessins viennent de Lucide
 
-## Pas d'icône par aliment, et c'est délibéré
+[lucide.dev](https://lucide.dev), version **0.469.0**, licence **ISC** — et
+**MIT** pour ce qui dérive de Feather. Le texte complet est dans
+[LICENSE-lucide.txt](LICENSE-lucide.txt), à conserver : c'est la condition de
+redistribution, et ce dépôt est public.
 
-Un dessin par ingrédient obligerait à en ajouter un à chaque produit scanné, et
-à faire deviner par une table de mots-clés ce que contient un nom commercial.
-Cette table se trompe en silence : elle rend un dessin plausible mais faux, ce
-qui est pire qu'un dessin générique — personne ne va vérifier.
+Ils ont remplacé un jeu dessiné à la main. Ce n'était pas une question de goût :
+un jeu maison demande d'être maintenu à chaque icône manquante, et il vieillit
+seul. Lucide est cohérent, maintenu, et déjà en grille 24.
 
-Le rayon, lui, est une donnée que l'ingrédient **porte déjà**
-(`ingredient.category_l1`). Un ingrédient prend donc l'icône de son rayon, et
-un ingrédient sans rayon prend la cagette.
+### Pourquoi pas la dépendance `lucide-react`
 
-## Règles de dessin
+Le paquet expose un composant par icône, tire React, et laisse **chaque icône
+poser ses propres attributs** — exactement ce que `Icon.tsx` interdit depuis le
+début. On prend donc la matière (les chemins) et on garde le cadre.
 
-Toute icône ajoutée doit les respecter, sans exception : c'est ce qui fait
-qu'un jeu reste un jeu, et non une collection.
+Conséquence utile : Lucide publie ses dessins à `stroke-width: 2`, on les rend à
+**1,6**. C'est possible précisément parce que l'épaisseur n'est écrite nulle part
+dans les chemins.
+
+## Règles qui tiennent, quelle que soit la source
 
 | Règle | Valeur |
 |---|---|
 | Grille | `viewBox="0 0 24 24"` |
 | Trait | `stroke="currentColor"`, `fill="none"` |
-| Épaisseur | `1.6` dans la grille 24 |
-| Extrémités | `round`, jonctions `round` |
-| Zone utile | le carré `3 → 21`, soit 18 unités sur 24 |
-| Couleur | aucune. Jamais de `fill`/`stroke` codé en dur |
+| Épaisseur | `1.6`, posée par `Icon.tsx` |
+| Couleur | aucune valeur littérale. `none` ou `currentColor`, rien d'autre |
 
-Les aplats sont tolérés pour les détails qui ne se lisent pas en contour : une
-pupille, un grain. Ils portent alors explicitement
-`fill="currentColor" stroke="none"` — sans le `stroke="none"`, le trait de
-1,6 unité transforme un point de 0,7 de rayon en pâté.
+La dernière ligne est vérifiée par un test : une couleur en dur figerait
+l'icône et lui ferait rater la teinte de son rayon comme le thème sombre.
+Lucide en pose lui-même quelques-unes (le trou de l'étiquette, l'œil du
+poisson), toutes en `currentColor`.
 
 ## Où vit quoi
 
 ```
 icons/
-├── Icon.tsx        composant de rendu — pose les attributs communs
-├── registry.ts     fusion des deux familles + type `IconName`
-├── resolve.ts      libellé de rayon -> icône, et teinte CSS
-└── paths/          les dessins
+├── Icon.tsx            rendu d'une icône du jeu
+├── RayonIcon.tsx       rendu d'un glyphe de rayon (jeu OU icône collée)
+├── registry.ts         fusion des deux familles + type `IconName`
+├── resolve.ts          libellé de rayon -> icône déduite
+├── rayonStyle.ts       réglages de l'utilisateur -> glyphe + teinte
+├── LICENSE-lucide.txt  à conserver
+└── paths/              les dessins — GÉNÉRÉS, ne pas éditer à la main
     ├── rayons.ts
     └── ui.ts
 ```
 
-`paths/*.ts` ne contient que le CONTENU du `<svg>`, jamais la balise : les
-attributs communs sont posés une fois dans `Icon.tsx`, ce qui rend impossible
-qu'une icône dérive du système en redéfinissant les siens.
+## Ajouter ou changer une icône
 
-## Ajouter un rayon
+`paths/*.ts` est **généré**. Une retouche à la main serait écrasée au prochain
+import.
 
-1. Dessiner dans `paths/rayons.ts`, en respectant le tableau ci-dessus.
-2. Ajouter les fragments de libellé reconnus dans `RAYON_RULES` (`resolve.ts`).
-   **L'ordre y est significatif**, contrairement au reste du projet : la
-   première règle qui accroche gagne. Deux paires en dépendent et sont
-   couvertes par un test — `surgelés` avant `légumes`, `fruits de mer` avant
-   `fruits`.
-3. Déclarer sa teinte dans `styles/icons.css`, sous les deux thèmes. Un test
-   échoue si un rayon n'en a pas.
-4. Vérifier le rendu dans la galerie : **Paramètres → Jeu d'icônes**.
+1. Ajouter la ligne dans `MAP`, dans `scripts/import-lucide.mjs`.
+2. `node scripts/import-lucide.mjs` — il récupère, filtre et réécrit.
+3. `npm --workspace @livre/web run test`.
 
-## Export
+Le script passe chaque SVG par `sanitizeSvg`, l'assainisseur écrit pour les
+icônes collées par l'utilisateur. Même besoin, même code : retirer la balise
+racine et ne garder que les formes.
 
-`node scripts/export-icons.mjs` régénère `docs/icones/` : un `.svg` autonome
-par icône, plus une galerie HTML. Robinet à sens unique — éditer un `.svg`
-exporté n'a aucun effet sur l'application.
+Il refuse une icône dont la grille n'est pas `0 0 24 24`, et connaît quelques
+noms de repli — Lucide renomme régulièrement (`filter` est devenu `funnel`
+ailleurs, `bar-chart` est devenu `chart-column`). La version est **figée** :
+`latest` rendrait le script non reproductible d'un mois sur l'autre.
+
+## Les icônes de l'utilisateur
+
+Un SVG collé dans **Paramètres → Mes icônes** ne passe pas par ici : il vit en
+base, assaini par le serveur (`worker/src/routes/icons.ts`), et se réfère depuis
+un rayon sous la forme `custom:12`. Voir `rayonStyle.ts`.
+
+## Ce que le jeu ne couvre pas
+
+Il n'y a **pas d'icône par aliment**, délibérément. Un ingrédient porte l'icône
+de son rayon, donnée qu'il a déjà. Dessiner par aliment supposerait une table de
+mots-clés qui se trompe en silence et rend un dessin faux — pire qu'un dessin
+générique.

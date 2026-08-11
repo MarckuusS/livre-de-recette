@@ -37,22 +37,28 @@ Consequences:
 
 ## Jeu d'icônes (web) — `web/src/icons/`
 
-L'application web n'utilise **plus d'émoji**. 67 icônes maison les remplacent : **10 rayons** et
-57 icônes d'interface. Règles de dessin et procédure d'ajout : `web/src/icons/README.md`. Les points
-qui ne se devinent pas :
+L'application web n'utilise **plus d'émoji**. 67 icônes les remplacent : **10 rayons** et
+57 d'interface. Règles complètes : `web/src/icons/README.md`. Les points qui ne se devinent pas :
 
+- **Les dessins viennent de [Lucide](https://lucide.dev)** (version figée 0.469.0, ISC + MIT pour
+  ce qui dérive de Feather). `LICENSE-lucide.txt` est à conserver — le dépôt est public.
+- **`paths/*.ts` est GÉNÉRÉ.** Ne pas éditer à la main : ajouter la ligne dans `MAP`
+  (`scripts/import-lucide.mjs`) puis relancer le script, qui récupère, filtre et réécrit.
+- Pas de dépendance `lucide-react` : le paquet laisse chaque icône poser ses propres attributs, ce
+  que `Icon.tsx` interdit. On prend les chemins, on garde le cadre — c'est ce qui permet de rendre
+  à 1,6 d'épaisseur ce que Lucide publie à 2.
+- Une icône ne porte **jamais** de couleur littérale, seulement `none` ou `currentColor`. Un test
+  échoue sinon : une couleur en dur raterait la teinte du rayon et le thème sombre.
 - **Il n'y a pas d'icône par aliment, et c'est délibéré.** Un ingrédient porte l'icône de son
-  rayon (`category_l1`), donnée qu'il a déjà. Dessiner par aliment supposerait une table de
-  mots-clés qui se trompe en silence et rend un dessin faux — pire qu'un dessin générique.
-- Grille 24, trait 1,6, `currentColor`, zone utile 3 → 21. Les fichiers de `paths/` ne contiennent
-  que le **contenu** du `<svg>` : les attributs communs sont posés par `Icon.tsx`.
-- Dans `RAYON_RULES` (`resolve.ts`) **l'ordre compte**, contrairement au reste du projet : la
-  première règle qui accroche gagne. Deux paires en dépendent, toutes deux couvertes par un test
-  (`surgelés` avant `légumes`, `fruits de mer` avant `fruits`).
-- Chaque rayon doit avoir sa teinte dans `styles/icons.css`, sous les deux thèmes. Un test échoue
-  sinon. Rayon vide ou inconnu → cagette et teinte ardoise.
-- `node scripts/export-icons.mjs` régénère `docs/icones/` (SVG autonomes + galerie). Sens unique :
-  la source de vérité reste `web/src/icons/paths/`.
+  rayon (`category_l1`), donnée qu'il a déjà.
+- L'ordre compte dans `RAYON_RULES` (`resolve.ts`), contrairement au reste du projet : la première
+  règle qui accroche gagne. Deux paires en dépendent, couvertes par un test (`surgelés` avant
+  `légumes`, `fruits de mer` avant `fruits`).
+- Chaque rayon doit avoir sa teinte dans `styles/icons.css`, sous les deux thèmes. Test dédié.
+- **Rayons et icônes éditables** : `category_definition` (nom, icône, couleur) et `custom_icon`
+  (SVG collé). Un SVG collé est assaini par `shared/src/svg.ts` — **liste blanche**, 22 tests
+  d'attaque — et c'est le **serveur** qui fait foi, jamais le navigateur.
+- `node scripts/export-icons.mjs` régénère `docs/icones/` (SVG autonomes + galerie).
 
 ## Common commands
 

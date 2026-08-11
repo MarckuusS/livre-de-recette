@@ -1,39 +1,51 @@
 /**
- * Icones de rayon — une par en-tete de section de la liste de courses.
+ * Icones de rayon — une par en-tete de section.
  *
- * Un rayon n'est pas un ingredient : son icone doit se lire comme un lieu du
- * magasin, pas comme un produit precis. D'ou le choix systematique d'un objet
- * emblematique du rayon plutot que d'un aliment qui pourrait apparaitre dans
- * la liste juste en dessous (le sac pour l'epicerie, la cagette pour le fourre
- * -tout, le flocon pour les surgeles).
+ * DESSINS REPRIS DE LUCIDE (https://lucide.dev), version 0.469.0.
+ * Licence ISC, et MIT pour ce qui derive de Feather : voir LICENSE-lucide.txt
+ * dans ce dossier. Ne pas retoucher a la main — regenerer avec
+ * `node scripts/import-lucide.mjs`, qui part de la table de correspondance.
  *
- * Les libelles sont saisis librement par l'utilisateur : la correspondance vit
- * dans `../rayon.ts` et travaille sur un libelle normalise, jamais sur l'egalite
- * stricte. Un rayon inconnu retombe sur `rayon-autre`.
+ * Seul le CONTENU du `<svg>` est conserve. Les attributs communs (trait,
+ * epaisseur, jonctions) sont poses une fois par `Icon.tsx`, ce qui garantit
+ * qu'aucune icone ne peut deriver du systeme en redefinissant les siens — et
+ * c'est aussi ce qui permet de rendre ces dessins a 1,6 d'epaisseur quand
+ * Lucide les publie a 2.
+ *
+ * Un rayon doit se lire comme un lieu du magasin. Le cabas de l’epicerie et
+ * le panier de l’onglet Ingredients sont deux dessins distincts chez Lucide,
+ * ce qui leve la confusion qu’ils avaient dans le jeu precedent.
  */
 
 export const RAYON_PATHS = {
+  // lucide: apple
   'rayon-fruits-legumes':
-    '<path d="M12 9.8c-1.3-1.2-3.2-1.3-4.5-.2-1.7 1.4-1.9 4.3-.7 6.8 1 2.3 2.6 4 3.7 4 .5 0 .9-.3 1.5-.3s1 .3 1.5.3c1.1 0 2.7-1.7 3.7-4 1.2-2.5 1-5.4-.7-6.8-1.3-1.1-3.2-1-4.5.2Z"/><path d="M12 9.6V6.8"/><path d="M12.3 8.4c.3-1.9 2.1-3.2 4.2-3 .3 2.1-1.1 3.9-3.2 4.1Z"/>',
+    '<path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path d="M10 2c1 .5 2 2 2 5"/>',
+  // lucide: croissant
   'rayon-boulangerie':
-    '<path d="M4 18.8c-.6-5.1 3-9.4 8-9.4s8.6 4.3 8 9.4Z"/><path d="M8.8 12.6 7.2 15.4M12 12.2l-1.6 3.2M15.2 12.6l-1.6 2.8"/>',
-  // Le hachoir plutot qu'une piece de viande : toutes les tentatives de cote
-  // avec son os finissaient en sucette ou en bombe, et une piece de viande
-  // dupliquait de toute facon `boeuf`. L'outil, lui, ne designe que le metier.
+    '<path d="m4.6 13.11 5.79-3.21c1.89-1.05 4.79 1.78 3.71 3.71l-3.22 5.81C8.8 23.16.79 15.23 4.6 13.11Z"/><path d="m10.5 9.5-1-2.29C9.2 6.48 8.8 6 8 6H4.5C2.79 6 2 6.5 2 8.5a7.71 7.71 0 0 0 2 4.83"/><path d="M8 6c0-1.55.24-4-2-4-2 0-2.5 2.17-2.5 4"/><path d="m14.5 13.5 2.29 1c.73.3 1.21.7 1.21 1.5v3.5c0 1.71-.5 2.5-2.5 2.5a7.71 7.71 0 0 1-4.83-2"/><path d="M18 16c1.55 0 4-.24 4 2 0 2-2.17 2.5-4 2.5"/>',
+  // lucide: beef
   'rayon-boucherie':
-    '<path d="M4.8 5.4h9.8v9.2H4.8a1.6 1.6 0 0 1-1.6-1.6V7a1.6 1.6 0 0 1 1.6-1.6Z"/><path d="M14.6 7.4h5.2a1.6 1.6 0 0 1 0 3.2h-5.2"/><path d="M3.2 19.4h17.6"/>',
+    '<circle cx="12.5" cy="8.5" r="2.5"/><path d="M12.5 2a6.5 6.5 0 0 0-6.22 4.6c-1.1 3.13-.78 3.9-3.18 6.08A3 3 0 0 0 5 18c4 0 8.4-1.8 11.4-4.3A6.5 6.5 0 0 0 12.5 2Z"/><path d="m18.5 6 2.19 4.5a6.48 6.48 0 0 1 .31 2 6.49 6.49 0 0 1-2.6 5.2C15.4 20.2 11 22 7 22a3 3 0 0 1-2.68-1.66L2.4 16.5"/>',
+  // lucide: fish
   'rayon-poissonnerie':
-    '<path d="M20.6 10.9c-1.6 2.6-4.6 4.4-8 4.4-2.6 0-5-1-6.7-2.6l-2.5 2.4V7.1l2.5 2.4c1.7-1.6 4.1-2.6 6.7-2.6 3.4 0 6.4 1.8 8 4Z"/><circle cx="16.6" cy="9.9" r=".85" fill="currentColor" stroke="none"/><path d="M3.4 19.6c1.4-1.2 2.9-1.2 4.3 0s2.9 1.2 4.3 0 2.9-1.2 4.3 0 2.9 1.2 4.3 0"/>',
+    '<path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z"/><path d="M18 12v.5"/><path d="M16 17.93a9.77 9.77 0 0 1 0-11.86"/><path d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33"/><path d="M10.46 7.26C10.2 5.88 9.17 4.24 8 3h5.8a2 2 0 0 1 1.98 1.67l.23 1.4"/><path d="m16.01 17.93-.23 1.4A2 2 0 0 1 13.8 21H9.5a5.96 5.96 0 0 0 1.49-3.98"/>',
+  // lucide: milk
   'rayon-produits-laitiers':
-    '<path d="M6.8 9.2 12 3.4l5.2 5.8v10.4a1.8 1.8 0 0 1-1.8 1.8H8.6a1.8 1.8 0 0 1-1.8-1.8Z"/><path d="M6.8 9.2h10.4M12 3.4v5.8"/><path d="M9.8 13.2h4.4"/>',
+    '<path d="M8 2h8"/><path d="M9 2v2.789a4 4 0 0 1-.672 2.219l-.656.984A4 4 0 0 0 7 10.212V20a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9.789a4 4 0 0 0-.672-2.219l-.656-.984A4 4 0 0 1 15 4.788V2"/><path d="M7 15a6.472 6.472 0 0 1 5 0 6.47 6.47 0 0 0 5 0"/>',
+  // lucide: cup-soda
   'rayon-boissons':
-    '<path d="M8.4 2.8h2.6v3.3l1.3 2.3v11.2a1.6 1.6 0 0 1-1.6 1.6H8.7a1.6 1.6 0 0 1-1.6-1.6V8.4l1.3-2.3Z"/><path d="M7.1 12.4h5.2"/><path d="M14.8 8.6h6.4l-.9 11.1a1.5 1.5 0 0 1-1.5 1.4h-1.6a1.5 1.5 0 0 1-1.5-1.4Z"/><path d="M15.1 12.6h5.8"/>',
+    '<path d="m6 8 1.75 12.28a2 2 0 0 0 2 1.72h4.54a2 2 0 0 0 2-1.72L18 8"/><path d="M5 8h14"/><path d="M7 15a6.47 6.47 0 0 1 5 0 6.47 6.47 0 0 0 5 0"/><path d="m12 8 1-6h2"/>',
+  // lucide: snowflake
   'rayon-surgeles':
-    '<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9"/><path d="m9.6 5.4 2.4 2.4 2.4-2.4M9.6 18.6 12 16.2l2.4 2.4M4.4 11.2l.8-3.2 3.3-.5M19.6 12.8l-.8 3.2-3.3.5M8.5 16.5l-3.3-.5-.8-3.2M15.5 7.5l3.3.5.8 3.2"/>',
+    '<path d="m10 20-1.25-2.5L6 18"/><path d="M10 4 8.75 6.5 6 6"/><path d="m14 20 1.25-2.5L18 18"/><path d="m14 4 1.25 2.5L18 6"/><path d="m17 21-3-6h-4"/><path d="m17 3-3 6 1.5 3"/><path d="M2 12h6.5L10 9"/><path d="m20 10-1.5 2 1.5 2"/><path d="M22 12h-6.5L14 15"/><path d="m4 10 1.5 2L4 14"/><path d="m7 21 3-6-1.5-3"/><path d="m7 3 3 6h4"/>',
+  // lucide: shopping-bag
   'rayon-epicerie':
-    '<path d="M5.6 8.8h12.8l-1 11a1.9 1.9 0 0 1-1.9 1.7H8.5a1.9 1.9 0 0 1-1.9-1.7Z"/><path d="M9 8.8V6.6a3 3 0 0 1 6 0v2.2"/>',
+    '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  // lucide: candy
   'rayon-snacks-confiseries':
-    '<ellipse cx="12" cy="12" rx="4.3" ry="3.6"/><path d="M7.8 10.4 3.8 7.6v8.8l4-2.8M16.2 10.4l4-2.8v8.8l-4-2.8"/><path d="M10.4 11c.9-.7 2.3-.7 3.2 0"/>',
+    '<path d="m9.5 7.5-2 2a4.95 4.95 0 1 0 7 7l2-2a4.95 4.95 0 1 0-7-7Z"/><path d="M14 6.5v10"/><path d="M10 7.5v10"/><path d="m16 7 1-5 1.37.68A3 3 0 0 0 19.7 3H21v1.3c0 .46.1.92.32 1.33L22 7l-5 1"/><path d="m8 17-1 5-1.37-.68A3 3 0 0 0 4.3 21H3v-1.3a3 3 0 0 0-.32-1.33L2 17l5-1"/>',
+  // lucide: package
   'rayon-autre':
-    '<rect x="3.6" y="7.6" width="16.8" height="13" rx="2"/><path d="M3.6 12.4h16.8M9 7.6v13M15 7.6v13"/>',
+    '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/><path d="m7.5 4.27 9 5.15"/>',
 } as const

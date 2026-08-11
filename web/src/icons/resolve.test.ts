@@ -97,9 +97,29 @@ describe('registre', () => {
   it('ne contient que du contenu de svg, jamais la balise elle-meme', () => {
     // Une icone qui reintroduirait son propre `<svg>` echapperait aux attributs
     // communs poses par `<Icon>` : trait, epaisseur et couleur deriveraient.
+    //
+    // La liste des balises acceptees est celle de l'assainisseur partage
+    // (shared/src/svg.ts) : les dessins de Lucide utilisent aussi `line`,
+    // `polyline` et `polygon`, et les exclure ici ferait echouer le test sur
+    // des icones parfaitement valides.
     for (const [name, markup] of Object.entries(ICON_PATHS)) {
-      expect(markup, name).toMatch(/^<(path|circle|ellipse|rect)/)
+      expect(markup, name).toMatch(/^<(path|circle|ellipse|rect|line|polyline|polygon|g)[\s/>]/)
       expect(markup, name).not.toContain('<svg')
+    }
+  })
+
+  it('ne porte aucune couleur en dur', () => {
+    // Seules deux valeurs sont acceptables : `none`, qui est une consigne de
+    // trace, et `currentColor`, qui EST le mecanisme par lequel une icone prend
+    // la teinte de son rayon et suit le theme sombre. Une couleur litterale la
+    // figerait, et c'est precisement ce qu'on reprochait aux emojis.
+    //
+    // Lucide en pose lui-meme quelques-unes (le trou de l'etiquette, l'oeil du
+    // poisson) : toutes en `currentColor`, donc conformes.
+    for (const [name, markup] of Object.entries(ICON_PATHS)) {
+      for (const [, attr, value] of markup.matchAll(/(fill|stroke)="([^"]*)"/g)) {
+        expect(value, `${name} / ${attr}`).toMatch(/^(none|currentColor)$/)
+      }
     }
   })
 })
