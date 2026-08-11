@@ -30,6 +30,7 @@ const ENTITY_LABELS: Record<string, string> = {
   cooking_log: 'une cuisson de',
   shopping_checked: '',
   rayon: 'le rayon',
+  icon: 'l’icône',
 }
 
 /**

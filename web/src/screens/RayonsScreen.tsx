@@ -15,14 +15,23 @@
  */
 
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router'
 
 import { TextField } from '../components/Field.js'
 import { ConfirmDialog, Sheet } from '../components/Sheet.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
 import { useToast } from '../components/Toast.js'
-import { Icon, ICON_PATHS, makeRayonStyle, type IconName } from '../icons/index.js'
+import {
+  Icon,
+  ICON_PATHS,
+  RayonIcon,
+  customIconRef,
+  makeRayonStyle,
+  type IconName,
+} from '../icons/index.js'
 import {
   useCreateRayon,
+  useCustomIcons,
   useDeleteRayon,
   useRayons,
   useUpdateRayon,
@@ -76,7 +85,11 @@ export function RayonsScreen() {
   const [editing, setEditing] = useState<RayonItem | 'new' | null>(null)
 
   const items = rayons.data?.items ?? []
-  const styleOf = useMemo(() => makeRayonStyle(items), [items])
+  const custom = useCustomIcons()
+  const styleOf = useMemo(
+    () => makeRayonStyle(items, custom.data?.items ?? []),
+    [items, custom.data],
+  )
 
   return (
     <section className="screen">
@@ -105,7 +118,7 @@ export function RayonsScreen() {
       {items.length > 0 && (
         <ul className="row-list">
           {items.map((rayon) => {
-            const { icon, tint } = styleOf(rayon.name)
+            const { glyph, tint } = styleOf(rayon.name)
             return (
               <li className="row" key={rayon.id}>
                 <button
@@ -114,7 +127,7 @@ export function RayonsScreen() {
                   onClick={() => setEditing(rayon)}
                 >
                   <span className="icon-chip" {...tint}>
-                    <Icon name={icon} size={22} strokeWidth={1.7} />
+                    <RayonIcon glyph={glyph} size={22} />
                   </span>
                   <span className="row__body">
                     <span className="row__title">{rayon.name}</span>
@@ -168,7 +181,9 @@ function RayonSheet({ rayon, onClose }: { rayon: RayonItem | null; onClose: () =
   // Apercu : le meme resolveur que le reste de l'application, nourri de ce qui
   // est en train d'etre saisi. Ce que montre la pastille EST ce que montreront
   // les listes, sans code d'apercu parallele qui pourrait diverger.
-  const preview = makeRayonStyle([{ name: trimmed, icon, colorHex }])(trimmed)
+  const custom = useCustomIcons()
+  const customIcons = custom.data?.items ?? []
+  const preview = makeRayonStyle([{ name: trimmed, icon, colorHex }], customIcons)(trimmed)
 
   const submit = async () => {
     setError(null)
@@ -215,7 +230,7 @@ function RayonSheet({ rayon, onClose }: { rayon: RayonItem | null; onClose: () =
         <div className="form">
           <div className="rayon-preview">
             <span className="icon-chip" {...preview.tint}>
-              <Icon name={preview.icon} size={22} strokeWidth={1.7} />
+              <RayonIcon glyph={preview.glyph} size={22} />
             </span>
             <span className="rayon-preview__name">{trimmed === '' ? 'Sans nom' : trimmed}</span>
           </div>
@@ -256,8 +271,37 @@ function RayonSheet({ rayon, onClose }: { rayon: RayonItem | null; onClose: () =
                 </button>
               ))}
             </div>
+            {/* Les icones collees viennent APRES celles du jeu : elles sont
+                moins nombreuses et se cherchent, la ou les dix rayons se
+                reconnaissent. */}
+            {customIcons.length > 0 && (
+              <div className="rayon-icons">
+                {customIcons.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`rayon-icons__cell${icon === customIconRef(item.id) ? ' rayon-icons__cell--on' : ''}`}
+                    aria-pressed={icon === customIconRef(item.id)}
+                    aria-label={item.name}
+                    title={item.name}
+                    onClick={() => setIcon(customIconRef(item.id))}
+                  >
+                    <RayonIcon
+                      glyph={{
+                        kind: 'custom',
+                        markup: item.markup,
+                        viewBox: item.viewBox,
+                        keepColors: item.keepColors,
+                      }}
+                      size={20}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="field__hint">
-              La première case rend l’icône déduite du nom, celle d’avant le gestionnaire.
+              La première case rend l’icône déduite du nom, celle d’avant le gestionnaire.{' '}
+              <Link to="/parametres/mes-icones">Ajouter une icône</Link> pour enrichir cette grille.
             </p>
           </fieldset>
 

@@ -4,6 +4,7 @@ import { ToastProvider } from './components/Toast.js'
 import { Icon, type IconName } from './icons/index.js'
 import { useTheme } from './lib/theme.js'
 import { IconGalleryScreen } from './screens/IconGalleryScreen.js'
+import { CustomIconsScreen } from './screens/CustomIconsScreen.js'
 import { RayonsScreen } from './screens/RayonsScreen.js'
 import { IngredientDetailScreen, IngredientsScreen } from './screens/IngredientsScreen.js'
 import { PantryScreen } from './screens/PantryScreen.js'
@@ -46,13 +47,14 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/frigo$/, 'Frigo & cellier'],
   [/^\/parametres\/icones$/, 'Jeu d’icônes'],
   [/^\/parametres\/rayons$/, 'Rayons'],
+  [/^\/parametres\/mes-icones$/, 'Mes icônes'],
   [/^\/(parametres|diagnostic)$/, 'Paramètres'],
   [/^\/activite$/, 'Journal d’activité'],
 ]
 
 /** Les vues empilees sur une liste : elles ont besoin d'un retour visible. */
 const STACKED =
-  /^\/(ingredients|recettes)\/[^/]+$|^\/(parametres|diagnostic|activite)$|^\/parametres\/(icones|rayons)$/
+  /^\/(ingredients|recettes)\/[^/]+$|^\/(parametres|diagnostic|activite)$|^\/parametres\/(icones|rayons|mes-icones)$/
 
 export function App() {
   const { isDark, toggle } = useTheme()
@@ -127,6 +129,7 @@ export function App() {
                 vaut mieux que sur un ecran de bureau, ou tout parait lisible. */}
             <Route path="/parametres/icones" element={<IconGalleryScreen />} />
             <Route path="/parametres/rayons" element={<RayonsScreen />} />
+            <Route path="/parametres/mes-icones" element={<CustomIconsScreen />} />
             {/* Ancienne adresse : elle a pu etre mise en favori, et un lien
                 mort au moment ou l'on cherche a diagnostiquer serait ironique. */}
             <Route path="/diagnostic" element={<SettingsScreen />} />

@@ -35,6 +35,7 @@ export type ActivityEntity =
   | 'cooking_log'
   | 'shopping_checked'
   | 'rayon'
+  | 'icon'
   /**
    * Une virée de courses, du premier scan a la validation.
    *

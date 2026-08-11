@@ -59,7 +59,8 @@ import {
   type SortField,
   type ViewOptions,
 } from './ingredients/model.js'
-import { Icon, iconForRayon, rayonSlug, type IconName } from '../icons/index.js'
+import { Icon, RayonIcon, iconForRayon, type IconName } from '../icons/index.js'
+import { useRayonStyle } from '../lib/useRayonStyle.js'
 import '../styles/ingredients.css'
 
 const SOURCE_CHOICES = [
@@ -116,6 +117,7 @@ export function IngredientsScreen() {
   const list = useIngredients(view.query)
   const filterCount = activeFilterCount(view.filters)
   const rayons = useRayonChoices(list.data?.items)
+  const styleOf = useRayonStyle()
 
   const sections = useMemo(() => {
     const items = list.data?.items ?? []
@@ -266,14 +268,18 @@ export function IngredientsScreen() {
                     // Ne teinte QUE le groupement par rayon : les autres modes
                     // groupent par source, saison ou tranche de calories, ou
                     // une couleur de rayon ne voudrait rien dire.
-                    data-rayon={view.group === 'rayon' ? rayonSlug(section.key) : undefined}
+                    {...(view.group === 'rayon' ? styleOf(section.key).tint : {})}
                     onClick={() => setView({ open: toggleSection(view.open, section.key) })}
                   >
                     <span className="ing-section__chevron">
                       <Icon name={open ? 'ui-chevron-down' : 'ui-chevron-right'} size={16} />
                     </span>
                     <span className="icon-chip ing-section__icon">
-                      <Icon name={groupIcon(view.group, section.key)} size={22} strokeWidth={1.7} />
+                      {view.group === 'rayon' ? (
+                        <RayonIcon glyph={styleOf(section.key).glyph} size={22} />
+                      ) : (
+                        <Icon name={groupIcon(view.group, section.key)} size={22} strokeWidth={1.7} />
+                      )}
                     </span>
                     <span className="ing-section__name">{section.key}</span>
                     {/* Le compte reste visible repliee : sinon une section
@@ -353,6 +359,7 @@ function groupIcon(mode: GroupMode, key: string): IconName {
 }
 
 function IngredientRow({ ingredient }: { ingredient: Ingredient }) {
+  const styleOf = useRayonStyle()
   // Une macro inconnue fait disparaitre son etiquette — pas de « P — » qui
   // occuperait la place sans rien dire. Les couleurs sont des codes de lecture
   // partages avec le reste de l'application : elles ne suivent pas le theme.
@@ -367,8 +374,8 @@ function IngredientRow({ ingredient }: { ingredient: Ingredient }) {
         {/* La liste est triee par nom par defaut, donc les rayons y sont
             melanges : la pastille est le seul endroit ou l'on voit d'un coup
             d'oeil a quel rayon appartient chaque ingredient. */}
-        <span className="icon-chip" data-rayon={rayonSlug(ingredient.categoryL1)}>
-          <Icon name={iconForRayon(ingredient.categoryL1)} size={22} strokeWidth={1.7} />
+        <span className="icon-chip" {...styleOf(ingredient.categoryL1).tint}>
+          <RayonIcon glyph={styleOf(ingredient.categoryL1).glyph} size={22} />
         </span>
         <span className="row__body">
           <span className="row__title">{ingredient.name}</span>

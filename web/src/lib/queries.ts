@@ -44,6 +44,7 @@ export const keys = {
   cooking: (id: number) => ['cooking', id] as const,
   tags: ['tags'] as const,
   rayons: ['rayons'] as const,
+  customIcons: ['custom-icons'] as const,
   calendar: (week: string) => ['calendar', week] as const,
   templates: ['templates'] as const,
   pantry: ['pantry'] as const,
@@ -621,6 +622,54 @@ export function useDeleteRayon() {
   return useMutation({
     mutationFn: (id: number) => del<{ id: number; movedToNoRayon: number }>(`/api/rayons/${id}`),
     onSuccess: () => rayonTouches(client),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Icones personnelles
+// ---------------------------------------------------------------------------
+
+export interface CustomIconItem {
+  readonly id: number
+  readonly name: string
+  /** Contenu du `<svg>`, deja assaini par le serveur. */
+  readonly markup: string
+  readonly viewBox: string
+  readonly keepColors: boolean
+}
+
+export const useCustomIcons = () =>
+  useQuery({
+    queryKey: keys.customIcons,
+    queryFn: () => apiFetch<{ items: CustomIconItem[] }>('/api/icons'),
+    // La bibliotheque bouge rarement et elle est lue par TOUS les ecrans qui
+    // affichent un rayon : la relire a chaque montage serait du bruit reseau
+    // pur.
+    staleTime: 5 * 60_000,
+  })
+
+/** Le serveur repond aussi ce qu'il a retire du SVG colle. */
+export type CreatedIcon = CustomIconItem & { readonly removed: string[] }
+
+export function useCreateIcon() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (icon: { name: string; svg: string; keepColors: boolean }) =>
+      post<CreatedIcon>('/api/icons', icon),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.customIcons }),
+  })
+}
+
+export function useDeleteIcon() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => del<{ id: number }>(`/api/icons/${id}`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.customIcons })
+      // Un rayon qui s'y referait retombe sur l'icone deduite : sa pastille
+      // change, donc les listes qui l'affichent doivent etre relues.
+      void client.invalidateQueries({ queryKey: keys.rayons })
+    },
   })
 }
 

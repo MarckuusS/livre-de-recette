@@ -27,7 +27,8 @@ import { formatGrams, type Ingredient } from '@livre/shared'
 
 import { useIngredients } from '../lib/queries.js'
 import { FieldShell, useFieldIds } from './Field.js'
-import { Icon, iconForRayon, rayonSlug } from '../icons/index.js'
+import { RayonIcon } from '../icons/index.js'
+import { useRayonStyle } from '../lib/useRayonStyle.js'
 import { SourceBadge } from './States.js'
 import '../styles/components.css'
 
@@ -81,6 +82,7 @@ export function IngredientPicker({
   }, [text])
 
   const list = useIngredients(debounced)
+  const styleOf = useRayonStyle()
 
   const suggestions = useMemo(() => {
     const excluded = new Set(excludeIds ?? [])
@@ -208,11 +210,8 @@ export function IngredientPicker({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => pick(ingredient)}
               >
-                <span
-                  className="icon-chip icon-chip--sm"
-                  data-rayon={rayonSlug(ingredient.categoryL1)}
-                >
-                  <Icon name={iconForRayon(ingredient.categoryL1)} size={18} strokeWidth={1.8} />
+                <span className="icon-chip icon-chip--sm" {...styleOf(ingredient.categoryL1).tint}>
+                  <RayonIcon glyph={styleOf(ingredient.categoryL1).glyph} size={18} strokeWidth={1.8} />
                 </span>
                 <span className="picker__body">
                   <span className="picker__name">{ingredient.name}</span>

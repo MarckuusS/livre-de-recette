@@ -112,3 +112,49 @@
   opacity: 0;
   cursor: pointer;
 }
+
+/* ---------- Bibliotheque d'icones ----------
+ *
+ * `.icon-action` n'est declaree que dans recipes.css, qui n'est pas chargee
+ * ici : chaque ecran importe sa propre feuille. La reprendre plutot que
+ * d'importer recipes.css en entier pour trois regles. */
+
+.icon-action {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+.icon-action:active {
+  background: var(--color-surface-pressed);
+}
+
+.icon-action--danger {
+  color: var(--color-error);
+}
+
+/* Case a cocher et son libelle sur une ligne, l'aide dessous. */
+.field--inline {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+}
+
+.field--inline input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  accent-color: var(--color-primary);
+}
+
+.field--inline .field__hint {
+  display: block;
+  margin-top: 2px;
+}

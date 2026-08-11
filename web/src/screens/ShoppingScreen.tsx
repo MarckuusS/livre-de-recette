@@ -21,7 +21,8 @@ import {
   type ShoppingListResponse,
 } from '../lib/queries.js'
 import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
-import { Icon, iconForRayon, rayonSlug } from '../icons/index.js'
+import { Icon, RayonIcon } from '../icons/index.js'
+import { useRayonStyle } from '../lib/useRayonStyle.js'
 import { CostHistorySheet } from './courses/CostHistorySheet.js'
 import { LineDetailSheet } from './courses/LineDetailSheet.js'
 import { SessionBar } from './courses/SessionBar.js'
@@ -144,6 +145,7 @@ function ShoppingContent({
   store: StoreMode
 }) {
   const toggle = useToggleChecked(isoWeek)
+  const styleOf = useRayonStyle()
   const checked = useMemo(() => new Set(list.checkedIngredientIds), [list.checkedIngredientIds])
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set<string>())
@@ -277,8 +279,8 @@ function ShoppingContent({
                 <span className="shopping-section__chevron">
                   <Icon name={isCollapsed ? 'ui-chevron-right' : 'ui-chevron-down'} size={16} />
                 </span>
-                <span className="icon-chip icon-chip--sm" data-rayon={rayonSlug(section.category)}>
-                  <Icon name={iconForRayon(section.category)} size={18} strokeWidth={1.8} />
+                <span className="icon-chip icon-chip--sm" {...styleOf(section.category).tint}>
+                  <RayonIcon glyph={styleOf(section.category).glyph} size={18} strokeWidth={1.8} />
                 </span>
                 <span className="shopping-section__name">{section.category}</span>
                 <span className="shopping-section__count">

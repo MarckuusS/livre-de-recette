@@ -59,7 +59,8 @@ import {
   sumNutrition,
   type SavedEntry,
 } from './semaine/totals.js'
-import { Icon, iconForRayon, rayonSlug } from '../icons/index.js'
+import { Icon, RayonIcon } from '../icons/index.js'
+import { useRayonStyle } from '../lib/useRayonStyle.js'
 import '../styles/week.css'
 
 const DAY_PANEL_ID = 'jour-panneau'
@@ -382,6 +383,7 @@ function MealRow({
   // total du jour ne se repartit pas a l'oeil : sans cette valeur, impossible
   // de savoir ce que pese un ingredient dans la note.
   const target = targetOf(entry, data)
+  const styleOf = useRayonStyle()
   const cost = target === null ? null : mealPlanEntryCost(entry, target)
 
   return (
@@ -395,19 +397,15 @@ function MealRow({
             cuisine d'un simple yaourt sans avoir a lire. */}
         <span
           className="icon-chip icon-chip--sm"
-          data-rayon={target?.kind === 'ingredient' ? rayonSlug(target.ingredient.categoryL1) : 'autre'}
+          {...(target?.kind === 'ingredient'
+            ? styleOf(target.ingredient.categoryL1).tint
+            : { 'data-rayon': 'autre' })}
         >
-          <Icon
-            name={
-              target === null
-                ? 'ui-alert'
-                : target.kind === 'recipe'
-                  ? 'ui-utensils'
-                  : iconForRayon(target.ingredient.categoryL1)
-            }
-            size={18}
-            strokeWidth={1.8}
-          />
+          {target?.kind === 'ingredient' ? (
+            <RayonIcon glyph={styleOf(target.ingredient.categoryL1).glyph} size={18} strokeWidth={1.8} />
+          ) : (
+            <Icon name={target === null ? 'ui-alert' : 'ui-utensils'} size={18} strokeWidth={1.8} />
+          )}
         </span>
         <span className="meal__body">
           <span className="meal__name">{name}</span>

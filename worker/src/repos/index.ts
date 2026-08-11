@@ -29,6 +29,7 @@
  */
 
 import { CalendarRepo } from './calendar.js'
+import { IconRepo } from './icons.js'
 import { IngredientRepo } from './ingredients.js'
 import { PantryRepo } from './pantry.js'
 import { RayonRepo } from './rayons.js'
@@ -52,6 +53,7 @@ export class Repositories {
   readonly pantry: PantryRepo
   readonly settings: SettingsRepo
   readonly rayons: RayonRepo
+  readonly icons: IconRepo
 
   constructor(db: D1Database, householdId: number) {
     this.ingredients = new IngredientRepo(db, householdId)
@@ -63,11 +65,13 @@ export class Repositories {
     this.pantry = new PantryRepo(db, householdId)
     this.settings = new SettingsRepo(db, householdId)
     this.rayons = new RayonRepo(db, householdId)
+    this.icons = new IconRepo(db, householdId)
   }
 }
 
-export { CalendarRepo, IngredientRepo, PantryRepo, RayonRepo, RecipeRepo, SettingsRepo }
+export { CalendarRepo, IconRepo, IngredientRepo, PantryRepo, RayonRepo, RecipeRepo, SettingsRepo }
 export type { EntryWrite } from './calendar.js'
 export type { IngredientUsage, IngredientWrite } from './ingredients.js'
+export type { CustomIconRow } from './icons.js'
 export type { RayonRow } from './rayons.js'
 export type { RecipeLineWrite, RecipeSummary, RecipeWrite } from './recipes.js'
