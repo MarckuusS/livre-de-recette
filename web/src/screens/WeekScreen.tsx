@@ -137,41 +137,47 @@ export function WeekScreen() {
 
   return (
     <section className="screen screen--week">
-      <WeekPicker
-        isoWeek={week.isoWeek}
-        isCurrent={week.isCurrent}
-        onChange={week.onChange}
-        onToday={goToday}
-      />
+      {/* Selecteur de semaine et bande des jours dans un MEME bloc collant.
+          Les rendre collants separement demanderait de coder en dur la hauteur
+          du premier pour caler le second — un nombre qui se desynchroniserait
+          au premier changement de rembourrage. */}
+      <div className="week-head">
+        <WeekPicker
+          isoWeek={week.isoWeek}
+          isCurrent={week.isCurrent}
+          onChange={week.onChange}
+          onToday={goToday}
+        />
 
-      {/* Fleches gauche / droite entre les jours : c'est ce qu'un lecteur
-          d'ecran attend d'un `tablist`, et le seul equivalent au clavier du
-          balayage horizontal. Le jour actif est le seul arret de tabulation,
-          sinon la barre en compte sept avant d'atteindre le contenu. */}
-      <div
-        className="day-strip"
-        role="tablist"
-        aria-label="Jour de la semaine"
-        onKeyDown={(event) => {
-          const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-          if (step === 0) return
-          event.preventDefault()
-          const next = (dayIndex + step + 7) % 7
-          setDay(next)
-          document.getElementById(`jour-onglet-${next}`)?.focus()
-        }}
-      >
-        {dates.map((date, index) => (
-          <DayTab
-            key={index}
-            index={index}
-            date={date}
-            active={index === dayIndex}
-            today={week.isCurrent && index === todayIndex}
-            filled={weekEntries.some((entry) => entry.dayOfWeek === index)}
-            onSelect={setDay}
-          />
-        ))}
+        {/* Fleches gauche / droite entre les jours : c'est ce qu'un lecteur
+            d'ecran attend d'un `tablist`, et le seul equivalent au clavier du
+            balayage horizontal. Le jour actif est le seul arret de tabulation,
+            sinon la barre en compte sept avant d'atteindre le contenu. */}
+        <div
+          className="day-strip"
+          role="tablist"
+          aria-label="Jour de la semaine"
+          onKeyDown={(event) => {
+            const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+            if (step === 0) return
+            event.preventDefault()
+            const next = (dayIndex + step + 7) % 7
+            setDay(next)
+            document.getElementById(`jour-onglet-${next}`)?.focus()
+          }}
+        >
+          {dates.map((date, index) => (
+            <DayTab
+              key={index}
+              index={index}
+              date={date}
+              active={index === dayIndex}
+              today={week.isCurrent && index === todayIndex}
+              filled={weekEntries.some((entry) => entry.dayOfWeek === index)}
+              onSelect={setDay}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="week-tools">

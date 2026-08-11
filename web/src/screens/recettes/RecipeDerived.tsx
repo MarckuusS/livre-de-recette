@@ -30,6 +30,7 @@ import {
 } from '@livre/shared'
 
 import { NumberField } from '../../components/Field.js'
+import { NutrientLabel } from '../../components/NutrientLabel.js'
 import { Icon } from '../../icons/index.js'
 import { formatNumber, plural, scaleLines, toRecipeLines, type RecipeDraft } from './draft.js'
 
@@ -224,13 +225,12 @@ export function NutritionCard({ derived }: { readonly derived: Derived }) {
           <tbody>
             {NUTRIENT_ROWS.map((row) => (
               <tr key={row.key} className={row.sub ? 'nutrition-table__row--sub' : undefined}>
+                {/* Le meme composant que l'ecran Semaine. Deux tableaux qui
+                    disent la meme chose ne doivent pas la dire differemment :
+                    ici c'etait une pastille de couleur, la-bas le pictogramme
+                    du nutriment. */}
                 <th scope="row">
-                  <span
-                    className="nutrient-dot"
-                    style={{ background: `var(--color-nutrient-${row.color ?? 'energy'})` }}
-                    aria-hidden="true"
-                  />
-                  {row.label}
+                  <NutrientLabel nutrient={row.key} label={row.label} sub={row.sub ?? false} />
                 </th>
                 {columns.map(([label, totals]) => (
                   <td key={label}>

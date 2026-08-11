@@ -725,4 +725,28 @@
   font-variant-numeric: tabular-nums;
   color: var(--color-text-secondary);
   text-align: right;
+  /* « 31 » et « % » ne doivent jamais se separer : la coupure tombait entre le
+     nombre et son unite, ce qui donnait un pourcentage orphelin sur la ligne
+     suivante. */
+  white-space: nowrap;
+}
+
+/*
+ * Sous 520 px, le donut passe AU-DESSUS de la legende.
+ *
+ * Cote a cote, il ne restait qu'environ 150 px a la legende pour
+ * « 2,9 g · 26 kcal · 31 % » : chaque entree passait a la ligne. Empilee, elle
+ * dispose de toute la largeur de la carte et chaque nutriment tient sur une
+ * seule ligne — ce que `flex-wrap` ne faisait pas tout seul, le graphique
+ * n'etant pas assez large pour declencher le retour.
+ */
+@media (max-width: 520px) {
+  .macros {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .macros__legend {
+    width: 100%;
+  }
 }
