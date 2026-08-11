@@ -22,47 +22,30 @@
 
 export const OVERRIDE_PATHS = {
   /*
-   * Brique de lait a pignon, vue de trois quarts.
-   *
-   * Lucide propose une BOUTEILLE (`milk`), ce qui n'est pas ce qu'on achete :
-   * le lait de la bibliotheque arrive en brique.
-   *
-   * Quatre constructions ont ete rendues cote a cote a 24, 32 et 96 px. De
-   * face, le pignon devient un toit et la brique se lit « maison » ; avec un
-   * bouchon, elle se lit « bouteille ». Seule la vue de trois quarts dit
-   * « carton », parce que la fuyante donne le volume que la face plate n'a pas.
-   *
-   * Trois traits, pas plus. La version precedente en avait cinq — deux bandes
-   * d'etiquette et un pli de pignon — et se brouillait des 24 px : c'est ce que
-   * montrait la capture de l'ecran Ingredients.
-   *
-   * La vache de la reference n'est pas reprise. L'etiquette laisse environ
-   * 10 x 5 unites ; rendue a 20 px, une tete de vache y occupe quatre pixels et
-   * salit la brique au lieu de la decorer.
-   */
-  'rayon-produits-laitiers':
-    '<path d="M4 20.6V9.6l3.6-5.2h5l1 5.2v11Z"/>' +
-    '<path d="m13.6 9.6 5.8-3v11l-5.8 3"/>' +
-    '<path d="M4 13.6h9.6"/>',
-
-  /*
    * Pot de yaourt, opercule souleve.
    *
-   * Le rayon « Frais » partageait la brique des produits laitiers, et deux
-   * sections voisines au meme dessin ne se distinguent plus.
+   * SEULE entree de ce fichier. La brique de lait qui s'y trouvait a ete
+   * retiree : Tabler en a une, mieux dessinee que la mienne, et un dessin qu'on
+   * n'a pas a maintenir vaut mieux qu'un dessin qu'on maintient mal.
    *
-   * DEUX REGLES TIREES DE NEUF ESSAIS RENDUS A 24, 32 ET 96 px :
+   * Ni Lucide ni Tabler n'ont de pot a opercule — c'est le seul objet du jeu
+   * qu'il a fallu dessiner.
    *
-   *   - la bouche est une ELLIPSE, jamais un trait. C'est elle qui dit que le
-   *     pot est ouvert ; un trait droit donne un gobelet ferme.
-   *   - l'opercule est ANGULAIRE et LARGE. Toutes les versions courbes — rabat
-   *     en pointe, opercule enroule — se lisent comme une feuille de plante, et
-   *     la version en diagonale fine comme une paille. Une feuille d'aluminium
-   *     est plate : un quadrilatere ferme, pose sur le bord et incline, est la
-   *     seule forme qui la designe sans ambiguite.
+   * TROIS SERIES D'ESSAIS, treize constructions, rendues a 24, 32 et 96 px. Ce
+   * qui en ressort, et qui vaut pour tout dessin ajoute ici :
+   *
+   *   - le pot suit le squelette de `tabler:cup` — bande de bord droite, corps
+   *     tronconique large de treize unites, deux traits. Mes premieres versions
+   *     etaient etroites et bavardes : quatre traits pour un objet plus petit,
+   *     et tout se brouillait des 24 px ;
+   *   - l'opercule doit etre AUSSI GRAND que le pot. Toutes les versions ou il
+   *     etait un appendice — rabat en pointe, languette, drapeau — se lisaient
+   *     comme une feuille de plante ou un fanion ;
+   *   - il doit etre PLAT et ANGULAIRE. Une feuille d'aluminium n'a pas de
+   *     courbe organique ; la moindre en fait un vegetal.
    */
   'rayon-frais':
-    '<path d="M5.8 12.2 7.4 20.2a1.9 1.9 0 0 0 1.9 1.5h5.4a1.9 1.9 0 0 0 1.9-1.5l1.6-8"/>' +
-    '<ellipse cx="12" cy="12" rx="6.2" ry="1.9"/>' +
-    '<path d="M7.4 10.2 10.6 3.8l8 1.4-3.2 4.6Z"/>',
+    '<path d="M18.4 10.4 17 20.6a1.4 1.4 0 0 1-1.4 1.2H8.4A1.4 1.4 0 0 1 7 20.6L5.6 10.4"/>' +
+    '<path d="M4.6 10.4h14.8"/>' +
+    '<path d="M6.6 8.4 9.4 2.8l10 2.2-1.6 3.4"/>',
 } as const

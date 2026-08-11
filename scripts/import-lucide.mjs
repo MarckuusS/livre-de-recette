@@ -26,9 +26,24 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const CHECK_ONLY = process.argv.includes('--check')
 
-/** Version FIGEE. « latest » rendrait ce script non reproductible d'un mois sur l'autre. */
+/**
+ * Versions FIGEES. « latest » rendrait ce script non reproductible d'un mois
+ * sur l'autre.
+ *
+ * DEUX SOURCES, et non une. Lucide couvre l'interface et la plupart des rayons,
+ * mais n'a ni brique de lait ni fromage : son `milk` est une bouteille. Tabler,
+ * meme grille 24 et meme trait, en a. Un nom prefixe `tabler:` va la chercher.
+ *
+ * Les deux licences sont permissives et exigent la meme chose : conserver leur
+ * texte. Voir LICENSE-lucide.txt et LICENSE-tabler.txt.
+ */
 const LUCIDE_VERSION = '0.469.0'
-const CDN = (name) => `https://unpkg.com/lucide-static@${LUCIDE_VERSION}/icons/${name}.svg`
+const TABLER_VERSION = '3.31.0'
+
+const CDN = (name) =>
+  name.startsWith('tabler:')
+    ? `https://unpkg.com/@tabler/icons@${TABLER_VERSION}/icons/outline/${name.slice(7)}.svg`
+    : `https://unpkg.com/lucide-static@${LUCIDE_VERSION}/icons/${name}.svg`
 
 /**
  * Notre nom -> nom Lucide.
@@ -122,10 +137,12 @@ const MAP = {
   'rayon-boulangerie': 'croissant',
   'rayon-boucherie': 'beef',
   'rayon-poissonnerie': 'fish',
-  'rayon-produits-laitiers': 'milk',
-  // Lucide n'a pas de pot de yaourt : `milk` n'est ici qu'un repli, le dessin
-  // reel vit dans paths/overrides.ts.
-  'rayon-frais': 'milk',
+  // Tabler et non Lucide : le `milk` de Lucide est une BOUTEILLE, celui de
+  // Tabler une brique. C'est une brique qu'on achete.
+  'rayon-produits-laitiers': 'tabler:milk',
+  // Aucun des deux jeux n'a de pot de yaourt a opercule : `tabler:milk` n'est
+  // ici qu'un repli, le dessin reel vit dans paths/overrides.ts.
+  'rayon-frais': 'tabler:milk',
   'rayon-boissons': 'cup-soda',
   'rayon-surgeles': 'snowflake',
   'rayon-epicerie': 'shopping-bag',
@@ -199,9 +216,14 @@ for (const [ours, theirs] of Object.entries(MAP)) {
     continue
   }
 
+  // Tabler ouvre chaque icone par un rectangle transparent de 24 x 24, qui ne
+  // dessine rien mais fausserait toute mesure de boite englobante — et
+  // alourdit le bundle de soixante octets par icone.
+  const cleaned = markup.replace(/<path[^>]*d="M0 0h24v24H0z"[^>]*\/>/g, '')
+
   const final = FILLED.has(ours)
-    ? markup.replace(/<path /g, '<path fill="currentColor" ')
-    : markup
+    ? cleaned.replace(/<path /g, '<path fill="currentColor" ')
+    : cleaned
 
   results.push({ ours, theirs: fetched.name, markup: final, renamed: fetched.name !== theirs, removed })
   process.stdout.write('.')
@@ -235,9 +257,10 @@ if (CHECK_ONLY || failures.length > 0) {
 const header = (title, note) => `/**
  * ${title}
  *
- * DESSINS REPRIS DE LUCIDE (https://lucide.dev), version ${LUCIDE_VERSION}.
- * Licence ISC, et MIT pour ce qui derive de Feather : voir LICENSE-lucide.txt
- * dans ce dossier. Ne pas retoucher a la main — regenerer avec
+ * DESSINS REPRIS DE LUCIDE (https://lucide.dev, ISC) et de TABLER
+ * (https://tabler.io/icons, MIT). Le commentaire au-dessus de chaque icone dit
+ * laquelle des deux sources l'a fournie. Voir LICENSE-lucide.txt et
+ * LICENSE-tabler.txt dans ce dossier. Ne pas retoucher a la main — regenerer avec
  * \`node scripts/import-lucide.mjs\`, qui part de la table de correspondance.
  *
  * Seul le CONTENU du \`<svg>\` est conserve. Les attributs communs (trait,
@@ -255,7 +278,14 @@ const body = (constName, entries) =>
   entries
     .map((r) => {
       const key = /^[a-z][a-z0-9]*$/.test(r.ours) ? r.ours : `'${r.ours}'`
-      return `  // lucide: ${r.theirs}\n  ${key}:\n    '${r.markup.replace(/'/g, "\\'")}',`
+      // L'etiquette dit QUELLE source a fourni le dessin : les deux ne portent
+      // pas la meme licence, et l'information doit rester lisible dans le fichier.
+      const source = r.theirs.startsWith('tabler:')
+        ? `tabler: ${r.theirs.slice(7)}`
+        : `lucide: ${r.theirs}`
+      return `  // ${source}
+  ${key}:
+    '${r.markup.replace(/'/g, "\'")}',`
     })
     .join('\n') +
   '\n} as const\n'

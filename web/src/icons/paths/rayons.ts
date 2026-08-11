@@ -1,9 +1,10 @@
 /**
  * Icones de rayon — une par en-tete de section.
  *
- * DESSINS REPRIS DE LUCIDE (https://lucide.dev), version 0.469.0.
- * Licence ISC, et MIT pour ce qui derive de Feather : voir LICENSE-lucide.txt
- * dans ce dossier. Ne pas retoucher a la main — regenerer avec
+ * DESSINS REPRIS DE LUCIDE (https://lucide.dev, ISC) et de TABLER
+ * (https://tabler.io/icons, MIT). Le commentaire au-dessus de chaque icone dit
+ * laquelle des deux sources l'a fournie. Voir LICENSE-lucide.txt et
+ * LICENSE-tabler.txt dans ce dossier. Ne pas retoucher a la main — regenerer avec
  * `node scripts/import-lucide.mjs`, qui part de la table de correspondance.
  *
  * Seul le CONTENU du `<svg>` est conserve. Les attributs communs (trait,
@@ -30,12 +31,12 @@ export const RAYON_PATHS = {
   // lucide: fish
   'rayon-poissonnerie':
     '<path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z"/><path d="M18 12v.5"/><path d="M16 17.93a9.77 9.77 0 0 1 0-11.86"/><path d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33"/><path d="M10.46 7.26C10.2 5.88 9.17 4.24 8 3h5.8a2 2 0 0 1 1.98 1.67l.23 1.4"/><path d="m16.01 17.93-.23 1.4A2 2 0 0 1 13.8 21H9.5a5.96 5.96 0 0 0 1.49-3.98"/>',
-  // lucide: milk
+  // tabler: milk
   'rayon-produits-laitiers':
-    '<path d="M8 2h8"/><path d="M9 2v2.789a4 4 0 0 1-.672 2.219l-.656.984A4 4 0 0 0 7 10.212V20a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9.789a4 4 0 0 0-.672-2.219l-.656-.984A4 4 0 0 1 15 4.788V2"/><path d="M7 15a6.472 6.472 0 0 1 5 0 6.47 6.47 0 0 0 5 0"/>',
-  // lucide: milk
+    '<path d="M8 6h8v-2a1 1 0 0 0 -1 -1h-6a1 1 0 0 0 -1 1v2z"/><path d="M16 6l1.094 1.759a6 6 0 0 1 .906 3.17v8.071a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8.071a6 6 0 0 1 .906 -3.17l1.094 -1.759"/><path d="M12 16m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M10 10h4"/>',
+  // tabler: milk
   'rayon-frais':
-    '<path d="M8 2h8"/><path d="M9 2v2.789a4 4 0 0 1-.672 2.219l-.656.984A4 4 0 0 0 7 10.212V20a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9.789a4 4 0 0 0-.672-2.219l-.656-.984A4 4 0 0 1 15 4.788V2"/><path d="M7 15a6.472 6.472 0 0 1 5 0 6.47 6.47 0 0 0 5 0"/>',
+    '<path d="M8 6h8v-2a1 1 0 0 0 -1 -1h-6a1 1 0 0 0 -1 1v2z"/><path d="M16 6l1.094 1.759a6 6 0 0 1 .906 3.17v8.071a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8.071a6 6 0 0 1 .906 -3.17l1.094 -1.759"/><path d="M12 16m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M10 10h4"/>',
   // lucide: cup-soda
   'rayon-boissons':
     '<path d="m6 8 1.75 12.28a2 2 0 0 0 2 1.72h4.54a2 2 0 0 0 2-1.72L18 8"/><path d="M5 8h14"/><path d="M7 15a6.47 6.47 0 0 1 5 0 6.47 6.47 0 0 0 5 0"/><path d="m12 8 1-6h2"/>',

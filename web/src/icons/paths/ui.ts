@@ -1,9 +1,10 @@
 /**
  * Icones d’interface.
  *
- * DESSINS REPRIS DE LUCIDE (https://lucide.dev), version 0.469.0.
- * Licence ISC, et MIT pour ce qui derive de Feather : voir LICENSE-lucide.txt
- * dans ce dossier. Ne pas retoucher a la main — regenerer avec
+ * DESSINS REPRIS DE LUCIDE (https://lucide.dev, ISC) et de TABLER
+ * (https://tabler.io/icons, MIT). Le commentaire au-dessus de chaque icone dit
+ * laquelle des deux sources l'a fournie. Voir LICENSE-lucide.txt et
+ * LICENSE-tabler.txt dans ce dossier. Ne pas retoucher a la main — regenerer avec
  * `node scripts/import-lucide.mjs`, qui part de la table de correspondance.
  *
  * Seul le CONTENU du `<svg>` est conserve. Les attributs communs (trait,

@@ -40,13 +40,18 @@ Consequences:
 L'application web n'utilise **plus d'émoji**. 67 icônes les remplacent : **10 rayons** et
 57 d'interface. Règles complètes : `web/src/icons/README.md`. Les points qui ne se devinent pas :
 
-- **Les dessins viennent de [Lucide](https://lucide.dev)** (version figée 0.469.0, ISC + MIT pour
-  ce qui dérive de Feather). `LICENSE-lucide.txt` est à conserver — le dépôt est public.
+- **Les dessins viennent de [Lucide](https://lucide.dev)** (0.469.0, ISC + MIT) **et de
+  [Tabler](https://tabler.io/icons)** (3.31.0, MIT), versions figées. Les deux fichiers
+  `LICENSE-*.txt` sont à conserver — le dépôt est public. Dans `MAP`, un nom préfixé `tabler:`
+  va chercher chez Tabler : Lucide n'a pas tout, son `milk` est une bouteille quand le lait
+  s'achète en brique.
 - **`paths/ui.ts` et `paths/rayons.ts` sont GÉNÉRÉS.** Ne pas éditer à la main : ajouter la ligne
   dans `MAP` (`scripts/import-lucide.mjs`) puis relancer le script, qui récupère, filtre et réécrit.
 - **`paths/overrides.ts` ne l'est pas** : c'est là que vivent les dessins maison, fusionnés **en
-  dernier** dans `registry.ts` donc prioritaires. Deux tests protègent le mécanisme. Une seule
-  entrée aujourd'hui (brique de lait, Lucide ne proposant qu'une bouteille).
+  dernier** dans `registry.ts` donc prioritaires. Deux tests protègent le mécanisme. **Une seule
+  entrée**, le pot de yaourt à opercule, qu'aucun des deux jeux n'a. Avant d'en ajouter une
+  autre, chercher chez Tabler : un dessin qu'on n'a pas à maintenir vaut mieux qu'un dessin
+  qu'on maintient mal.
 - Pas de dépendance `lucide-react` : le paquet laisse chaque icône poser ses propres attributs, ce
   que `Icon.tsx` interdit. On prend les chemins, on garde le cadre — c'est ce qui permet de rendre
   à 1,6 d'épaisseur ce que Lucide publie à 2.

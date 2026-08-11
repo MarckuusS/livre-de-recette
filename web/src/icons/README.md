@@ -4,12 +4,23 @@
 changeaient de dessin d'un appareil à l'autre, ne suivaient pas le thème sombre
 et ne pouvaient pas illustrer un rayon.
 
-## Les dessins viennent de Lucide
+## Les dessins viennent de Lucide et de Tabler
 
-[lucide.dev](https://lucide.dev), version **0.469.0**, licence **ISC** — et
-**MIT** pour ce qui dérive de Feather. Le texte complet est dans
-[LICENSE-lucide.txt](LICENSE-lucide.txt), à conserver : c'est la condition de
-redistribution, et ce dépôt est public.
+| Source | Version | Licence | Texte à conserver |
+|---|---|---|---|
+| [lucide.dev](https://lucide.dev) | 0.469.0 | ISC, MIT pour ce qui dérive de Feather | [LICENSE-lucide.txt](LICENSE-lucide.txt) |
+| [tabler.io/icons](https://tabler.io/icons) | 3.31.0 | MIT | [LICENSE-tabler.txt](LICENSE-tabler.txt) |
+
+Les deux textes sont **à conserver** : c'est la condition de redistribution, et
+ce dépôt est public. Le commentaire au-dessus de chaque icône dit laquelle des
+deux sources l'a fournie.
+
+Deux sources et non une, parce que Lucide n'a pas tout : son `milk` est une
+**bouteille**, quand le lait s'achète en brique. Tabler en a une, sur la même
+grille 24 et le même trait. Dans `MAP`, un nom préfixé `tabler:` va la chercher
+là-bas. Tabler ouvre chaque icône par un rectangle transparent de 24 × 24 que
+l'import supprime : il ne dessine rien, mais fausserait toute mesure de boîte
+englobante.
 
 Ils ont remplacé un jeu dessiné à la main. Ce n'était pas une question de goût :
 un jeu maison demande d'être maintenu à chaque icône manquante, et il vieillit
