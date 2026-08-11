@@ -1,0 +1,44 @@
+/* ===========================================================================
+   Paramètres.
+
+   L'ecran ne definit presque rien : ses lignes sont celles du reste de
+   l'application (`row-list`, `row__link`, `icon-chip`). Ne vivent ici que les
+   deux teintes qui lui sont propres.
+   =========================================================================== */
+
+/* Pastille d'une destination de reglage.
+   `--rayon-color` est la variable que lit `.icon-chip` : la poser suffit a
+   teinter le dessin ET son fond, sans dupliquer la regle de melange. */
+.icon-chip--accent {
+  --rayon-color: var(--color-primary-text);
+}
+
+/* La pastille de la personne connectee : son initiale, pas un dessin.
+ *
+ * Elle garde le fond teinte des autres pastilles au lieu d'un aplat de couleur.
+ * L'aplat avait ete essaye : blanc sur le bleu du theme sombre, il tombait a
+ * 3,7:1 — sous le seuil, pour une lettre de cette taille. La teinte laisse la
+ * lettre sur le fond de la carte, ou le contraste est celui, deja verifie, du
+ * bleu accessible.
+ *
+ * `--rayon-color` est la variable que lit `.icon-chip` : la poser suffit, et
+ * evite d'ecrire une regle qui perdrait la cascade contre `.icon-chip`, a
+ * specificite egale et chargee plus tard.
+ */
+.settings-avatar {
+  --rayon-color: var(--color-primary-text);
+
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+/* Un titre de groupe suit toujours quelque chose : sans cette marge il colle a
+   la liste precedente et les deux groupes n'en font plus qu'un. */
+.settings-group {
+  margin-top: var(--space-sm);
+}
+
+.settings-group:first-child {
+  margin-top: 0;
+}

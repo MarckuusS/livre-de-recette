@@ -3,20 +3,65 @@ import { Link } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useCurrentUser } from '../AuthGate.js'
+import { Icon, type IconName } from '../icons/index.js'
 import { ApiError, apiFetch, logout, type HealthResponse } from '../lib/api.js'
 import { currentZoomScale } from '../lib/gestures.js'
 import { THEME_CHOICES, useTheme } from '../lib/theme.js'
+import '../styles/settings.css'
 
 /**
- * Parametres : qui est connecte, ce que repond le serveur, et ce que
- * l'appareil declare de son propre affichage.
+ * Parametres : ou l'on va depuis ici, qui est connecte, ce que repond le
+ * serveur, et ce que l'appareil declare de son propre affichage.
  *
- * Remplace le « dossier de logs » du desktop, qui ouvrait l'explorateur de
- * fichiers — sans equivalent dans un navigateur. C'est le premier ecran a
- * consulter quand quelque chose ne repond pas depuis le telephone, et le seul
- * moyen de diagnostiquer a distance : une capture de cet ecran contient tout
- * ce qu'il faut.
+ * L'ecran est d'abord un DEPART. Cinq espaces n'ont pas d'autre porte d'entree
+ * generale que celle-ci ; ils y ont longtemps ete des liens en plein texte, au
+ * milieu de paragraphes explicatifs. Ils sont maintenant des lignes de liste,
+ * les memes que partout ailleurs, et ils passent avant le diagnostic.
+ *
+ * Le diagnostic, lui, remplace le « dossier de logs » du desktop, qui ouvrait
+ * l'explorateur de fichiers — sans equivalent dans un navigateur. C'est le
+ * premier ecran a consulter quand quelque chose ne repond pas depuis le
+ * telephone, et le seul moyen de diagnostiquer a distance : une capture de cet
+ * ecran contient tout ce qu'il faut.
  */
+
+/**
+ * Une destination des parametres, dessinee comme une ligne de liste.
+ *
+ * Volontairement construite sur le vocabulaire commun — `row-list`, `row__link`,
+ * `icon-chip`, `row__chevron` — celui des ingredients, des recettes et des
+ * rayons. Un ecran de reglages qui invente ses propres lignes obligerait a
+ * reapprendre a lire une liste, et les corrections faites a l'une ne
+ * profiteraient pas a l'autre.
+ */
+function SettingsRow({
+  to,
+  icon,
+  title,
+  hint,
+}: {
+  readonly to: string
+  readonly icon: IconName
+  readonly title: string
+  readonly hint: string
+}) {
+  return (
+    <li className="row">
+      <Link to={to} className="row__link">
+        <span className="icon-chip icon-chip--accent" aria-hidden="true">
+          <Icon name={icon} size={20} />
+        </span>
+        <span className="row__body">
+          <span className="row__title">{title}</span>
+          <span className="row__meta">{hint}</span>
+        </span>
+        <span className="row__chevron">
+          <Icon name="ui-chevron-right" size={18} />
+        </span>
+      </Link>
+    </li>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Mesures de l'affichage
@@ -150,22 +195,62 @@ export function SettingsScreen() {
 
   return (
     <section className="screen">
-      <div className="card">
-        <h2 className="card__title">Compte</h2>
-        <dl className="kv">
-          <dt>Connecté</dt>
-          <dd>{me.displayName}</dd>
-          <dt>Identifiant</dt>
-          <dd>{me.username}</dd>
-        </dl>
-        <p className="card__lead">
-          <Link to="/parametres/profil">Mon profil</Link> — taille, poids, activité et objectif
-          journalier. Visible de toi seul.
-        </p>
-        <p className="card__lead">
-          <Link to="/activite">Journal d’activité</Link> — qui a ajouté, modifié ou supprimé quoi.
-        </p>
-      </div>
+      {/* Les destinations D'ABORD, et sous la forme qu'elles ont partout
+          ailleurs dans l'application : une ligne, une pastille, un chevron.
+          Elles etaient des liens en plein texte au milieu de paragraphes — donc
+          invisibles a qui parcourt l'ecran sans le lire, et minuscules a viser
+          au pouce. Les cartes de diagnostic sont passees dessous : on vient ici
+          pour aller quelque part bien plus souvent que pour relever un chiffre. */}
+      <h2 className="section-header settings-group">Mon espace</h2>
+      <ul className="row-list">
+        <li className="row">
+          <Link to="/parametres/profil" className="row__link">
+            {/* L'initiale plutot qu'un dessin : c'est la seule pastille de
+                l'ecran qui designe quelqu'un, et la ligne du dessous porte
+                deja une icone d'utilisateur si on en mettait une. */}
+            <span className="icon-chip settings-avatar" aria-hidden="true">
+              {me.displayName.slice(0, 1).toUpperCase()}
+            </span>
+            <span className="row__body">
+              <span className="row__title">Mon profil</span>
+              <span className="row__meta">
+                {me.displayName} · taille, poids, activité et objectif journalier
+              </span>
+            </span>
+            <span className="row__chevron">
+              <Icon name="ui-chevron-right" size={18} />
+            </span>
+          </Link>
+        </li>
+        <SettingsRow
+          to="/activite"
+          icon="ui-history"
+          title="Journal d’activité"
+          hint="Qui a ajouté, modifié ou supprimé quoi."
+        />
+      </ul>
+
+      <h2 className="section-header settings-group">Personnalisation</h2>
+      <ul className="row-list">
+        <SettingsRow
+          to="/parametres/rayons"
+          icon="ui-tag"
+          title="Rayons"
+          hint="Créer, renommer, colorer, supprimer les rayons."
+        />
+        <SettingsRow
+          to="/parametres/mes-icones"
+          icon="ui-palette"
+          title="Mes icônes"
+          hint="Coller un SVG pour l’ajouter aux icônes proposées."
+        />
+        <SettingsRow
+          to="/parametres/icones"
+          icon="ui-shapes"
+          title="Jeu d’icônes"
+          hint="Tous les dessins de l’application, et ce qu’ils couvrent."
+        />
+      </ul>
 
       <div className="card">
         <h2 className="card__title">Serveur</h2>
@@ -232,18 +317,6 @@ export function SettingsScreen() {
           <dt>Connexion</dt>
           <dd>{navigator.onLine ? 'en ligne' : 'hors ligne'}</dd>
         </dl>
-        <p className="card__lead">
-          <Link to="/parametres/mes-icones">Mes icônes</Link> — coller un SVG pour l’ajouter aux
-          icônes proposées.
-        </p>
-        <p className="card__lead">
-          <Link to="/parametres/rayons">Rayons</Link> — créer, renommer, colorer, supprimer les
-          rayons qui rangent la liste de courses.
-        </p>
-        <p className="card__lead">
-          <Link to="/parametres/icones">Jeu d’icônes</Link> — les dessins des rayons et des
-          ingrédients, et ce qu’ils couvrent de la bibliothèque.
-        </p>
       </div>
 
       <div className="card">

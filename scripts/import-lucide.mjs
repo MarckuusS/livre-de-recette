@@ -103,6 +103,12 @@ const MAP = {
   'ui-moon': 'moon',
   'ui-settings': 'settings',
   'ui-screen-awake': 'vibrate',
+  // Les trois destinations de l'ecran Parametres. Un rang de navigation sans
+  // dessin se lit comme un paragraphe : c'est l'icone qui le rend reperable
+  // avant d'etre lu.
+  'ui-palette': 'palette',
+  'ui-shapes': 'shapes',
+  'ui-history': 'history',
 
   // ---------- Etats et signaux ----------
   'ui-alert': 'triangle-alert',
