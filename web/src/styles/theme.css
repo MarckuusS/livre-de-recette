@@ -26,6 +26,19 @@
   --color-primary-disabled: #cbd5e1;
   --color-on-primary: #ffffff;
 
+  /* ---------- Bleu QUAND IL SERT DE TEXTE ----------
+   *
+   * `--color-primary` est calibre pour porter du blanc, pas pour etre lu sur
+   * un fond. En sombre il tombe a 4,0:1 sur la surface, sous le seuil AA de
+   * 4,5 pour du texte normal — d'ou l'impression de bleu qui « ne ressort
+   * pas ». Ces deux jetons portent la variante lisible, et ne sont JAMAIS
+   * utilises comme fond.
+   *
+   * Mesures sur `--color-surface` : clair 5,2:1, sombre 5,8:1.
+   */
+  --color-primary-text: #2563eb;
+  --color-link: #2563eb;
+
   --color-secondary: #7c3aed;
   --color-secondary-hover: #6d28d9;
   --color-secondary-pressed: #5b21b6;
@@ -186,6 +199,8 @@
     --color-primary-hover: #60a5fa;
     --color-primary-pressed: #2563eb;
     --color-primary-disabled: #475569;
+    --color-primary-text: #60a5fa;
+    --color-link: #60a5fa;
 
     --color-secondary: #a78bfa;
     --color-secondary-hover: #c4b5fd;
@@ -224,6 +239,8 @@
   --color-primary-hover: #60a5fa;
   --color-primary-pressed: #2563eb;
   --color-primary-disabled: #475569;
+  --color-primary-text: #60a5fa;
+  --color-link: #60a5fa;
 
   --color-secondary: #a78bfa;
   --color-secondary-hover: #c4b5fd;
@@ -309,6 +326,17 @@ body {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Les liens n'avaient AUCUNE regle de couleur : ils tombaient sur le `#0000EE`
+   par defaut du navigateur, soit 1,6:1 sur la surface sombre — pratiquement
+   illisible. Le jeton, lui, est mesure dans les deux themes. */
+a {
+  color: var(--color-link);
+}
+
+a:active {
+  opacity: 0.7;
 }
 
 button {

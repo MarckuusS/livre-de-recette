@@ -42,7 +42,7 @@
   min-height: var(--control-height-lg);
   padding: 0 var(--space-md);
   font-size: var(--font-size-md);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   background: transparent;
   border: 0;
   border-radius: var(--radius-md);
@@ -372,7 +372,7 @@
 }
 
 .line-detail__link {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .line-detail__empty {

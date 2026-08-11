@@ -382,7 +382,7 @@
 }
 
 .ing-readonly__link {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 /* ---------- Prix de reference ---------- */
@@ -416,7 +416,7 @@
 
 .ing-price__cta {
   margin-left: auto;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   white-space: nowrap;
 }
 
@@ -669,7 +669,7 @@
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .ing-observation__meta {

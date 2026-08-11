@@ -62,7 +62,7 @@
 }
 
 .rayon-icons__cell--on {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   border-color: var(--color-primary);
   /* Deux marques et pas une : la couleur seule ne se voit pas sous un doigt,
      et ne se voit pas du tout en vision monochrome. */

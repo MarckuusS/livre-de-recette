@@ -516,7 +516,7 @@
 }
 
 .button--ghost {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   background: transparent;
   border-color: transparent;
 }

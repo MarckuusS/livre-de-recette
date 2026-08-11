@@ -131,7 +131,7 @@
 
 .recipe-chip--add {
   border-style: dashed;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   border-color: var(--color-primary);
 }
 
@@ -229,7 +229,7 @@
   min-width: 0;
   overflow: hidden;
   font-weight: var(--font-weight-medium);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;

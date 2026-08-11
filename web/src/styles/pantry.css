@@ -32,7 +32,7 @@
 }
 
 .pantry-note a {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   white-space: nowrap;
 }
 
@@ -337,7 +337,7 @@
   justify-content: center;
   min-height: 56px;
   padding: var(--space-sm);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -451,5 +451,5 @@
 }
 
 .price-paid__link {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }

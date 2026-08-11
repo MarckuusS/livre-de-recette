@@ -49,6 +49,11 @@
   width: var(--control-height-lg);
   height: var(--control-height-lg);
   font-size: var(--font-size-lg);
+  /* Explicite, parce que deux de ces boutons sont des `<a>` (Paramètres) et
+     deux des `<button>` (thème, retour). Sans cette ligne, les premiers
+     prenaient la couleur de lien et l'engrenage s'affichait en bleu a cote
+     d'un soleil blanc, pour la seule raison qu'ils n'ont pas la meme balise. */
+  color: var(--color-text);
   text-decoration: none;
   background: transparent;
   border: 0;
@@ -187,7 +192,7 @@
 }
 
 .tabbar__item--active {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .tabbar__icon {
@@ -249,7 +254,7 @@
  * bas, sur `.card`.
  */
 .button--secondary {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   background: transparent;
   border-color: var(--color-border);
 }
