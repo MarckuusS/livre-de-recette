@@ -793,7 +793,10 @@
   align-items: center;
   gap: var(--space-sm);
   width: 100%;
-  min-height: var(--control-height-lg);
+  /* Plus haute que la cible tactile minimale : l'en-tete porte maintenant
+     l'icone du rayon, et c'est le repere principal quand on parcourt une
+     bibliotheque de plusieurs dizaines de lignes. */
+  min-height: 60px;
   text-align: left;
   border: 0;
   border-bottom: 1px solid var(--color-border);
@@ -804,13 +807,63 @@
   z-index: 1;
 }
 
+/* ---------- Teinte de rayon ----------
+ *
+ * Elle n'apparait QUE pour le groupement par rayon : `data-rayon` n'est pose
+ * que dans ce mode (voir IngredientsScreen), les autres groupent par source,
+ * saison ou tranche de calories, ou une couleur de rayon ne voudrait rien dire.
+ *
+ * Le fond melange la teinte a `--color-surface` et NON a `transparent` : cet
+ * en-tete est collant, et un fond partiellement transparent laisserait defiler
+ * les lignes en dessous au travers.
+ *
+ * Le libelle, lui, garde la couleur de texte pleine. Ecrit dans la teinte du
+ * rayon sur son propre fond teinte, il tombait a 2,8:1 de contraste — sous le
+ * seuil AA pour du texte de 13 px. Ce sont le liseré, l'icone et la pastille
+ * qui portent la couleur ; le mot reste lisible.
+ */
+
+.ing-section__header[data-rayon] {
+  color: var(--color-text);
+  /* 10 % et pas davantage : au-dela, l'icone tracee dans la meme teinte passe
+     sous 3:1 de contraste avec son propre fond. Le liseré, lui, est a pleine
+     saturation et porte la couleur sans rien compromettre. */
+  background: color-mix(in srgb, var(--rayon-color) 10%, var(--color-surface));
+  border-left: 3px solid var(--rayon-color);
+}
+
+.ing-section__header[data-rayon]:active {
+  background: color-mix(in srgb, var(--rayon-color) 20%, var(--color-surface));
+}
+
+/* Pastille teintee, mais texte a pleine couleur.
+ *
+ * Un aplat de rayon avec du blanc dessus etait la premiere idee, et elle est
+ * fausse : en theme sombre les teintes sont CLAIRES (vert 400, cyan 400), et du
+ * blanc dessus tombe a 1,7:1. Le melange a 25 % marche dans les deux themes
+ * parce qu'il se fond vers la surface locale, claire ou sombre. */
+.ing-section__header[data-rayon] .ing-section__count {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--rayon-color) 25%, var(--color-surface));
+}
+
+/* La pastille d'en-tete est plus grande que celle des lignes et sans fond
+   propre : le fond teinte de l'en-tete joue deja ce role, et deux aplats
+   superposes de la meme teinte font une tache. */
+.ing-section__icon {
+  width: 26px;
+  height: 26px;
+  background: transparent;
+}
+
 .ing-section__header:active {
   background: var(--color-surface-pressed);
 }
 
 .ing-section__chevron {
+  display: grid;
+  place-items: center;
   flex: none;
-  width: 1em;
   color: var(--color-text-secondary);
 }
 

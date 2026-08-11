@@ -44,6 +44,14 @@ describe('iconForRayon', () => {
     expect(iconForRayon('Crèmerie')).toBe('rayon-produits-laitiers')
     expect(iconForRayon('Charcuterie')).toBe('rayon-boucherie')
     expect(iconForRayon('Produits congelés')).toBe('rayon-surgeles')
+    // « Frais » tout court, tel qu'il existe dans la bibliotheque.
+    expect(iconForRayon('Frais')).toBe('rayon-produits-laitiers')
+  })
+
+  it('laisse la cagette aux rayons qu’aucun dessin ne couvre', () => {
+    // « Sport nutrition » n'a pas d'equivalent en rayon de supermarche, et
+    // aucune des dix icones ne le decrirait sans mentir.
+    expect(iconForRayon('Sport nutrition')).toBe('rayon-autre')
   })
 
   it('respecte l’ordre des regles la ou il est signifiant', () => {

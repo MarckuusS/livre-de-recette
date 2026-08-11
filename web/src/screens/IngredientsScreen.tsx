@@ -59,7 +59,7 @@ import {
   type SortField,
   type ViewOptions,
 } from './ingredients/model.js'
-import { Icon, iconForRayon, rayonSlug } from '../icons/index.js'
+import { Icon, iconForRayon, rayonSlug, type IconName } from '../icons/index.js'
 import '../styles/ingredients.css'
 
 const SOURCE_CHOICES = [
@@ -263,10 +263,17 @@ export function IngredientsScreen() {
                     type="button"
                     className="section-header ing-section__header"
                     aria-expanded={open}
+                    // Ne teinte QUE le groupement par rayon : les autres modes
+                    // groupent par source, saison ou tranche de calories, ou
+                    // une couleur de rayon ne voudrait rien dire.
+                    data-rayon={view.group === 'rayon' ? rayonSlug(section.key) : undefined}
                     onClick={() => setView({ open: toggleSection(view.open, section.key) })}
                   >
-                    <span className="ing-section__chevron" aria-hidden="true">
-                      {open ? '▾' : '▸'}
+                    <span className="ing-section__chevron">
+                      <Icon name={open ? 'ui-chevron-down' : 'ui-chevron-right'} size={16} />
+                    </span>
+                    <span className="icon-chip ing-section__icon">
+                      <Icon name={groupIcon(view.group, section.key)} size={22} strokeWidth={1.7} />
                     </span>
                     <span className="ing-section__name">{section.key}</span>
                     {/* Le compte reste visible repliee : sinon une section
@@ -319,6 +326,30 @@ function useRayonChoices(items: readonly Ingredient[] | undefined): string[] {
     for (const item of items ?? []) if (item.categoryL1) names.add(item.categoryL1)
     return [...names].sort((a, b) => a.localeCompare(b, 'fr'))
   }, [items])
+}
+
+/**
+ * Icone de l'en-tete de groupe.
+ *
+ * Elle depend du MODE et pas seulement de la cle : « Boissons » designe un
+ * rayon en mode rayon, et rien du tout en mode saisonnalite. Les trois autres
+ * modes prennent donc un symbole de leur critere, jamais un dessin de rayon
+ * qui serait faux.
+ */
+function groupIcon(mode: GroupMode, key: string): IconName {
+  switch (mode) {
+    case 'rayon':
+      // « Sans rayon » ne correspond a aucune regle : la cagette tombe d'elle-meme.
+      return iconForRayon(key)
+    case 'source':
+      return 'ui-tag'
+    case 'season':
+      return 'ui-leaf'
+    case 'kcal':
+      return 'ui-flame'
+    default:
+      return 'rayon-autre'
+  }
 }
 
 function IngredientRow({ ingredient }: { ingredient: Ingredient }) {
