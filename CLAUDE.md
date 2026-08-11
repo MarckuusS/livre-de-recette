@@ -42,8 +42,11 @@ L'application web n'utilise **plus d'émoji**. 67 icônes les remplacent : **10 
 
 - **Les dessins viennent de [Lucide](https://lucide.dev)** (version figée 0.469.0, ISC + MIT pour
   ce qui dérive de Feather). `LICENSE-lucide.txt` est à conserver — le dépôt est public.
-- **`paths/*.ts` est GÉNÉRÉ.** Ne pas éditer à la main : ajouter la ligne dans `MAP`
-  (`scripts/import-lucide.mjs`) puis relancer le script, qui récupère, filtre et réécrit.
+- **`paths/ui.ts` et `paths/rayons.ts` sont GÉNÉRÉS.** Ne pas éditer à la main : ajouter la ligne
+  dans `MAP` (`scripts/import-lucide.mjs`) puis relancer le script, qui récupère, filtre et réécrit.
+- **`paths/overrides.ts` ne l'est pas** : c'est là que vivent les dessins maison, fusionnés **en
+  dernier** dans `registry.ts` donc prioritaires. Deux tests protègent le mécanisme. Une seule
+  entrée aujourd'hui (brique de lait, Lucide ne proposant qu'une bouteille).
 - Pas de dépendance `lucide-react` : le paquet laisse chaque icône poser ses propres attributs, ce
   que `Icon.tsx` interdit. On prend les chemins, on garde le cadre — c'est ce qui permet de rendre
   à 1,6 d'épaisseur ce que Lucide publie à 2.

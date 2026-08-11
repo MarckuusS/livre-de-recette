@@ -11,6 +11,8 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
+import { OVERRIDE_PATHS } from './paths/overrides.js'
+import { RAYON_PATHS } from './paths/rayons.js'
 import { ICON_PATHS } from './registry.js'
 import { iconForRayon, normalizeLabel, rayonSlug } from './resolve.js'
 
@@ -105,6 +107,25 @@ describe('registre', () => {
     for (const [name, markup] of Object.entries(ICON_PATHS)) {
       expect(markup, name).toMatch(/^<(path|circle|ellipse|rect|line|polyline|polygon|g)[\s/>]/)
       expect(markup, name).not.toContain('<svg')
+    }
+  })
+
+  it('laisse le dessin maison l’emporter sur celui de Lucide', () => {
+    // Le mecanisme tient a UN detail : l'ordre des spreads dans registry.ts.
+    // L'inverser rendrait les overrides silencieusement inoperants — le fichier
+    // existerait, serait importe, et ne servirait a rien. Ce test est la seule
+    // chose qui distingue les deux situations.
+    for (const [name, markup] of Object.entries(OVERRIDE_PATHS)) {
+      expect(ICON_PATHS[name as keyof typeof ICON_PATHS], name).toBe(markup)
+    }
+  })
+
+  it('garde l’entree Lucide correspondante comme repli', () => {
+    // Retirer une ligne d'overrides.ts doit rendre l'icone Lucide, pas faire
+    // disparaitre l'icone. Cela suppose que `MAP` conserve l'entree.
+    for (const name of Object.keys(OVERRIDE_PATHS)) {
+      if (!name.startsWith('rayon-')) continue
+      expect(RAYON_PATHS, name).toHaveProperty(name)
     }
   })
 

@@ -13,12 +13,20 @@
  * deriver du systeme en redefinissant les siens.
  */
 
+import { OVERRIDE_PATHS } from './paths/overrides.js'
 import { RAYON_PATHS } from './paths/rayons.js'
 import { UI_PATHS } from './paths/ui.js'
 
+/*
+ * `OVERRIDE_PATHS` vient EN DERNIER, et c'est ce qui lui donne son pouvoir : la
+ * cle presente des deux cotes prend la version maison. `paths/ui.ts` et
+ * `paths/rayons.ts` sont generes par scripts/import-lucide.mjs et reecrits a
+ * chaque import ; `paths/overrides.ts` ne l'est pas.
+ */
 export const ICON_PATHS = {
   ...UI_PATHS,
   ...RAYON_PATHS,
+  ...OVERRIDE_PATHS,
 } as const
 
 export type IconName = keyof typeof ICON_PATHS

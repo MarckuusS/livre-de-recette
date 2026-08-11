@@ -49,10 +49,22 @@ icons/
 ├── resolve.ts          libellé de rayon -> icône déduite
 ├── rayonStyle.ts       réglages de l'utilisateur -> glyphe + teinte
 ├── LICENSE-lucide.txt  à conserver
-└── paths/              les dessins — GÉNÉRÉS, ne pas éditer à la main
-    ├── rayons.ts
-    └── ui.ts
+└── paths/
+    ├── rayons.ts       GÉNÉRÉ — ne pas éditer
+    ├── ui.ts           GÉNÉRÉ — ne pas éditer
+    └── overrides.ts    dessins maison, à la main
 ```
+
+`overrides.ts` est fusionné **en dernier** dans `registry.ts` : une clé présente
+des deux côtés prend la version maison. C'est le seul endroit où dessiner soi-
+même sans se faire écraser au prochain import. L'entrée Lucide correspondante
+reste dans `MAP` : retirer une ligne d'`overrides.ts` rend alors l'icône Lucide,
+plutôt que de faire disparaître l'icône.
+
+À n'utiliser que lorsque Lucide ne dit pas la bonne chose — chaque dessin ajouté
+là est un dessin à maintenir seul, ce qui est exactement la raison pour laquelle
+le jeu maison a été abandonné. Aujourd'hui : **une seule entrée**, la brique de
+lait, Lucide ne proposant qu'une bouteille.
 
 ## Ajouter ou changer une icône
 
