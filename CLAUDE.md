@@ -68,6 +68,26 @@ L'application web n'utilise **plus d'émoji**. 67 icônes les remplacent : **10 
   d'attaque — et c'est le **serveur** qui fait foi, jamais le navigateur.
 - `node scripts/export-icons.mjs` régénère `docs/icones/` (SVG autonomes + galerie).
 
+## Profil et objectifs (web) — `shared/src/profile.ts`
+
+Cible journalière en kcal et macros, par Mifflin-St Jeor. Le calcul est un module **pur**, testé
+comme une spécification (valeurs de référence calculées à la main, pas relevées sur une exécution).
+Ce qui ne se devine pas :
+
+- **`user_profile` est la seule table cloisonnée par PERSONNE**, pas par foyer — d'où un dépôt
+  construit à part, hors de l'agrégat `Repositories`. Poids et taille sont des données de santé :
+  partager une cuisine ne donne pas le droit de les lire. L'identifiant vient du cookie signé, et
+  aucun paramètre ne permet de demander le profil de quelqu'un d'autre.
+- **`household.eaters` appartient au foyer**, lui, et sert à diviser le total d'une journée avant
+  de le comparer à un objectif personnel. `meal_plan_entry` ne dit toujours pas qui mange : la voie
+  exacte (une colonne `user_id`) a été écartée en connaissance de cause, elle imposait de repenser
+  l'écran Semaine. C'est une approximation, et l'interface le dit plutôt que de diviser en silence.
+- **Les cibles ne sont pas stockées** : elles se recalculent du profil, par la même fonction côté
+  Worker et côté navigateur. Deux copies d'un même chiffre finissent toujours par diverger.
+- `estimateTargets` rend **`null`** dès qu'une mesure manque, et ne descend jamais sous
+  `MIN_SAFE_KCAL` (1 200 / 1 500) — le drapeau `floored` oblige l'écran à le dire.
+- L'ajustement d'objectif est un **pourcentage** de la dépense, pas un forfait de 500 kcal.
+
 ## Common commands
 
 ```bash
