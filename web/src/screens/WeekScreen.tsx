@@ -45,6 +45,7 @@ import {
   type EntryDraft,
 } from '../lib/queries.js'
 import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
+import { GoalCard } from './semaine/GoalCard.js'
 import { AddEntrySheet } from './semaine/AddEntrySheet.js'
 import { EntrySheet } from './semaine/EntrySheet.js'
 import { WeekTools, type WeekTool } from './semaine/WeekTools.js'
@@ -505,6 +506,10 @@ function DayTotals({
         lipidique. C'est la lecture qui manquait, et c'est celle qui se fait
         d'un coup d'oeil. Le meme composant sert a la fiche recette.
       */}
+      {/* Entre les nombres bruts et l'anneau : c'est la lecture personnelle de
+          la journee, et elle n'a de sens qu'apres avoir vu les totaux. */}
+      <GoalCard dayTotal={dayTotal} hasEntries={dayEntries.length > 0} />
+
       <MacrosDonut
         total={dayTotal}
         title="Répartition du jour"

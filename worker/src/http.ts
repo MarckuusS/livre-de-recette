@@ -75,6 +75,21 @@ export class HttpError extends Error {
 }
 
 export const badRequest = (message: string, code = 'invalid_body') => new HttpError(400, code, message)
+/**
+ * La personne connectee, ou un 401.
+ *
+ * `RouteContext.user` est nullable parce que quelques routes sont publiques.
+ * Les routes qui ont besoin d'une IDENTITE — et non seulement d'un foyer —
+ * passent par ici : cela evite l'assertion non-null, qui aurait fait planter en
+ * 500 le jour ou une de ces routes se retrouverait hors du garde d'authent.
+ */
+export function requireUser(user: SessionUser | null): SessionUser {
+  if (user === null) {
+    throw new HttpError(401, 'unauthenticated', 'Session expirée. Reconnecte-toi.')
+  }
+  return user
+}
+
 export const notFound = (message: string) => new HttpError(404, 'not_found', message)
 
 export const badWeek = (value: string) =>

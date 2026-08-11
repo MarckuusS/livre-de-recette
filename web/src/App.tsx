@@ -5,6 +5,7 @@ import { Icon, type IconName } from './icons/index.js'
 import { useTheme } from './lib/theme.js'
 import { IconGalleryScreen } from './screens/IconGalleryScreen.js'
 import { CustomIconsScreen } from './screens/CustomIconsScreen.js'
+import { ProfileScreen } from './screens/ProfileScreen.js'
 import { RayonsScreen } from './screens/RayonsScreen.js'
 import { IngredientDetailScreen, IngredientsScreen } from './screens/IngredientsScreen.js'
 import { PantryScreen } from './screens/PantryScreen.js'
@@ -45,6 +46,7 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/semaine$/, 'Ma semaine'],
   [/^\/courses$/, 'Liste de courses'],
   [/^\/frigo$/, 'Frigo & cellier'],
+  [/^\/parametres\/profil$/, 'Mon profil'],
   [/^\/parametres\/icones$/, 'Jeu d’icônes'],
   [/^\/parametres\/rayons$/, 'Rayons'],
   [/^\/parametres\/mes-icones$/, 'Mes icônes'],
@@ -54,7 +56,7 @@ const TITLES: Array<[RegExp, string]> = [
 
 /** Les vues empilees sur une liste : elles ont besoin d'un retour visible. */
 const STACKED =
-  /^\/(ingredients|recettes)\/[^/]+$|^\/(parametres|diagnostic|activite)$|^\/parametres\/(icones|rayons|mes-icones)$/
+  /^\/(ingredients|recettes)\/[^/]+$|^\/(parametres|diagnostic|activite)$|^\/parametres\/(profil|icones|rayons|mes-icones)$/
 
 export function App() {
   const { isDark, toggle } = useTheme()
@@ -125,6 +127,7 @@ export function App() {
             <Route path="/courses" element={<ShoppingScreen />} />
             <Route path="/frigo" element={<PantryScreen />} />
             <Route path="/parametres" element={<SettingsScreen />} />
+            <Route path="/parametres/profil" element={<ProfileScreen />} />
             {/* Galerie du jeu d'icones : verifier un dessin sur l'appareil reel
                 vaut mieux que sur un ecran de bureau, ou tout parait lisible. */}
             <Route path="/parametres/icones" element={<IconGalleryScreen />} />

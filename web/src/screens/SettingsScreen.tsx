@@ -159,6 +159,10 @@ export function SettingsScreen() {
           <dd>{me.username}</dd>
         </dl>
         <p className="card__lead">
+          <Link to="/parametres/profil">Mon profil</Link> — taille, poids, activité et objectif
+          journalier. Visible de toi seul.
+        </p>
+        <p className="card__lead">
           <Link to="/activite">Journal d’activité</Link> — qui a ajouté, modifié ou supprimé quoi.
         </p>
       </div>

@@ -142,6 +142,48 @@ export const ingredientCreateSchema = ingredientSchema.omit({
 export const ingredientPatchSchema = ingredientCreateSchema.partial()
 
 // ---------------------------------------------------------------------------
+// Profil alimentaire et sportif
+// ---------------------------------------------------------------------------
+
+/**
+ * Ce qu'une personne peut enregistrer sur elle-meme.
+ *
+ * TOUT est nullable, et c'est le point : un profil se remplit par etapes, et un
+ * ecran qui refuserait d'enregistrer tant que les six champs ne sont pas la
+ * obligerait a tout saisir d'un coup pour ne rien perdre. Les cibles ne sont
+ * calculees que lorsque le necessaire est reuni (voir `estimateTargets`).
+ *
+ * Les bornes reprennent celles de la migration 0008. Les repeter ici n'est pas
+ * une duplication inutile : elles rendent un message lisible au lieu d'un
+ * « CHECK constraint failed » remonte de SQLite.
+ */
+export const profileWriteSchema = z.object({
+  sex: z.enum(['f', 'm']).nullable().default(null),
+  birthYear: z.number().int().min(1900).max(2100).nullable().default(null),
+  heightCm: z.number().int().min(80).max(250).nullable().default(null),
+  weightKg: z.number().min(20).max(400).nullable().default(null),
+  activity: z
+    .enum(['sedentaire', 'leger', 'actif', 'sportif', 'athlete'])
+    .nullable()
+    .default(null),
+  goal: z.enum(['perte', 'maintien', 'prise']).nullable().default(null),
+  /** Cible saisie a la main. Renseignee, elle l'emporte sur l'estimation. */
+  kcalTarget: z
+    .number()
+    .int()
+    .min(800, 'Une cible sous 800 kcal relève d’un suivi médical.')
+    .max(8000)
+    .nullable()
+    .default(null),
+  /**
+   * Nombre de personnes qui mangent ce qui est planifie. Propriete du FOYER et
+   * non de la personne : c'est par lui qu'on divise le total d'une journee.
+   */
+  eaters: z.number().int().min(1).max(20).default(1),
+})
+export type ProfileWrite = z.infer<typeof profileWriteSchema>
+
+// ---------------------------------------------------------------------------
 // Rayon
 // ---------------------------------------------------------------------------
 

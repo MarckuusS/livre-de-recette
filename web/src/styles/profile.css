@@ -1,0 +1,104 @@
+/* ===========================================================================
+   Profil alimentaire et sportif.
+
+   L'ecran est une suite de cartes deja stylees par app.css : il n'y a ici que
+   ce qui lui est propre — le detail du calcul, les trois macros et la ligne de
+   conclusion.
+   =========================================================================== */
+
+/* ---------- Le detail du calcul ----------
+   Les deux premieres lignes sont des etapes, la troisieme est le resultat.
+   Le contraste de graisse suffit a le dire, sans separateur ni encadre. */
+
+.profile-steps dd:last-of-type {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+/* ---------- Repartition des macros ---------- */
+
+.profile-macros {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-macros li {
+  display: flex;
+  align-items: center;
+  /* Libelle a gauche, chiffres a droite : la colonne de droite s'aligne d'une
+     ligne a l'autre sans grille, meme quand les libelles n'ont pas la meme
+     longueur. */
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.profile-macros__value {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* ---------- La conclusion ---------- */
+
+.profile-final {
+  margin: var(--space-md) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+/* ---------- Barre d'avancement de l'objectif ----------
+   Bloc PROPRE a l'objectif, et non un emprunt a `.session-progress` de la liste
+   de courses. La premiere version reutilisait ce bloc : le modificateur de
+   depassement perdait alors la cascade contre la regle de base, a specificite
+   egale et declaree plus loin — la barre restait verte au-dessus de la cible.
+   Trois regles dupliquees valent mieux qu'un bloc partage entre deux ecrans qui
+   n'ont rien a voir. */
+
+.goal-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.goal-bar__track {
+  height: var(--space-sm);
+  overflow: hidden;
+  background: var(--color-surface-pressed);
+  border-radius: var(--radius-full);
+}
+
+.goal-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+  border-radius: var(--radius-full);
+  transition: width var(--duration-normal) var(--easing-standard);
+}
+
+/* Orange et non rouge : depasser sa cible d'un jour n'est pas une erreur a
+   corriger, c'est une information. */
+.goal-bar__fill--over {
+  background: var(--color-warning);
+}
+
+.goal-bar__label {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Avertissement ----------
+   `--color-warning` et non `--color-error` : la cible relevee au plancher est
+   une correction reussie, pas un echec. Le rouge ferait croire a une panne. */
+
+.status--warn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 0;
+  color: var(--color-warning);
+}

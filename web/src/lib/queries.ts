@@ -45,6 +45,7 @@ export const keys = {
   tags: ['tags'] as const,
   rayons: ['rayons'] as const,
   customIcons: ['custom-icons'] as const,
+  profile: ['profile'] as const,
   calendar: (week: string) => ['calendar', week] as const,
   templates: ['templates'] as const,
   pantry: ['pantry'] as const,
@@ -636,6 +637,39 @@ export interface CustomIconItem {
   readonly markup: string
   readonly viewBox: string
   readonly keepColors: boolean
+}
+
+export interface ProfileResponse {
+  readonly profile: {
+    readonly sex: 'f' | 'm' | null
+    readonly birthYear: number | null
+    readonly heightCm: number | null
+    readonly weightKg: number | null
+    readonly activity: string | null
+    readonly goal: string | null
+    readonly kcalTarget: number | null
+  }
+  /** Propriete du FOYER : les deux membres lisent le meme nombre. */
+  readonly eaters: number
+}
+
+export const useProfile = () =>
+  useQuery({ queryKey: keys.profile, queryFn: () => apiFetch<ProfileResponse>('/api/profile') })
+
+export function useSaveProfile() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: ProfileResponse['profile'] & { eaters: number }) =>
+      put<ProfileResponse>('/api/profile', payload),
+    onSuccess: (data) => {
+      // La reponse EST l'etat relu : on la pose directement plutot que de
+      // declencher une seconde requete pour apprendre ce qu'on vient d'ecrire.
+      client.setQueryData(keys.profile, data)
+      // Les ecrans de nutrition comparent desormais leurs totaux a la cible :
+      // changer de poids change ce qu'ils affichent.
+      void client.invalidateQueries({ queryKey: ['calendar'] })
+    },
+  })
 }
 
 export const useCustomIcons = () =>
