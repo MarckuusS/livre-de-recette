@@ -647,11 +647,21 @@ export interface ProfileResponse {
     readonly weightKg: number | null
     readonly activity: string | null
     readonly goal: string | null
+    /** Repartition des macros. `null` = celle que propose l'objectif. */
+    readonly split: string | null
+    readonly splitProteins: number | null
+    readonly splitCarbs: number | null
+    readonly splitFats: number | null
+    readonly targetWeightKg: number | null
+    readonly pace: string | null
     readonly kcalTarget: number | null
   }
   /** Propriete du FOYER : les deux membres lisent le meme nombre. */
   readonly eaters: number
 }
+
+/** Ce que l'ecran envoie : le profil, plus le reglage du foyer. */
+export type ProfilePayload = ProfileResponse['profile'] & { eaters: number }
 
 export const useProfile = () =>
   useQuery({ queryKey: keys.profile, queryFn: () => apiFetch<ProfileResponse>('/api/profile') })
@@ -659,8 +669,7 @@ export const useProfile = () =>
 export function useSaveProfile() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (payload: ProfileResponse['profile'] & { eaters: number }) =>
-      put<ProfileResponse>('/api/profile', payload),
+    mutationFn: (payload: ProfilePayload) => put<ProfileResponse>('/api/profile', payload),
     onSuccess: (data) => {
       // La reponse EST l'etat relu : on la pose directement plutot que de
       // declencher une seconde requete pour apprendre ce qu'on vient d'ecrire.

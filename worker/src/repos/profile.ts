@@ -19,6 +19,14 @@ export interface ProfileRow {
   readonly weightKg: number | null
   readonly activity: string | null
   readonly goal: string | null
+  /** Repartition des macros. `null` = celle que propose l'objectif. */
+  readonly split: string | null
+  /** Pourcentages ecrits a la main, lus seulement si `split === 'perso'`. */
+  readonly splitProteins: number | null
+  readonly splitCarbs: number | null
+  readonly splitFats: number | null
+  readonly targetWeightKg: number | null
+  readonly pace: string | null
   readonly kcalTarget: number | null
 }
 
@@ -30,6 +38,12 @@ const EMPTY: ProfileRow = {
   weightKg: null,
   activity: null,
   goal: null,
+  split: null,
+  splitProteins: null,
+  splitCarbs: null,
+  splitFats: null,
+  targetWeightKg: null,
+  pace: null,
   kcalTarget: null,
 }
 
@@ -51,7 +65,9 @@ export class ProfileRepo {
   async get(): Promise<{ profile: ProfileRow; eaters: number }> {
     const row = await this.db
       .prepare(
-        `SELECT sex, birth_year, height_cm, weight_kg, activity, goal, kcal_target
+        `SELECT sex, birth_year, height_cm, weight_kg, activity, goal,
+                split, split_proteins, split_carbs, split_fats,
+                target_weight_kg, pace, kcal_target
            FROM user_profile WHERE user_id = ?`,
       )
       .bind(this.userId)
@@ -62,6 +78,12 @@ export class ProfileRepo {
         weight_kg: number | null
         activity: string | null
         goal: string | null
+        split: string | null
+        split_proteins: number | null
+        split_carbs: number | null
+        split_fats: number | null
+        target_weight_kg: number | null
+        pace: string | null
         kcal_target: number | null
       }>()
 
@@ -79,6 +101,12 @@ export class ProfileRepo {
             weightKg: row.weight_kg,
             activity: row.activity,
             goal: row.goal,
+            split: row.split,
+            splitProteins: row.split_proteins,
+            splitCarbs: row.split_carbs,
+            splitFats: row.split_fats,
+            targetWeightKg: row.target_weight_kg,
+            pace: row.pace,
             kcalTarget: row.kcal_target,
           }
         : EMPTY,
@@ -99,8 +127,10 @@ export class ProfileRepo {
       this.db
         .prepare(
           `INSERT INTO user_profile
-             (user_id, sex, birth_year, height_cm, weight_kg, activity, goal, kcal_target, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+             (user_id, sex, birth_year, height_cm, weight_kg, activity, goal,
+              split, split_proteins, split_carbs, split_fats,
+              target_weight_kg, pace, kcal_target, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
            ON CONFLICT (user_id) DO UPDATE SET
              sex = excluded.sex,
              birth_year = excluded.birth_year,
@@ -108,6 +138,12 @@ export class ProfileRepo {
              weight_kg = excluded.weight_kg,
              activity = excluded.activity,
              goal = excluded.goal,
+             split = excluded.split,
+             split_proteins = excluded.split_proteins,
+             split_carbs = excluded.split_carbs,
+             split_fats = excluded.split_fats,
+             target_weight_kg = excluded.target_weight_kg,
+             pace = excluded.pace,
              kcal_target = excluded.kcal_target,
              updated_at = excluded.updated_at`,
         )
@@ -119,6 +155,12 @@ export class ProfileRepo {
           profile.weightKg,
           profile.activity,
           profile.goal,
+          profile.split,
+          profile.splitProteins,
+          profile.splitCarbs,
+          profile.splitFats,
+          profile.targetWeightKg,
+          profile.pace,
           profile.kcalTarget,
         ),
       this.db

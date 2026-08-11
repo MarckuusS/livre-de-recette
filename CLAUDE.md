@@ -84,9 +84,25 @@ Ce qui ne se devine pas :
   l'écran Semaine. C'est une approximation, et l'interface le dit plutôt que de diviser en silence.
 - **Les cibles ne sont pas stockées** : elles se recalculent du profil, par la même fonction côté
   Worker et côté navigateur. Deux copies d'un même chiffre finissent toujours par diverger.
+- **Deux axes séparés, et c'est le point** : `ENERGY_GOALS` décide du COMBIEN (six objectifs, de la
+  sèche à la prise de masse), `MACRO_SPLITS` décide du COMMENT (sept répartitions, dont `perso`).
+  Chaque objectif *propose* une répartition (`defaultSplit`) que l'utilisateur peut remplacer. La
+  version d'origine les soudait dans une liste de trois : « perdre du poids » imposait alors ses
+  pourcentages.
+- **Un poids visé plus une allure l'emportent sur le pourcentage de l'objectif** : l'écart vient
+  alors de `pace × KCAL_PER_KG / 7`. La direction se lit sur l'écart réel au poids visé, jamais sur
+  le libellé de l'objectif.
 - `estimateTargets` rend **`null`** dès qu'une mesure manque, et ne descend jamais sous
-  `MIN_SAFE_KCAL` (1 200 / 1 500) — le drapeau `floored` oblige l'écran à le dire.
-- L'ajustement d'objectif est un **pourcentage** de la dépense, pas un forfait de 500 kcal.
+  `MIN_SAFE_KCAL` (1 200 / 1 500) ni au-delà de `MAX_ADJUST` (25 % de la dépense). Quatre drapeaux
+  (`floored`, `capped`, `lowProteins`, `lowFats`) obligent l'écran à dire ce qui a été corrigé.
+- **`weeksToTarget` est `null` quand le réglage n'avance pas vers la cible** — le plancher peut
+  relever l'apport au-dessus de la dépense, ce qui fait grossir qui voulait maigrir. Annoncer une
+  date serait promettre l'inverse de ce qui arriverait.
+- Le total des pourcentages manuels n'est **jamais bloquant** : `normalizeSplit` le ramène à 100 des
+  deux côtés du réseau, et l'écran affiche le résultat.
+- `user_profile` a été **reconstruite** en 0009 (SQLite ne sait pas modifier un CHECK). Toute
+  évolution de `goal`, `split` ou `pace` demandera la même manœuvre — copie, bascule, vérification
+  du nombre de lignes AVANT le `DROP`.
 
 ## Common commands
 

@@ -26,6 +26,8 @@ import {
   type ActivityCode,
   type GoalCode,
   type NutritionTotal,
+  type PaceCode,
+  type SplitCode,
 } from '@livre/shared'
 
 import { NutrientLabel } from '../../components/NutrientLabel.js'
@@ -56,6 +58,20 @@ export function GoalCard({
       // reconnait pas, ce qui est exactement le comportement voulu ici.
       activity: profile.activity as ActivityCode | null,
       goal: profile.goal as GoalCode | null,
+      // La repartition et le poids vise comptent AUSSI ici : sans eux, la carte
+      // comparerait la journee aux macros par defaut de l'objectif, pas a
+      // celles que la personne a reglees.
+      split: profile.split as SplitCode | null,
+      customSplit:
+        profile.splitProteins === null
+          ? null
+          : {
+              proteins: profile.splitProteins,
+              carbs: profile.splitCarbs ?? 0,
+              fats: profile.splitFats ?? 0,
+            },
+      targetWeightKg: profile.targetWeightKg,
+      pace: profile.pace as PaceCode | null,
     })
     const kcalTarget = profile.kcalTarget ?? targets?.kcal ?? null
     return { targets, kcalTarget, eaters }

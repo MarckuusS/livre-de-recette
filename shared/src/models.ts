@@ -166,7 +166,37 @@ export const profileWriteSchema = z.object({
     .enum(['sedentaire', 'leger', 'actif', 'sportif', 'athlete'])
     .nullable()
     .default(null),
-  goal: z.enum(['perte', 'maintien', 'prise']).nullable().default(null),
+  goal: z
+    .enum(['seche', 'perte', 'perte_douce', 'maintien', 'prise_seche', 'prise'])
+    .nullable()
+    .default(null),
+  /** Repartition des macros. `null` = celle que propose l'objectif. */
+  split: z
+    .enum([
+      'equilibre',
+      'proteine',
+      'seche',
+      'faible_glucides',
+      'endurance',
+      'mediterraneen',
+      'perso',
+    ])
+    .nullable()
+    .default(null),
+  /**
+   * Pourcentages ecrits a la main, lus seulement si `split === 'perso'`.
+   *
+   * Le total n'est PAS impose a 100 ici : `normalizeSplit` le ramene a 100 au
+   * moment du calcul, des deux cotes du reseau. Refuser un enregistrement a 99
+   * empecherait de sauvegarder une saisie en cours, alors que le resultat
+   * s'affiche deja juste.
+   */
+  splitProteins: z.number().int().min(0).max(100).nullable().default(null),
+  splitCarbs: z.number().int().min(0).max(100).nullable().default(null),
+  splitFats: z.number().int().min(0).max(100).nullable().default(null),
+  /** Poids vise. Avec l'allure, il remplace le pourcentage de l'objectif. */
+  targetWeightKg: z.number().min(20).max(400).nullable().default(null),
+  pace: z.enum(['lent', 'modere', 'rapide']).nullable().default(null),
   /** Cible saisie a la main. Renseignee, elle l'emporte sur l'estimation. */
   kcalTarget: z
     .number()

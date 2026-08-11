@@ -42,6 +42,43 @@
   white-space: nowrap;
 }
 
+/* Les proteines portent une seconde unite : le g/kg, qui est celui dans lequel
+   elles se jugent. Sur sa propre ligne, sinon la valeur devient illisible. */
+.profile-macros__per-kg {
+  display: block;
+  font-size: var(--font-size-md);
+  color: var(--color-text-placeholder);
+}
+
+/* ---------- Repartition ecrite a la main ----------
+   Trois pourcentages cote a cote : ils forment un tout, et les empiler ferait
+   perdre de vue qu'ils doivent totaliser 100. */
+
+.profile-split {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+/* En dessous de 420 px, trois champs cote a cote laissent moins de place au
+   nombre qu'a son unite. */
+@media (max-width: 420px) {
+  .profile-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Date d'arrivee ---------- */
+
+.profile-eta {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 0;
+  color: var(--color-text-secondary);
+}
+
 /* ---------- La conclusion ---------- */
 
 .profile-final {
