@@ -34,6 +34,7 @@ export type ActivityEntity =
   | 'price_history'
   | 'cooking_log'
   | 'shopping_checked'
+  | 'rayon'
   /**
    * Une virée de courses, du premier scan a la validation.
    *

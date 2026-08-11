@@ -1,0 +1,114 @@
+/* Gestionnaire de rayons. */
+
+.rayon-row {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.rayon-row:active {
+  background: var(--color-surface-pressed);
+}
+
+/* ---------- Apercu ----------
+   Ce que montre cette ligne est ce que montreront les listes : elle utilise le
+   meme resolveur, nourri de la saisie en cours. */
+.rayon-preview {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-md);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.rayon-preview__name {
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Grilles de choix ---------- */
+
+.rayon-choices {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.rayon-icons,
+.rayon-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.rayon-icons__cell {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.rayon-icons__cell--on {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  /* Deux marques et pas une : la couleur seule ne se voit pas sous un doigt,
+     et ne se voit pas du tout en vision monochrome. */
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.rayon-colors__cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: #fff;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+.rayon-colors__cell--on {
+  /* Anneau DEHORS, pas un liseré dedans : sur une pastille de 36 px, un liseré
+     interieur mange la couleur qu'on essaie justement de juger. */
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-text);
+}
+
+/* La premiere case (« déduite du nom ») n'a pas d'aplat : son icone doit donc
+   se lire sur la surface, pas en blanc. */
+.rayon-colors__cell:first-child {
+  color: var(--color-text-secondary);
+}
+
+.rayon-colors__cell--custom {
+  color: var(--color-text-secondary);
+  border-style: dashed;
+}
+
+/* L'entree native reste cliquable mais invisible : le navigateur ne permet pas
+   de styler son bouton, et sa taille par defaut casse l'alignement de la
+   grille. On garde donc la pastille comme surface, l'entree par-dessus. */
+.rayon-colors__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}

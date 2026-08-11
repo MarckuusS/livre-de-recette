@@ -229,6 +229,10 @@ export function SettingsScreen() {
           <dd>{navigator.onLine ? 'en ligne' : 'hors ligne'}</dd>
         </dl>
         <p className="card__lead">
+          <Link to="/parametres/rayons">Rayons</Link> — créer, renommer, colorer, supprimer les
+          rayons qui rangent la liste de courses.
+        </p>
+        <p className="card__lead">
           <Link to="/parametres/icones">Jeu d’icônes</Link> — les dessins des rayons et des
           ingrédients, et ce qu’ils couvrent de la bibliothèque.
         </p>

@@ -43,6 +43,7 @@ export const keys = {
   recipe: (id: number | null) => ['recipe', id] as const,
   cooking: (id: number) => ['cooking', id] as const,
   tags: ['tags'] as const,
+  rayons: ['rayons'] as const,
   calendar: (week: string) => ['calendar', week] as const,
   templates: ['templates'] as const,
   pantry: ['pantry'] as const,
@@ -559,6 +560,67 @@ export function useDeleteTag() {
       void client.invalidateQueries({ queryKey: keys.tags })
       void client.invalidateQueries({ queryKey: ['recipes'] })
     },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Rayons
+// ---------------------------------------------------------------------------
+
+export interface RayonItem {
+  readonly id: number
+  readonly name: string
+  /** Nom d'icone, ou `null` : l'aspect est alors deduit du nom du rayon. */
+  readonly icon: string | null
+  readonly colorHex: string | null
+  readonly ordinal: number
+  readonly ingredientCount: number
+}
+
+export const useRayons = () =>
+  useQuery({ queryKey: keys.rayons, queryFn: () => apiFetch<{ items: RayonItem[] }>('/api/rayons') })
+
+export type RayonWrite = Pick<RayonItem, 'name' | 'icon' | 'colorHex' | 'ordinal'>
+
+/**
+ * Toute ecriture sur un rayon touche les ingredients.
+ *
+ * Renommer repercute le nouveau nom sur `ingredient.category_l1`, supprimer
+ * l'efface : les listes qui groupent par rayon deviennent fausses tant qu'elles
+ * n'ont pas ete relues. On invalide donc large — c'est une action rare, faite
+ * depuis un ecran de reglages, jamais dans un geste repete.
+ */
+const rayonTouches = (client: QueryClient) => {
+  void client.invalidateQueries({ queryKey: keys.rayons })
+  void client.invalidateQueries({ queryKey: ['ingredients'] })
+  void client.invalidateQueries({ queryKey: ['ingredient'] })
+  void client.invalidateQueries({ queryKey: keys.categories })
+  void client.invalidateQueries({ queryKey: ['shopping'] })
+  void client.invalidateQueries({ queryKey: keys.activity })
+}
+
+export function useCreateRayon() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (rayon: RayonWrite) => post<RayonItem>('/api/rayons', rayon),
+    onSuccess: () => rayonTouches(client),
+  })
+}
+
+export function useUpdateRayon() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...rayon }: RayonWrite & { id: number }) =>
+      put<RayonItem>(`/api/rayons/${id}`, rayon),
+    onSuccess: () => rayonTouches(client),
+  })
+}
+
+export function useDeleteRayon() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => del<{ id: number; movedToNoRayon: number }>(`/api/rayons/${id}`),
+    onSuccess: () => rayonTouches(client),
   })
 }
 

@@ -99,6 +99,36 @@
 :root[data-theme='dark'] [data-rayon='snacks-confiseries'] { --rayon-color: #f472b6; }
 :root[data-theme='dark'] [data-rayon='autre'] { --rayon-color: #94a3b8; }
 
+/* ---------- Couleur choisie a la main ----------
+ *
+ * Les dix teintes ci-dessus sont ecrites en dur, donc leur variante sombre
+ * l'est aussi. Une couleur choisie par l'utilisateur n'existe pas au moment ou
+ * l'on ecrit cette feuille : elle arrive en variable inline `--rayon-base`, et
+ * c'est ici qu'on en derive la variante sombre.
+ *
+ * `color-mix` vers le blanc plutot qu'une couleur stockee en double : le
+ * gestionnaire ne demande QU'UNE couleur, et exiger la variante sombre de
+ * l'utilisateur serait lui demander de faire notre travail. 68 % conserve la
+ * teinte tout en remontant assez la luminosite pour tenir sur fond ardoise.
+ *
+ * Specificite (0,2,0), superieure au (0,1,0) de `[data-rayon='x']` : le choix
+ * explicite l'emporte sur la deduction, quel que soit l'ordre des regles.
+ */
+
+[data-rayon][data-rayon-custom] {
+  --rayon-color: var(--rayon-base);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) [data-rayon][data-rayon-custom] {
+    --rayon-color: color-mix(in srgb, var(--rayon-base) 68%, white);
+  }
+}
+
+:root[data-theme='dark'] [data-rayon][data-rayon-custom] {
+  --rayon-color: color-mix(in srgb, var(--rayon-base) 68%, white);
+}
+
 /* ---------- Galerie (Parametres -> Jeu d'icones) ---------- */
 
 .icon-gallery__grid {

@@ -31,6 +31,7 @@
 import { CalendarRepo } from './calendar.js'
 import { IngredientRepo } from './ingredients.js'
 import { PantryRepo } from './pantry.js'
+import { RayonRepo } from './rayons.js'
 import { RecipeRepo } from './recipes.js'
 import { SettingsRepo } from './settings.js'
 
@@ -50,6 +51,7 @@ export class Repositories {
   readonly calendar: CalendarRepo
   readonly pantry: PantryRepo
   readonly settings: SettingsRepo
+  readonly rayons: RayonRepo
 
   constructor(db: D1Database, householdId: number) {
     this.ingredients = new IngredientRepo(db, householdId)
@@ -60,10 +62,12 @@ export class Repositories {
     this.calendar = new CalendarRepo(db, householdId)
     this.pantry = new PantryRepo(db, householdId)
     this.settings = new SettingsRepo(db, householdId)
+    this.rayons = new RayonRepo(db, householdId)
   }
 }
 
-export { CalendarRepo, IngredientRepo, PantryRepo, RecipeRepo, SettingsRepo }
+export { CalendarRepo, IngredientRepo, PantryRepo, RayonRepo, RecipeRepo, SettingsRepo }
 export type { EntryWrite } from './calendar.js'
 export type { IngredientUsage, IngredientWrite } from './ingredients.js'
+export type { RayonRow } from './rayons.js'
 export type { RecipeLineWrite, RecipeSummary, RecipeWrite } from './recipes.js'

@@ -142,6 +142,40 @@ export const ingredientCreateSchema = ingredientSchema.omit({
 export const ingredientPatchSchema = ingredientCreateSchema.partial()
 
 // ---------------------------------------------------------------------------
+// Rayon
+// ---------------------------------------------------------------------------
+
+/**
+ * Un rayon de magasin, tel que l'utilisateur le gere.
+ *
+ * `icon` et `colorHex` sont NULLABLES, et c'est le coeur du dispositif : NULL
+ * veut dire « deduis-le du nom ». Un rayon jamais ouvert dans le gestionnaire
+ * garde donc l'aspect que lui donne `iconForRayon`, et personne n'a a
+ * renseigner dix lignes avant que l'ecran soit joli.
+ *
+ * `icon` n'est pas contraint a la liste des icones existantes ici : `shared/`
+ * ne connait pas `web/src/icons/`, et l'inverse serait une dependance de la
+ * couche partagee vers le front. Le controle a lieu a l'affichage, ou un nom
+ * inconnu retombe simplement sur l'icone deduite.
+ */
+export const rayonSchema = z.object({
+  id: z.number().int().positive().nullable().default(null),
+  name: nonEmpty('Le nom du rayon ne peut pas être vide.'),
+  icon: z.string().min(1).nullable().default(null),
+  colorHex: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, 'Couleur attendue au format #RRGGBB.')
+    .nullable()
+    .default(null),
+  /** Rang d'affichage. Deux rayons de meme rang sont departages par leur nom. */
+  ordinal: z.number().int().min(0).default(0),
+})
+export type Rayon = z.infer<typeof rayonSchema>
+
+export const rayonWriteSchema = rayonSchema.omit({ id: true })
+export type RayonWrite = z.infer<typeof rayonWriteSchema>
+
+// ---------------------------------------------------------------------------
 // Recette
 // ---------------------------------------------------------------------------
 

@@ -29,6 +29,7 @@ const ENTITY_LABELS: Record<string, string> = {
   price_history: 'un prix pour',
   cooking_log: 'une cuisson de',
   shopping_checked: '',
+  rayon: 'le rayon',
 }
 
 /**

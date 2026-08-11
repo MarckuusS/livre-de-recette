@@ -51,7 +51,7 @@ import { Icon } from '../../icons/index.js'
 import { ApiError } from '../../lib/api.js'
 import {
   useBarcode,
-  useCategories,
+  useRayons,
   useCreateIngredient,
   useDeleteIngredient,
   useUpdateIngredient,
@@ -66,9 +66,6 @@ import {
   type IngredientDraft,
 } from './model.js'
 import '../../styles/ingredients.css'
-
-/** Valeur du menu Rayon qui bascule en saisie libre. */
-const CUSTOM_RAYON = '__custom__'
 
 /** Les 8 champs du tableau nutritionnel, dans l'ordre impose par la reglementation UE. */
 const NUTRIENTS = [
@@ -119,7 +116,7 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
   const navigate = useNavigate()
   const create = useCreateIngredient()
   const update = useUpdateIngredient()
-  const categories = useCategories()
+  const rayons = useRayons()
   const [searchParams] = useSearchParams()
 
   // `?ean=` n'est lu qu'a la CREATION : en modification « Réf. source » est en
@@ -141,7 +138,6 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
   const [savedAt, setSavedAt] = useState(0)
   const [priceOpen, setPriceOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [customRayon, setCustomRayon] = useState(false)
 
   /** Code qui rattache la fiche a OpenFoodFacts : celui de l'URL, puis celui du dernier scan. */
   const [offEan, setOffEan] = useState<string | null>(prefillEan)
@@ -301,40 +297,22 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
 
         <fieldset className="ing-form__section">
           <legend className="ing-form__legend">Rayon</legend>
-          {customRayon ? (
-            <>
-              <TextField
-                label="Nom du rayon"
-                value={draft.categoryL1}
-                onChange={(value) => patch({ categoryL1: value })}
-                placeholder="Ex : Fruits & légumes, Viandes…"
-                hint="Regroupe l’ingrédient dans la liste de courses et dans le frigo."
-                autoFocus
-              />
-              <button type="button" className="button button--ghost" onClick={() => setCustomRayon(false)}>
-                Choisir dans la liste
-              </button>
-            </>
-          ) : (
-            <SelectField
-              label="Rayon"
-              value={draft.categoryL1}
-              onChange={(value) => {
-                if (value === CUSTOM_RAYON) {
-                  setCustomRayon(true)
-                  patch({ categoryL1: '' })
-                } else {
-                  patch({ categoryL1: value })
-                }
-              }}
-              placeholder="Aucun rayon"
-              options={[
-                ...rayonOptions(categories.data?.items ?? [], draft.categoryL1),
-                { value: CUSTOM_RAYON, label: '＋ Autre rayon…' },
-              ]}
-              hint="Regroupe l’ingrédient dans la liste de courses et dans le frigo."
-            />
-          )}
+          {/* Liste FERMEE, alimentee par le gestionnaire de rayons.
+              La saisie libre qui existait ici fabriquait des sections
+              fantomes : « Epicerie » et « Épicerie » sont deux rayons pour la
+              liste de courses, qui regroupe sur le texte exact. Creer un rayon
+              se fait donc en un seul endroit, ou on le voit deja exister. */}
+          <SelectField
+            label="Rayon"
+            value={draft.categoryL1}
+            onChange={(value) => patch({ categoryL1: value })}
+            placeholder="Aucun rayon"
+            options={rayonOptions(rayons.data?.items ?? [], draft.categoryL1)}
+            hint="Regroupe l’ingrédient dans la liste de courses et dans le frigo."
+          />
+          <p className="field__hint">
+            Il manque un rayon ? <Link to="/parametres/rayons">Gérer les rayons</Link>.
+          </p>
         </fieldset>
 
         <SeasonPicker months={draft.months} onChange={(months) => patch({ months })} />
@@ -423,13 +401,22 @@ function nutrientChange(key: NutrientKey, value: number | null): Partial<Ingredi
 }
 
 /** Rayons connus, plus celui de la fiche s'il n'est plus utilise par personne d'autre. */
+/**
+ * Options du menu Rayon.
+ *
+ * Le rayon COURANT est ajoute d'office s'il ne figure pas dans la liste. Sans
+ * cette precaution, un ingredient dont le rayon vient d'etre supprime par
+ * l'autre cuisinier verrait son champ se vider tout seul a l'ouverture de la
+ * fiche, et un simple « Enregistrer » effacerait l'information sans que
+ * personne ne l'ait demande.
+ */
 function rayonOptions(
-  known: ReadonlyArray<{ l1: string; count: number }>,
+  known: ReadonlyArray<{ name: string; ingredientCount: number }>,
   current: string,
 ): Array<{ value: string; label: string }> {
-  const options = known.map((entry) => ({ value: entry.l1, label: `${entry.l1} (${entry.count})` }))
-  if (current !== '' && !known.some((entry) => entry.l1 === current)) {
-    options.unshift({ value: current, label: current })
+  const options = known.map((r) => ({ value: r.name, label: `${r.name} (${r.ingredientCount})` }))
+  if (current !== '' && !known.some((r) => r.name === current)) {
+    options.unshift({ value: current, label: `${current} (rayon supprimé)` })
   }
   return options
 }
