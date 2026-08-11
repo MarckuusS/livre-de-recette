@@ -27,34 +27,42 @@ export const OVERRIDE_PATHS = {
    * Lucide propose une BOUTEILLE (`milk`), ce qui n'est pas ce qu'on achete :
    * le lait de la bibliotheque arrive en brique.
    *
-   * La vache de la reference n'a pas ete reprise, et ce n'est pas un oubli.
-   * L'etiquette laisse une zone utile d'environ 10 x 5 unites sur la grille 24 ;
-   * rendue a 20 px — la taille reelle en liste — une tete de vache y occupe
-   * quatre pixels et devient une salissure au milieu de la brique. Le rendu
-   * comparatif a 16, 20, 24, 32 et 64 px l'a montre sans ambiguite. Le pignon,
-   * la fuyante et les deux bandes d'etiquette suffisent a designer une brique,
-   * et tiennent jusqu'a 16 px.
+   * Quatre constructions ont ete rendues cote a cote a 24, 32 et 96 px. De
+   * face, le pignon devient un toit et la brique se lit « maison » ; avec un
+   * bouchon, elle se lit « bouteille ». Seule la vue de trois quarts dit
+   * « carton », parce que la fuyante donne le volume que la face plate n'a pas.
+   *
+   * Trois traits, pas plus. La version precedente en avait cinq — deux bandes
+   * d'etiquette et un pli de pignon — et se brouillait des 24 px : c'est ce que
+   * montrait la capture de l'ecran Ingredients.
+   *
+   * La vache de la reference n'est pas reprise. L'etiquette laisse environ
+   * 10 x 5 unites ; rendue a 20 px, une tete de vache y occupe quatre pixels et
+   * salit la brique au lieu de la decorer.
    */
   'rayon-produits-laitiers':
-    '<path d="M3.6 21.4V9.8L7 4.8h5.4l1 5v11.6Z"/>' +
-    '<path d="M13.4 9.8 19 6.8v11.6l-5.6 3"/>' +
-    '<path d="m12.4 4.8 6.6 2"/>' +
-    '<path d="M3.6 12.6h9.8M3.6 18h9.8"/>',
+    '<path d="M4 20.6V9.6l3.6-5.2h5l1 5.2v11Z"/>' +
+    '<path d="m13.6 9.6 5.8-3v11l-5.8 3"/>' +
+    '<path d="M4 13.6h9.6"/>',
+
   /*
-   * Pot de yaourt, opercule decolle.
+   * Pot de yaourt, opercule souleve.
    *
    * Le rayon « Frais » partageait la brique des produits laitiers, et deux
-   * sections voisines au meme dessin ne se distinguent plus — c'est ce que la
-   * capture de l'ecran Ingredients montrait.
+   * sections voisines au meme dessin ne se distinguent plus.
    *
-   * La bouche est une ellipse et non un trait : c'est ce qui dit que le pot est
-   * OUVERT. L'opercule est un rabat ferme, attache au bord gauche et dresse en
-   * pointe : parmi trois versions rendues a 16, 20, 24, 32 et 64 px, c'est la
-   * seule dont on lit encore le decollement a 24 px. La version enroulee
-   * ressemblait a une cuillere, la version rabattue a un couvercle pose.
+   * DEUX REGLES TIREES DE NEUF ESSAIS RENDUS A 24, 32 ET 96 px :
+   *
+   *   - la bouche est une ELLIPSE, jamais un trait. C'est elle qui dit que le
+   *     pot est ouvert ; un trait droit donne un gobelet ferme.
+   *   - l'opercule est ANGULAIRE et LARGE. Toutes les versions courbes — rabat
+   *     en pointe, opercule enroule — se lisent comme une feuille de plante, et
+   *     la version en diagonale fine comme une paille. Une feuille d'aluminium
+   *     est plate : un quadrilatere ferme, pose sur le bord et incline, est la
+   *     seule forme qui la designe sans ambiguite.
    */
   'rayon-frais':
-    '<path d="M6.6 11.2 8 20a1.8 1.8 0 0 0 1.8 1.5h4.4A1.8 1.8 0 0 0 16 20l1.4-8.8"/>' +
-    '<ellipse cx="12" cy="11" rx="5.4" ry="1.7"/>' +
-    '<path d="M7.4 9.8c-1.5-3.4.5-6.2 4.4-6.6-1.4 2.3-1 4.2 1 5.6Z"/>',
+    '<path d="M5.8 12.2 7.4 20.2a1.9 1.9 0 0 0 1.9 1.5h5.4a1.9 1.9 0 0 0 1.9-1.5l1.6-8"/>' +
+    '<ellipse cx="12" cy="12" rx="6.2" ry="1.9"/>' +
+    '<path d="M7.4 10.2 10.6 3.8l8 1.4-3.2 4.6Z"/>',
 } as const
