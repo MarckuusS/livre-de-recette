@@ -22,7 +22,7 @@
      En clair c'est le bon contraste ; en sombre il ferait une tache plus
      claire que le fond, d'ou la reprise sur la surface dans les deux blocs
      sombres ci-dessous. */
-  --color-toast-bg: #1f2937;
+  --color-toast-bg: #242b18;
 }
 
 @media (prefers-color-scheme: dark) {

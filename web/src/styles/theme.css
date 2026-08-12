@@ -20,52 +20,50 @@
 
 :root {
   /* ---------- Palette claire (Theme.qml, darkMode = false) ---------- */
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-pressed: #1e40af;
-  --color-primary-disabled: #cbd5e1;
+  --color-primary: #5c6b30;
+  --color-primary-hover: #4c5928;
+  --color-primary-pressed: #3d4820;
+  --color-primary-disabled: #cfcdba;
   --color-on-primary: #ffffff;
 
   /* ---------- Bleu QUAND IL SERT DE TEXTE ----------
    *
-   * `--color-primary` est calibre pour porter du blanc, pas pour etre lu sur
-   * un fond. En sombre il tombe a 4,0:1 sur la surface, sous le seuil AA de
-   * 4,5 pour du texte normal — d'ou l'impression de bleu qui « ne ressort
-   * pas ». Ces deux jetons portent la variante lisible, et ne sont JAMAIS
+   * `--color-primary` est calibre pour porter un libelle, pas pour etre lu sur
+   * un fond. Ces deux jetons portent la variante lisible, et ne sont JAMAIS
    * utilises comme fond.
    *
-   * Mesures sur `--color-surface` : clair 5,2:1, sombre 5,8:1.
+   * Mesures sur `--color-surface` : clair 7,6:1, sombre 9,4:1.
    */
-  --color-primary-text: #2563eb;
-  --color-link: #2563eb;
+  --color-primary-text: #4c5928;
+  --color-link: #4c5928;
 
-  --color-secondary: #7c3aed;
-  --color-secondary-hover: #6d28d9;
-  --color-secondary-pressed: #5b21b6;
+  --color-secondary: #b45309;
+  --color-secondary-hover: #92400e;
+  --color-secondary-pressed: #7c2d12;
 
-  --color-background: #f8fafc;
+  --color-background: #f7f6ef;
   --color-surface: #ffffff;
-  --color-surface-hover: #f1f5f9;
-  --color-surface-pressed: #e2e8f0;
+  --color-surface-hover: #f0efe3;
+  --color-surface-pressed: #e4e2d2;
 
-  --color-text: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-disabled: #cbd5e1;
-  --color-text-placeholder: #94a3b8;
+  --color-text: #1b1f12;
+  --color-text-secondary: #4f5540;
+  --color-text-disabled: #c2c0ad;
+  --color-text-placeholder: #868b74;
 
-  --color-border: #e2e8f0;
-  --color-border-hover: #cbd5e1;
-  --color-border-focus: #3b82f6;
+  --color-border: #e2e0cf;
+  --color-border-hover: #c9c7b2;
+  --color-border-focus: #7d8c52;
 
-  --color-accent: #0891b2;
-  --color-error: #dc2626;
-  --color-error-hover: #b91c1c;
-  --color-success: #16a34a;
-  --color-warning: #ea580c;
+  --color-accent: #b45309;
+  --color-error: #c0342b;
+  --color-error-hover: #9f2a22;
+  --color-success: #15803d;
+  --color-warning: #b45309;
 
   --color-overlay: rgb(0 0 0 / 45%);
 
-  --shadow-color: 15 23 42;
+  --shadow-color: 22 26 13;
   --shadow-subtle: 0 1px 2px rgb(var(--shadow-color) / 6%);
   --shadow-normal: 0 2px 8px rgb(var(--shadow-color) / 12%);
   --shadow-elevated: 0 8px 24px rgb(var(--shadow-color) / 18%);
@@ -88,7 +86,7 @@
   --color-nutrient-proteins: #0b6bbb;
   --color-nutrient-salt: #7145a7;
 
-  --color-toast-bg: #1f2937;
+  --color-toast-bg: #242b18;
 
   /* ---------- Typographie ---------- */
   --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica, Arial,
@@ -195,36 +193,37 @@
 /* ---------- Palette sombre (Theme.qml, darkMode = true) ---------- */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-primary: #3b82f6;
-    --color-primary-hover: #60a5fa;
-    --color-primary-pressed: #2563eb;
-    --color-primary-disabled: #475569;
-    --color-primary-text: #60a5fa;
-    --color-link: #60a5fa;
+    --color-primary: #a8bd66;
+    --color-primary-hover: #bccf80;
+    --color-primary-pressed: #8fa356;
+    --color-primary-disabled: #3f4630;
+    --color-on-primary: #151a0c;
+    --color-primary-text: #b8cc78;
+    --color-link: #b8cc78;
 
-    --color-secondary: #a78bfa;
-    --color-secondary-hover: #c4b5fd;
-    --color-secondary-pressed: #8b5cf6;
+    --color-secondary: #f0a868;
+    --color-secondary-hover: #f6c091;
+    --color-secondary-pressed: #d98c4a;
 
-    --color-background: #0f172a;
-    --color-surface: #1e293b;
-    --color-surface-hover: #334155;
-    --color-surface-pressed: #475569;
+    --color-background: #11150b;
+    --color-surface: #1c2113;
+    --color-surface-hover: #272d1b;
+    --color-surface-pressed: #343b26;
 
-    --color-text: #f1f5f9;
-    --color-text-secondary: #94a3b8;
-    --color-text-disabled: #94a3b8;
-    --color-text-placeholder: #64748b;
+    --color-text: #eef1e3;
+    --color-text-secondary: #a7ae91;
+    --color-text-disabled: #7b8168;
+    --color-text-placeholder: #848a6d;
 
-    --color-border: #334155;
-    --color-border-hover: #475569;
-    --color-border-focus: #60a5fa;
+    --color-border: #333a24;
+    --color-border-hover: #464e33;
+    --color-border-focus: #b8cc78;
 
-    --color-accent: #22d3ee;
-    --color-error: #f87171;
-    --color-error-hover: #fca5a5;
-    --color-success: #4ade80;
-    --color-warning: #fbbf24;
+    --color-accent: #f0a868;
+    --color-error: #f08a80;
+    --color-error-hover: #f7b0a8;
+    --color-success: #7dd68f;
+    --color-warning: #f2c14e;
 
     --shadow-color: 0 0 0;
     --shadow-subtle: 0 1px 2px rgb(var(--shadow-color) / 35%);
@@ -235,41 +234,58 @@
 
 /* Bascule manuelle : doit l'emporter sur la preference systeme, dans les deux sens. */
 :root[data-theme='dark'] {
-  --color-primary: #3b82f6;
-  --color-primary-hover: #60a5fa;
-  --color-primary-pressed: #2563eb;
-  --color-primary-disabled: #475569;
-  --color-primary-text: #60a5fa;
-  --color-link: #60a5fa;
+  --color-primary: #a8bd66;
+  --color-primary-hover: #bccf80;
+  --color-primary-pressed: #8fa356;
+  --color-primary-disabled: #3f4630;
+  --color-on-primary: #151a0c;
+  --color-primary-text: #b8cc78;
+  --color-link: #b8cc78;
 
-  --color-secondary: #a78bfa;
-  --color-secondary-hover: #c4b5fd;
-  --color-secondary-pressed: #8b5cf6;
+  --color-secondary: #f0a868;
+  --color-secondary-hover: #f6c091;
+  --color-secondary-pressed: #d98c4a;
 
-  --color-background: #0f172a;
-  --color-surface: #1e293b;
-  --color-surface-hover: #334155;
-  --color-surface-pressed: #475569;
+  --color-background: #11150b;
+  --color-surface: #1c2113;
+  --color-surface-hover: #272d1b;
+  --color-surface-pressed: #343b26;
 
-  --color-text: #f1f5f9;
-  --color-text-secondary: #94a3b8;
-  --color-text-disabled: #94a3b8;
-  --color-text-placeholder: #64748b;
+  --color-text: #eef1e3;
+  --color-text-secondary: #a7ae91;
+  --color-text-disabled: #7b8168;
+  --color-text-placeholder: #848a6d;
 
-  --color-border: #334155;
-  --color-border-hover: #475569;
-  --color-border-focus: #60a5fa;
+  --color-border: #333a24;
+  --color-border-hover: #464e33;
+  --color-border-focus: #b8cc78;
 
-  --color-accent: #22d3ee;
-  --color-error: #f87171;
-  --color-error-hover: #fca5a5;
-  --color-success: #4ade80;
-  --color-warning: #fbbf24;
+  --color-accent: #f0a868;
+  --color-error: #f08a80;
+  --color-error-hover: #f7b0a8;
+  --color-success: #7dd68f;
+  --color-warning: #f2c14e;
 
   --shadow-color: 0 0 0;
   --shadow-subtle: 0 1px 2px rgb(var(--shadow-color) / 35%);
   --shadow-normal: 0 2px 8px rgb(var(--shadow-color) / 50%);
   --shadow-elevated: 0 8px 24px rgb(var(--shadow-color) / 65%);
+}
+
+/* ---------- Bascule de theme ----------
+ *
+ * Posee par `lib/theme.ts` le temps d'un basculement, retiree deux trames
+ * plus tard. Elle repare un defaut mesurable : un element qui transitionne
+ * `background` garde son ancienne couleur quand la variable de theme change,
+ * et restait donc a la couleur de l'autre theme jusqu'au rechargement.
+ *
+ * `!important` est ici a sa place : la regle doit gagner contre n'importe
+ * quelle transition declaree ailleurs, sans avoir a les connaitre. */
+.theme-en-bascule,
+.theme-en-bascule *,
+.theme-en-bascule *::before,
+.theme-en-bascule *::after {
+  transition: none !important;
 }
 
 /* ---------- Base ---------- */

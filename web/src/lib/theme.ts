@@ -28,9 +28,42 @@ function read(): ThemeChoice {
   }
 }
 
+/**
+ * Coupe les transitions pendant la bascule, puis les rend.
+ *
+ * DEUX RAISONS, dont une est un vrai defaut.
+ *
+ * Le defaut d'abord : un element qui declare `transition: background` GARDE
+ * son ancienne couleur quand la variable de theme change. Le fond de la page,
+ * les cartes et la barre d'onglets suivent ; les boutons, seuls a porter une
+ * transition sur `background`, restaient a la couleur de l'autre theme
+ * jusqu'au rechargement. Mesure a l'appui : apres bascule, la variable valait
+ * bien la nouvelle couleur sur le bouton, mais sa couleur PEINTE restait
+ * l'ancienne. Neutraliser la transition le temps du basculement force la
+ * valeur a se reposer.
+ *
+ * L'autre raison est de gout : personne ne veut voir toute l'interface
+ * fondre pendant 150 ms parce qu'on a change de theme. Une bascule doit etre
+ * instantanee.
+ *
+ * Deux `requestAnimationFrame` et non un seul : le premier rend la main apres
+ * que le style a ete recalcule, le second apres qu'il a ete PEINT. Retirer la
+ * classe trop tot laisserait la transition s'amorcer quand meme.
+ */
+function sansTransition(basculer: () => void): void {
+  const racine = document.documentElement
+  racine.classList.add('theme-en-bascule')
+  basculer()
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => racine.classList.remove('theme-en-bascule'))
+  })
+}
+
 function apply(choice: ThemeChoice): void {
-  if (choice === 'system') delete document.documentElement.dataset['theme']
-  else document.documentElement.dataset['theme'] = choice
+  sansTransition(() => {
+    if (choice === 'system') delete document.documentElement.dataset['theme']
+    else document.documentElement.dataset['theme'] = choice
+  })
   try {
     if (choice === 'system') localStorage.removeItem(STORAGE_KEY)
     else localStorage.setItem(STORAGE_KEY, choice)
