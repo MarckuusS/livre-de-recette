@@ -506,6 +506,7 @@ function DayTotals({
               <tr>
                 <th scope="col">Nutriment</th>
                 <th scope="col">Jour</th>
+                <th scope="col">Part</th>
                 <th scope="col">Semaine</th>
               </tr>
             </thead>
@@ -521,13 +522,11 @@ function DayTotals({
                   </th>
                   <td>
                     {formatNutrient(dayEntries.length, dayTotal[row.key], row)}
-                    {/* Sur la colonne du JOUR seulement : c'est elle que
-                        l'anneau plus bas resume. */}
-                    {dayEntries.length > 0 && energyShare(dayTotal, row.key) !== null && (
-                      <span className="nutrition-table__part">
-                        {energyShare(dayTotal, row.key)}
-                      </span>
-                    )}
+                  </td>
+                  {/* La part porte sur le JOUR, c'est elle que l'anneau plus
+                      bas resume. Elle se range donc juste apres sa colonne. */}
+                  <td className="nutrition-table__part">
+                    {dayEntries.length > 0 ? energyShare(dayTotal, row.key) : null}
                   </td>
                   <td>
                     {formatNutrient(

@@ -276,6 +276,28 @@ export function energyShare(total: NutritionTotal, key: keyof NutritionTotal): s
 
 export function formatNutrient(entryCount: number, value: number, row: NutrientRow): string {
   if (entryCount === 0) return '—'
+
+  /*
+   * UNE MASSE NON NULLE NE S'ECRIT PAS "0,0 g".
+   *
+   * Un sirop d'agave apporte 0,0114 g de lipides sur une portion de 5,7 g.
+   * Arrondi a la decimale, cela donnait "0,0 g" a cote d'une part d'energie de
+   * 1 %, et les deux se contredisaient a l'oeil. Pourtant les deux etaient
+   * justes : les lipides pesent 9 kcal/g contre 4 pour les glucides, donc une
+   * masse trop petite pour s'afficher porte quand meme une part visible.
+   *
+   * C'etait donc le TABLEAU qui mentait, pas le calcul. "< 0,1 g" dit ce
+   * qu'il en est, et la part cesse d'etonner. Un vrai zero, lui, reste "0,0 g".
+   */
+  const plancher = 10 ** -row.decimals
+  if (value > 0 && value < plancher) {
+    const seuil = plancher.toLocaleString('fr-FR', {
+      minimumFractionDigits: row.decimals,
+      maximumFractionDigits: row.decimals,
+    })
+    return `< ${seuil} ${row.unit}`
+  }
+
   const formatted = value.toLocaleString('fr-FR', {
     minimumFractionDigits: row.decimals,
     maximumFractionDigits: row.decimals,

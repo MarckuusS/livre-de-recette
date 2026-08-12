@@ -217,22 +217,25 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
         <h3 className="card__title">Apports de ce repas</h3>
         <div className="table-scroll">
           <table className="nutrition-table">
+            {/* Deux colonnes chiffrees : la masse, puis la part d'energie. */}
+            <thead>
+              <tr>
+                <th scope="col">Nutriment</th>
+                <th scope="col">Quantité</th>
+                <th scope="col">Part</th>
+              </tr>
+            </thead>
             <tbody>
               {NUTRIENT_ROWS.map((row) => (
                 <tr key={row.key}>
                   <th scope="row" className={row.sub ? 'unit' : undefined}>
                     <NutrientLabel nutrient={row.key} label={row.label} sub={row.sub ?? false} />
                   </th>
-                  <td>
-                    {formatNutrient(1, nutrition[row.key], row)}
-                    {/* La part d'energie, la ou l'anneau la dessine. Elle
-                        vivait dans sa legende, retiree parce qu'elle repetait
-                        ce tableau : elle revient donc ICI, une seule fois. */}
-                    {energyShare(nutrition, row.key) !== null && (
-                      <span className="nutrition-table__part">
-                        {energyShare(nutrition, row.key)}
-                      </span>
-                    )}
+                  <td>{formatNutrient(1, nutrition[row.key], row)}</td>
+                  {/* La part d'energie dans SA PROPRE colonne : collee a la
+                      masse, "4,3 g 99 %" se lisait comme une seule valeur. */}
+                  <td className="nutrition-table__part">
+                    {energyShare(nutrition, row.key)}
                   </td>
                 </tr>
               ))}

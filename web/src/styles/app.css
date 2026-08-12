@@ -1057,13 +1057,15 @@
   height: 24px;
 }
 
-/* La part d'energie, en second rang derriere la masse : c'est la masse qu'on
-   vient chercher dans un tableau d'etiquetage, la part n'est qu'un eclairage. */
+/* La part d'energie, dans sa PROPRE colonne. Posee a la suite de la masse,
+   "4,3 g 99 %" se lisait comme une seule valeur. Une largeur fixe suffit a les
+   separer sans trait, et garde les pourcentages alignes d'une ligne a l'autre. */
 .nutrition-table__part {
-  margin-left: var(--space-sm);
+  width: 3.5rem;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .nutrition-table .unit {
