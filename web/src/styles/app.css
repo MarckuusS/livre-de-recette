@@ -276,7 +276,7 @@
    pixels que le calcul ci-dessus ne rattrape pas, on voit du gris de barre et
    non une bande de fond plus sombre. Invisible quand l'ajustement est exact. */
 .tabbar::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 100%;
   right: 0;
@@ -304,7 +304,7 @@
    distinguait l'onglet courant : insuffisant a qui ne separe pas l'olive du
    gris, et c'est le seul reperage de position de toute l'application. */
 .tabbar__item--active .tabbar__label::after {
-  content: '';
+  content: "";
   display: block;
   width: 4px;
   height: 4px;
@@ -809,10 +809,16 @@
   font-weight: var(--font-weight-medium);
 }
 
-.badge--ciqual { background: var(--color-source-ciqual); }
-.badge--openfoodfacts { background: var(--color-source-off); }
+.badge--ciqual {
+  background: var(--color-source-ciqual);
+}
+.badge--openfoodfacts {
+  background: var(--color-source-off);
+}
 .badge--manual,
-.badge--lidl { background: var(--color-source-manual); }
+.badge--lidl {
+  background: var(--color-source-manual);
+}
 
 .badge--season {
   color: #fff;
@@ -839,8 +845,12 @@
   font-weight: var(--font-weight-regular);
 }
 
-.section-header--soon { color: var(--color-error); }
-.section-header--watch { color: var(--color-warning); }
+.section-header--soon {
+  color: var(--color-error);
+}
+.section-header--watch {
+  color: var(--color-warning);
+}
 
 .urgency-dot {
   flex: none;
@@ -850,8 +860,12 @@
   background: var(--color-text-placeholder);
 }
 
-.urgency-dot--soon { background: var(--color-error); }
-.urgency-dot--watch { background: var(--color-warning); }
+.urgency-dot--soon {
+  background: var(--color-error);
+}
+.urgency-dot--watch {
+  background: var(--color-warning);
+}
 
 /* ---------- Cartes ---------- */
 
@@ -964,18 +978,50 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
 }
 
-.nutrient-label__icon--kcal { color: var(--color-nutrient-energy-ink); }
-.nutrient-label__icon--proteins { color: var(--color-nutrient-proteins-ink); }
-.nutrient-label__icon--carbs { color: var(--color-nutrient-carbs-ink); }
-.nutrient-label__icon--sugars { color: var(--color-nutrient-sugars-ink); }
-.nutrient-label__icon--fats { color: var(--color-nutrient-fats-ink); }
-.nutrient-label__icon--saturatedFats { color: var(--color-nutrient-saturated-ink); }
-.nutrient-label__icon--fiber { color: var(--color-nutrient-fiber-ink); }
-.nutrient-label__icon--salt { color: var(--color-nutrient-salt-ink); }
+.nutrient-label__icon--kcal {
+  color: var(--color-nutrient-energy-ink);
+  background: var(--color-nutrient-energy-pale);
+}
+
+.nutrient-label__icon--proteins {
+  color: var(--color-nutrient-proteins-ink);
+  background: var(--color-nutrient-proteins-pale);
+}
+
+.nutrient-label__icon--carbs {
+  color: var(--color-nutrient-carbs-ink);
+  background: var(--color-nutrient-carbs-pale);
+}
+
+.nutrient-label__icon--sugars {
+  color: var(--color-nutrient-sugars-ink);
+  background: var(--color-nutrient-sugars-pale);
+}
+
+.nutrient-label__icon--fats {
+  color: var(--color-nutrient-fats-ink);
+  background: var(--color-nutrient-fats-pale);
+}
+
+.nutrient-label__icon--saturatedFats {
+  color: var(--color-nutrient-saturated-ink);
+  background: var(--color-nutrient-saturated-pale);
+}
+
+.nutrient-label__icon--fiber {
+  color: var(--color-nutrient-fiber-ink);
+  background: var(--color-nutrient-fiber-pale);
+}
+
+.nutrient-label__icon--salt {
+  color: var(--color-nutrient-salt-ink);
+  background: var(--color-nutrient-salt-pale);
+}
 
 /* Sous-ligne du tableau reglementaire (« dont sucres »). Elle a desormais son
    picto, plus petit, mais garde son retrait : la difference de taille seule ne
@@ -986,8 +1032,8 @@
 }
 
 .nutrient-label--sub .nutrient-label__icon {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
 }
 
 .nutrition-table .unit {
@@ -1103,9 +1149,15 @@
 
 /* ---------- Journal d'activite ---------- */
 
-.activity-dot--create { background: var(--color-success); }
-.activity-dot--update { background: var(--color-primary); }
-.activity-dot--delete { background: var(--color-error); }
+.activity-dot--create {
+  background: var(--color-success);
+}
+.activity-dot--update {
+  background: var(--color-primary);
+}
+.activity-dot--delete {
+  background: var(--color-error);
+}
 
 .row__title strong {
   font-weight: var(--font-weight-semibold);

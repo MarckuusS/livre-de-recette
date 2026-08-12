@@ -58,10 +58,7 @@ L'application web n'utilise **plus d'émoji**. 67 icônes les remplacent : **10 
 - Une icône ne porte **jamais** de couleur littérale, seulement `none` ou `currentColor`. Un test
   échoue sinon : une couleur en dur raterait la teinte du rayon et le thème sombre.
 - **Les 8 nutriments ont leurs icônes dans ce jeu**, plus de PNG. Une image ne se teinte pas, ne
-  suit pas le thème sombre et se pixellise à l'agrandissement. Elles portent l'**encre** de leur
-  nutriment et non sa teinte : un trait de 1,7 px est plus fin qu'une lettre, donc plus exigeant en
-  contraste — le miel de surface tombe à 2,2:1 sur une carte blanche. Les sous-lignes dérivent de
-  leur famille (deux gouttes pour les saturés, une pour les lipides). Le desktop QML garde ses
+  suit pas le thème sombre et se pixellise à l'agrandissement. Chacune est posée sur une **pastille pâle** et porte l'**encre** de son nutriment, jamais sa teinte. Les deux sous-lignes gardent le lien familial par leur dessin mais ont leur propre couleur : dérivées du parent, leurs pastilles calculaient la même valeur au pixel près. L'énergie porte l'olive de l'application. Le desktop QML garde ses
   propres PNG sous `app/ui/qml/components/icons/nutrient/` : ne pas les supprimer avec.
 - **Il n'y a pas d'icône par aliment, et c'est délibéré.** Un ingrédient porte l'icône de son
   rayon (`category_l1`), donnée qu'il a déjà.

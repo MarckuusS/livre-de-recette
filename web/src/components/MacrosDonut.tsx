@@ -115,9 +115,13 @@ export function MacrosDonut({ total, title, centerCaption, emptyMessage }: Macro
                 aria-hidden="true"
               />
               <span className="macros__label">{arc.label}</span>
+              {/* PAS DE GRAMMES ICI. L'anneau repond a "dans quelle
+                  proportion", le tableau reglementaire qui le suit repond a
+                  "combien" : les grammes y figuraient deux fois, a quelques
+                  centimetres d'ecart, pour les quatre memes lignes. La legende
+                  garde ce qui est le sujet de l'anneau, l'energie et sa part. */}
               <span className="macros__value">
-                {formatNumber(arc.grams, 1)} g · {Math.round(arc.kcal)} kcal ·{' '}
-                <strong>{formatNumber(arc.share * 100, 0)} %</strong>
+                {Math.round(arc.kcal)} kcal · <strong>{formatNumber(arc.share * 100, 0)} %</strong>
               </span>
             </li>
           ))}
@@ -172,10 +176,10 @@ export function MacroBar({ total }: { readonly total: NutritionTotal }) {
  * ces cellules livrent les VALEURS. Une fiche produit se lit en chiffres —
  * « 10,6 g de protéines » — et un anneau ne repond pas a cette question.
  *
- * L'energie occupe la premiere cellule mais reste NEUTRE : elle n'est pas une
- * quatrieme macro, elle est leur somme. Lui donner une couleur ferait quatre
- * teintes pour trois familles, et le tricolore cesserait de vouloir dire
- * quelque chose.
+ * L'energie occupe la premiere cellule et porte l'OLIVE de l'application, pas
+ * une quatrieme teinte du tricolore : elle n'est pas une quatrieme famille,
+ * elle est la somme des trois. Elle etait grise, ce qui la faisait passer pour
+ * du noir.
  */
 export function MacroCells({
   total,
