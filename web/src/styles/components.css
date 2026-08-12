@@ -750,3 +750,28 @@
     width: 100%;
   }
 }
+
+/* ---------- Barre de repartition ----------
+   Trois pixels : assez pour lire une proportion d'un coup d'oeil, trop peu
+   pour encombrer une ligne qui porte deja un nom, une quantite, une energie
+   et un prix. */
+
+.macro-bar {
+  display: flex;
+  width: 100%;
+  height: 3px;
+  margin-top: 5px;
+  overflow: hidden;
+  background: var(--color-surface-pressed);
+  border-radius: var(--radius-full);
+}
+
+.macro-bar__part {
+  display: block;
+  flex-basis: 0;
+}
+
+.macro-bar__part--fats { background: var(--color-nutrient-fats); }
+.macro-bar__part--carbs { background: var(--color-nutrient-carbs); }
+.macro-bar__part--fiber { background: var(--color-nutrient-fiber); }
+.macro-bar__part--proteins { background: var(--color-nutrient-proteins); }

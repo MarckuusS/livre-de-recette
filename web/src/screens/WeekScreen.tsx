@@ -32,7 +32,7 @@ import {
   type NutritionTotal,
 } from '@livre/shared'
 
-import { MacrosDonut } from '../components/MacrosDonut.js'
+import { MacroBar, MacrosDonut } from '../components/MacrosDonut.js'
 import { NutrientLabel } from '../components/NutrientLabel.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
 import { useToast } from '../components/Toast.js'
@@ -50,12 +50,14 @@ import { AddEntrySheet } from './semaine/AddEntrySheet.js'
 import { EntrySheet } from './semaine/EntrySheet.js'
 import { WeekTools, type WeekTool } from './semaine/WeekTools.js'
 import {
+  NUTRIENT_ROWS,
   entriesCost,
   entriesOfDay,
   entriesOfSlot,
   entryAmountLabel,
   entryName,
   entryNutrition,
+  formatNutrient,
   targetOf,
   sumNutrition,
   type SavedEntry,
@@ -384,7 +386,8 @@ function MealRow({
   onEdit: (entry: SavedEntry) => void
 }) {
   const name = entryName(entry, data)
-  const kcal = entryNutrition(entry, data).kcal
+  const nutrition = entryNutrition(entry, data)
+  const kcal = nutrition.kcal
 
   // Cout de CETTE ligne. « 20 g d'isolat » ne dit rien de la depense, et le
   // total du jour ne se repartit pas a l'oeil : sans cette valeur, impossible
@@ -423,6 +426,11 @@ function MealRow({
                 cout compte deja ces lignes et le dit en toutes lettres. */}
             {cost !== null && <span className="meal__cost">{formatEuros(cost.toFixed(4))}</span>}
           </span>
+          {/* La repartition, en trois pixels. Sept valeurs chiffrees seraient
+              illisibles sur une ligne qui porte deja un nom, une quantite, une
+              energie et un prix ; l'allure d'un repas, elle, se lit d'un coup
+              d'oeil. Le detail est dans la feuille, au tap. */}
+          <MacroBar total={nutrition} />
         </span>
         <span className="meal__chevron" aria-hidden="true">
           ›
@@ -436,26 +444,6 @@ function MealRow({
 // Totaux
 // ---------------------------------------------------------------------------
 
-interface NutrientRow {
-  readonly key: keyof NutritionTotal
-  readonly label: string
-  readonly unit: string
-  readonly decimals: number
-  /** Ligne « dont … », en retrait et en gris comme sur l'etiquetage. */
-  readonly sub?: boolean | undefined
-}
-
-/** Ordre du reglement UE 1169/2011, celui de l'etiquetage alimentaire. */
-const NUTRIENT_ROWS: readonly NutrientRow[] = [
-  { key: 'kcal', label: 'Énergie', unit: 'kcal', decimals: 0 },
-  { key: 'fats', label: 'Lipides', unit: 'g', decimals: 1 },
-  { key: 'saturatedFats', label: 'dont acides gras saturés', unit: 'g', decimals: 1, sub: true },
-  { key: 'carbs', label: 'Glucides', unit: 'g', decimals: 1 },
-  { key: 'sugars', label: 'dont sucres', unit: 'g', decimals: 1, sub: true },
-  { key: 'fiber', label: 'Fibres', unit: 'g', decimals: 1 },
-  { key: 'proteins', label: 'Protéines', unit: 'g', decimals: 1 },
-  { key: 'salt', label: 'Sel', unit: 'g', decimals: 2 },
-]
 
 function DayTotals({
   data,
@@ -563,11 +551,3 @@ function DayTotals({
  * vide laisserait croire a une donnee mesuree. Une macro inconnue, elle,
  * compte pour 0 dans l'agregat — regle du domaine, reprise du desktop.
  */
-function formatNutrient(entryCount: number, value: number, row: NutrientRow): string {
-  if (entryCount === 0) return '—'
-  const formatted = value.toLocaleString('fr-FR', {
-    minimumFractionDigits: row.decimals,
-    maximumFractionDigits: row.decimals,
-  })
-  return `${formatted} ${row.unit}`
-}

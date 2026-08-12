@@ -181,3 +181,52 @@ export const entriesOfSlot = (entries: readonly SavedEntry[], slot: MealSlot): S
  */
 export const toMealSlot = (value: string): MealSlot =>
   MEAL_SLOTS.find((slot) => slot === value) ?? 'noon'
+
+
+// ---------------------------------------------------------------------------
+// Le tableau reglementaire
+// ---------------------------------------------------------------------------
+
+/**
+ * Les huit lignes de l'etiquetage, dans l'ordre du reglement UE 1169/2011.
+ *
+ * Vit ici plutot que dans l'ecran Semaine depuis que la feuille d'un repas
+ * affiche le meme tableau : deux listes a tenir d'accord auraient diverge au
+ * premier ajout.
+ */
+export interface NutrientRow {
+  readonly key: keyof NutritionTotal
+  readonly label: string
+  readonly unit: string
+  readonly decimals: number
+  /** Ligne « dont … », en retrait et en gris comme sur l'etiquetage. */
+  readonly sub?: boolean | undefined
+}
+
+/** Ordre du reglement UE 1169/2011, celui de l'etiquetage alimentaire. */
+export const NUTRIENT_ROWS: readonly NutrientRow[] = [
+  { key: 'kcal', label: 'Énergie', unit: 'kcal', decimals: 0 },
+  { key: 'fats', label: 'Lipides', unit: 'g', decimals: 1 },
+  { key: 'saturatedFats', label: 'dont acides gras saturés', unit: 'g', decimals: 1, sub: true },
+  { key: 'carbs', label: 'Glucides', unit: 'g', decimals: 1 },
+  { key: 'sugars', label: 'dont sucres', unit: 'g', decimals: 1, sub: true },
+  { key: 'fiber', label: 'Fibres', unit: 'g', decimals: 1 },
+  { key: 'proteins', label: 'Protéines', unit: 'g', decimals: 1 },
+  { key: 'salt', label: 'Sel', unit: 'g', decimals: 2 },
+]
+
+/**
+ * Une valeur nutritionnelle.
+ *
+ * « — » quand il n'y a rien a totaliser : afficher « 0 kcal » pour une journee
+ * vide laisserait croire a une donnee mesuree. Une macro inconnue, elle,
+ * compte pour 0 dans l'agregat — regle du domaine, reprise du desktop.
+ */
+export function formatNutrient(entryCount: number, value: number, row: NutrientRow): string {
+  if (entryCount === 0) return '—'
+  const formatted = value.toLocaleString('fr-FR', {
+    minimumFractionDigits: row.decimals,
+    maximumFractionDigits: row.decimals,
+  })
+  return `${formatted} ${row.unit}`
+}

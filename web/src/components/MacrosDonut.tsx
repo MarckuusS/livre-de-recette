@@ -126,3 +126,40 @@ export function MacrosDonut({ total, title, centerCaption, emptyMessage }: Macro
     </div>
   )
 }
+
+
+/**
+ * La meme repartition, reduite a une barre de trois pixels.
+ *
+ * Elle existe pour les LIGNES de la semaine, ou l'anneau ne tiendrait pas et
+ * ou sept valeurs chiffrees seraient illisibles. Elle ne remplace pas le
+ * detail : elle donne l'allure d'un repas — « surtout des glucides » se voit
+ * sans lire — et la feuille du repas porte les nombres.
+ *
+ * `role="img"` avec un libelle : le trace n'est pas decoratif ici, c'est la
+ * seule information de repartition presente dans la ligne.
+ */
+export function MacroBar({ total }: { readonly total: NutritionTotal }) {
+  const breakdown = energyBreakdown(total)
+  if (breakdown.atwaterKcal <= 0) return null
+
+  const parts = SEGMENTS.map((segment) => ({
+    key: segment.key,
+    label: segment.label,
+    part: breakdown[`${segment.key}Kcal` as const] / breakdown.atwaterKcal,
+  })).filter((p) => p.part > 0)
+
+  const resume = parts.map((p) => `${p.label} ${Math.round(p.part * 100)} %`).join(', ')
+
+  return (
+    <span className="macro-bar" role="img" aria-label={`Répartition : ${resume}`}>
+      {parts.map((p) => (
+        <span
+          key={p.key}
+          className={`macro-bar__part macro-bar__part--${p.key}`}
+          style={{ flexGrow: p.part }}
+        />
+      ))}
+    </span>
+  )
+}

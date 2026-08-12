@@ -20,11 +20,24 @@ import {
   type MealSlot,
 } from '@livre/shared'
 
+import { Link } from 'react-router'
+
 import { NumberField, SelectField } from '../../components/Field.js'
+import { MacrosDonut } from '../../components/MacrosDonut.js'
+import { NutrientLabel } from '../../components/NutrientLabel.js'
+import { Icon } from '../../icons/index.js'
 import { QuantityField } from '../../components/QuantityField.js'
 import { Sheet } from '../../components/Sheet.js'
 import { useMoveEntry, useUpdateEntryAmount, type CalendarResponse } from '../../lib/queries.js'
-import { entryName, targetOf, toMealSlot, type SavedEntry } from './totals.js'
+import {
+  NUTRIENT_ROWS,
+  entryName,
+  entryNutrition,
+  formatNutrient,
+  targetOf,
+  toMealSlot,
+  type SavedEntry,
+} from './totals.js'
 import '../../styles/week.css'
 
 const DAY_OPTIONS = DAY_LABELS.map((label, index) => ({ value: String(index), label }))
@@ -71,6 +84,12 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
   }
 
   const label = entryName(entry, data)
+  // Recalcule a chaque rendu : la feuille laisse modifier la quantite, et le
+  // detail doit suivre la saisie, pas l'etat enregistre.
+  const nutrition = entryNutrition(
+    { ...entry, quantityG: isRecipe ? null : quantityG, portions: isRecipe ? portions : null },
+    data,
+  )
   const pieceWeightG = target?.kind === 'ingredient' ? target.ingredient.pieceWeightG : null
   const error = move.error?.message ?? amount.error?.message
 
@@ -147,6 +166,19 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
           </p>
         )}
 
+        {/* La fiche d'origine, a un tap. Corriger un poids unitaire ou un prix
+            faux se faisait jusqu'ici en quittant la semaine, en cherchant
+            l'ingredient dans la bibliotheque, puis en revenant. */}
+        {target !== null && (
+          <Link
+            to={target.kind === 'ingredient' ? `/ingredients/${target.ingredient.id}` : `/recettes/${target.recipe.id}`}
+            className="button button--secondary button--block"
+          >
+            <Icon name="ui-edit" size={16} className="icon--inline" />{' '}
+            {target.kind === 'ingredient' ? 'Ouvrir la fiche ingrédient' : 'Ouvrir la recette'}
+          </Link>
+        )}
+
         <button
           type="button"
           className="button button--danger button--block"
@@ -155,6 +187,35 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
         >
           Retirer de la semaine
         </button>
+      </div>
+
+      {/* Le detail nutritionnel de CE repas, pour la quantite saisie.
+          C'est ici qu'il a sa place et non dans la ligne : l'anneau donne les
+          proportions, le tableau les sept valeurs de l'etiquetage. La barre de
+          la ligne n'en est que le resume. */}
+      <MacrosDonut
+        total={nutrition}
+        title="Répartition de ce repas"
+        centerCaption="kcal"
+        emptyMessage="Les macros de ce repas ne sont pas renseignées."
+      />
+
+      <div className="card">
+        <h3 className="card__title">Apports de ce repas</h3>
+        <div className="table-scroll">
+          <table className="nutrition-table">
+            <tbody>
+              {NUTRIENT_ROWS.map((row) => (
+                <tr key={row.key}>
+                  <th scope="row" className={row.sub ? 'unit' : undefined}>
+                    <NutrientLabel nutrient={row.key} label={row.label} sub={row.sub ?? false} />
+                  </th>
+                  <td>{formatNutrient(1, nutrition[row.key], row)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </Sheet>
   )
