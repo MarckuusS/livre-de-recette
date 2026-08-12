@@ -952,20 +952,42 @@
   gap: var(--space-sm);
 }
 
+/* L'icone double le libelle qui la suit : elle n'ajoute rien pour un lecteur
+   d'ecran, d'ou son `aria-hidden` cote balise.
+
+   ELLE PORTE LA COULEUR DU NUTRIMENT, ce qu'une image ne permettait pas.
+   LES ENCRES, comme pour le texte — et meme a plus forte raison : un trait de
+   1,7 px est PLUS FIN qu'une lettre, donc plus exigeant en contraste. Le miel
+   de surface tombe a 2,2:1 sur la carte blanche, ou l'epi des glucides
+   s'effacerait. Chaque famille garde sa couleur jusque dans ses sous-lignes. */
 .nutrient-label__icon {
+  display: grid;
+  place-items: center;
   flex: none;
   width: 22px;
   height: 22px;
-  /* L'icone double le libelle qui la suit : elle n'ajoute rien pour un lecteur
-     d'ecran, d'ou `alt=""` cote balise et ce simple role decoratif. */
-  object-fit: contain;
 }
 
-/* Sous-ligne du tableau reglementaire (« dont sucres ») : pas de picto propre,
-   mais le retrait doit rester lisible. */
+.nutrient-label__icon--kcal { color: var(--color-nutrient-energy-ink); }
+.nutrient-label__icon--proteins { color: var(--color-nutrient-proteins-ink); }
+.nutrient-label__icon--carbs { color: var(--color-nutrient-carbs-ink); }
+.nutrient-label__icon--sugars { color: var(--color-nutrient-sugars-ink); }
+.nutrient-label__icon--fats { color: var(--color-nutrient-fats-ink); }
+.nutrient-label__icon--saturatedFats { color: var(--color-nutrient-saturated-ink); }
+.nutrient-label__icon--fiber { color: var(--color-nutrient-fiber-ink); }
+.nutrient-label__icon--salt { color: var(--color-nutrient-salt-ink); }
+
+/* Sous-ligne du tableau reglementaire (« dont sucres »). Elle a desormais son
+   picto, plus petit, mais garde son retrait : la difference de taille seule ne
+   suffirait pas a la rattacher a la ligne du dessus. */
 .nutrient-label--sub {
-  padding-left: calc(22px + var(--space-sm));
+  padding-left: var(--space-md);
   font-style: italic;
+}
+
+.nutrient-label--sub .nutrient-label__icon {
+  width: 18px;
+  height: 18px;
 }
 
 .nutrition-table .unit {

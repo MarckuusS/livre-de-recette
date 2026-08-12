@@ -1,61 +1,66 @@
 /**
- * Libelle de nutriment avec son pictogramme — portage de NutrientLabel.qml.
+ * Libelle de nutriment avec son pictogramme.
  *
- * Les icones sont celles dessinees pour l'application de bureau, reprises
- * telles quelles : elles font partie de l'identite de l'application et leur
- * absence se remarque. Reduites de 250 a 72 px et quantifiees en palette
- * (487 Ko a 58 Ko pour les huit), ce qui reste raisonnable pour une PWA qui
- * les telecharge une fois.
+ * Les icones etaient des IMAGES, reprises du bureau : huit PNG de 250 px
+ * reduits a 72 et quantifies en palette, 58 Ko a eux tous. Elles ont ete
+ * remplacees par le jeu d'icones de l'application, et ce n'est pas qu'une
+ * question de poids :
+ *
+ *   - une image ne se TEINTE pas. Le tricolore macro ne pouvait pas l'atteindre,
+ *     alors qu'il colore tout le reste de l'application ;
+ *   - une image ne suit pas le THEME SOMBRE : le meme dessin y restait clair ;
+ *   - une image ne suit pas la TAILLE DU TEXTE : agrandie, elle se pixellise.
+ *
+ * Les dessins viennent des memes sources que le reste du jeu — Lucide, sauf la
+ * saliere que Tabler est seul a avoir. Ils sont declares dans `MAP`
+ * (scripts/import-lucide.mjs) et non colles ici : c'est la regle du projet, et
+ * elle garantit qu'ils sont rendus dans le meme cadre que les autres, trait
+ * compris.
  *
  * Les sous-lignes du tableau reglementaire — « dont sucres », « dont acides
- * gras saturés » — n'ont pas de picto propre : elles sont un detail de la
- * ligne au-dessus, pas un nutriment de plus. Elles reprennent son retrait pour
- * rester alignees.
+ * gras saturés » — gardent leur picto propre mais en retrait : elles sont un
+ * detail de la ligne au-dessus, pas un nutriment de plus.
  */
 
 import type { NutritionTotal } from '@livre/shared'
 
+import { Icon, type IconName } from '../icons/index.js'
+
 /**
- * Cle de macro vers nom de fichier.
+ * Nutriment vers dessin.
  *
- * Seule `kcal` differe : le fichier de bureau s'appelle `energy`. On garde son
- * nom plutot que de renommer un fichier livre avec l'application d'origine.
+ * Les sous-lignes DERIVENT de leur famille, elles ne vivent pas leur vie : les
+ * satures sont deux gouttes la ou les lipides en ont une, les sucres un bonbon
+ * a cote de l'epi des glucides. C'est la meme discipline que les couleurs, ou
+ * `--color-nutrient-sugars` est un miel plus profond.
  */
-const ICON_FILES: Record<keyof NutritionTotal, string> = {
-  kcal: 'energy',
-  fats: 'fats',
-  saturatedFats: 'saturatedFats',
-  carbs: 'carbs',
-  sugars: 'sugars',
-  fiber: 'fiber',
-  proteins: 'proteins',
-  salt: 'salt',
+const ICONS: Record<keyof NutritionTotal, IconName> = {
+  kcal: 'ui-zap',
+  proteins: 'ui-biceps',
+  carbs: 'ui-wheat',
+  sugars: 'ui-candy',
+  fats: 'ui-droplet',
+  saturatedFats: 'ui-droplets',
+  fiber: 'ui-leaf',
+  salt: 'ui-salt',
 }
 
 export interface NutrientLabelProps {
   readonly nutrient: keyof NutritionTotal
-  readonly label: string
-  /** Sous-ligne du tableau reglementaire : retrait, italique, pas de picto. */
+  /** Sous-ligne du tableau reglementaire : retrait, italique, picto plus petit. */
   readonly sub?: boolean
+  readonly label: string
 }
 
 export function NutrientLabel({ nutrient, label, sub = false }: NutrientLabelProps) {
-  if (sub) return <span className="nutrient-label nutrient-label--sub">{label}</span>
-
   return (
-    <span className="nutrient-label">
-      <img
-        className="nutrient-label__icon"
-        src={`/icons/nutrient/${ICON_FILES[nutrient]}.png`}
-        // Purement decoratif : le libelle juste a cote dit deja tout. Un `alt`
-        // renseigne ferait lire deux fois le meme mot par un lecteur d'ecran.
-        alt=""
-        width={22}
-        height={22}
-        // Le tableau des apports est sous la ligne de flottaison sur telephone.
-        loading="lazy"
-        decoding="async"
-      />
+    <span className={`nutrient-label${sub ? ' nutrient-label--sub' : ''}`}>
+      {/* Teinte par la couleur du nutriment, ce qu'une image ne permettait pas.
+          `nutrient-label__icon` porte la couleur ; l'icone, elle, ne connait
+          que `currentColor` — c'est ce qui la laisse suivre le theme. */}
+      <span className={`nutrient-label__icon nutrient-label__icon--${nutrient}`} aria-hidden="true">
+        <Icon name={ICONS[nutrient]} size={sub ? 16 : 20} strokeWidth={1.7} />
+      </span>
       {label}
     </span>
   )

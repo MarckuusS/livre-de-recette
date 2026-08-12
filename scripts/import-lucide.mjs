@@ -138,6 +138,21 @@ const MAP = {
   'ui-barcode': 'barcode',
   'ui-camera': 'camera',
 
+  // ---------- Nutriments ----------
+  // Les huit lignes du tableau reglementaire. Elles etaient des PNG de 250 px
+  // reduits a 72, quantifies en palette, pour 58 Ko a huit : une image ne se
+  // teinte pas, ne suit pas le theme sombre et se voit a l'agrandissement.
+  // Les sous-lignes derivent de leur famille — les satures sont deux gouttes
+  // la ou les lipides en ont une.
+  'ui-zap': 'zap',
+  'ui-wheat': 'wheat',
+  'ui-candy': 'candy',
+  'ui-droplet': 'droplet',
+  'ui-droplets': 'droplets',
+  'ui-biceps': 'biceps-flexed',
+  // Lucide n'a pas de saliere ; Tabler si, et c'est le dessin qu'on reconnait.
+  'ui-salt': 'tabler:salt',
+
   // ---------- Barre d'onglets ----------
   // Ces quatre-la ne servent QU'A la navigation principale, d'ou leur groupe :
   // les changer se voit sur tous les ecrans a la fois.
@@ -188,6 +203,8 @@ const FALLBACKS = {
   'badge-euro': ['euro', 'circle-dollar-sign'],
   house: ['home'],
   'scan-line': ['scan', 'scan-barcode'],
+  // Recemment ajoutee chez Lucide : le repli couvre une version plus ancienne.
+  'biceps-flexed': ['dumbbell'],
 }
 
 async function loadSanitizer() {
