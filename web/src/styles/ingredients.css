@@ -132,6 +132,22 @@
   color: var(--color-accent);
 }
 
+/* Les macros d'un candidat a l'import, separees par un point median.
+   Le separateur est pose par le style et non ecrit dans le texte : il
+   prendrait sinon la couleur du nutriment qui le precede, et l'oeil lirait
+   quatre teintes la ou il n'y a que trois familles. */
+
+.ing-result__macros {
+  display: inline-flex;
+  flex-wrap: wrap;
+}
+
+.ing-result__macros > span + span::before {
+  content: '·';
+  margin: 0 var(--space-xs);
+  color: var(--color-text-placeholder);
+}
+
 /* ---------- Feuilles de tri et de filtres ---------- */
 
 .ing-choices {

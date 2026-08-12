@@ -708,12 +708,16 @@ function CandidateRow({
   // autres nombres portent une virgule.
   const gram = (value: number) => `${value.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} g`
 
+  // Les memes couleurs que dans la bibliotheque : un candidat et une fiche
+  // deja rangee doivent se lire de la meme facon, sans quoi comparer les deux
+  // demande de relire les libelles. L'energie reste neutre — elle n'est pas
+  // une macro, et la colorer ferait quatre couleurs pour trois familles.
   const macros = [
-    candidate.kcal !== null ? `${Math.round(candidate.kcal)} kcal` : null,
-    candidate.proteins !== null ? `P ${gram(candidate.proteins)}` : null,
-    candidate.carbs !== null ? `G ${gram(candidate.carbs)}` : null,
-    candidate.fats !== null ? `L ${gram(candidate.fats)}` : null,
-  ].filter((part): part is string => part !== null)
+    candidate.kcal !== null ? { key: 'kcal', text: `${Math.round(candidate.kcal)} kcal` } : null,
+    candidate.proteins !== null ? { key: 'proteins', text: `P ${gram(candidate.proteins)}` } : null,
+    candidate.carbs !== null ? { key: 'carbs', text: `G ${gram(candidate.carbs)}` } : null,
+    candidate.fats !== null ? { key: 'fats', text: `L ${gram(candidate.fats)}` } : null,
+  ].filter((part): part is { key: string; text: string } => part !== null)
 
   return (
     <li className="ing-result">
@@ -739,7 +743,18 @@ function CandidateRow({
         <p className="ing-result__meta">
           <SourceBadge source={candidate.source} />
           {candidate.brand && <span>{candidate.brand}</span>}
-          {macros.length > 0 && <span>{macros.join(' · ')}</span>}
+          {macros.length > 0 && (
+            <span className="ing-result__macros">
+              {macros.map((macro) => (
+                <span
+                  key={macro.key}
+                  className={macro.key === 'kcal' ? undefined : `ing-macro ing-macro--${macro.key}`}
+                >
+                  {macro.text}
+                </span>
+              ))}
+            </span>
+          )}
           {candidate.categoryL1 && <span>{candidate.categoryL1}</span>}
         </p>
         {error && (
