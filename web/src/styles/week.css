@@ -1,32 +1,22 @@
-/* ---------- Les sept jours de la semaine ----------
+/* ---------- La semaine, en sept lignes ----------
  *
- * Une bande de sept boutons de 44 px les resumait a une initiale, un
- * quantieme et un point : on parcourait sa semaine sans pouvoir dire ce qu'il
- * y avait dedans. Chaque jour est desormais une carte, et le jour choisi
- * deplie ses creneaux juste dessous — l'edition par creneau, que le mockup ne
- * connait pas, ne perd rien.
+ * Ces lignes ont ete des boutons de 44 px muets, puis des cartes portant une
+ * puce par repas. Les puces disaient enfin quelque chose, mais elles
+ * GRANDISSAIENT : trois repas dans la maquette, huit dans la vraie donnee, et
+ * la ligne du mercredi faisait trois fois celle du mardi.
  *
- * La carte reste un ONGLET (`role="tab"`). Ses puces sont donc des `span` et
- * non des boutons : un bouton ne peut pas en contenir un autre, et un
- * `tablist` n'admet pas d'element interactif de plus. On garde la navigation
- * au clavier et l'annonce « onglet 3 sur 7 » ; on renonce a taper directement
- * une puce, ce que le panneau du jour offre deja juste dessous.
+ * D'ou la hauteur FIXE. Les cinq marques de creneau portent la seule
+ * information de contenu qui ne grandit pas, et c'est celle qu'on cherche en
+ * planifiant : ce qui manque.
  */
 
 .jours {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-}
-
-/* Le panneau du jour se colle SOUS sa carte, en retrait, pour qu'on voie a
-   quoi il appartient. Sans ce rapprochement, les creneaux flottaient entre
-   deux jours et l'on ne savait plus lequel on editait. */
-.jours .day-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin: calc(-1 * var(--space-xs)) 0 var(--space-sm) var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .jour {
@@ -35,16 +25,19 @@
   gap: var(--space-sm);
   width: 100%;
   padding: var(--space-md) var(--space-lg);
-  text-align: left;
+  color: var(--color-text);
+  text-decoration: none;
   background: var(--color-surface);
-  border: 0;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-subtle);
+  transition: background var(--duration-fast) var(--easing-standard);
 }
 
-/* Un CONTOUR et non un aplat : la carte garde son contenu lisible, la ou un
-   fond plein imposait d'inverser tout ce qu'elle porte. */
-.jour--actif {
+.jour:active {
+  background: var(--color-surface-pressed);
+}
+
+.jour--aujourdhui {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
 }
@@ -69,19 +62,58 @@
   color: var(--color-primary-text);
 }
 
-/* Pousse a droite, et suffixe en CSS : « kcal » repete sept fois noierait les
-   sept nombres qu'on vient comparer. */
-.jour__kcal {
+/* Pousse le chiffre a droite, juste avant le chevron. */
+.jour__valeur {
   margin-left: auto;
+}
+
+.jour__libre {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* Suffixe pose par le style : « kcal » repete sept fois noierait les sept
+   nombres qu'on vient comparer. */
+.jour__kcal {
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
 }
 
 .jour__kcal::after {
-  content: ' kcal';
+  content: " kcal";
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-regular);
   color: var(--color-text-secondary);
+}
+
+.jour__chevron {
+  flex: none;
+  font-size: var(--font-size-xl);
+  color: var(--color-text-placeholder);
+}
+
+/* ---------- Les cinq marques de creneau ----------
+ * Matin, collation, midi, gouter, soir. Pleine si le creneau porte quelque
+ * chose, creuse sinon. Cinq ronds valent une phrase et ne s'allongent jamais.
+ */
+
+.creneaux {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.creneau {
+  width: 9px;
+  height: 9px;
+  background: transparent;
+  border: 1.5px solid var(--color-border-hover);
+  border-radius: var(--radius-full);
+}
+
+.creneau--rempli {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 /* ---------- Badge d'etat du jour ---------- */
@@ -96,12 +128,7 @@
 
 .badge-jour--ok {
   color: var(--color-success);
-  background: var(--color-nutrient-fiber-pale, #e4f0e8);
-}
-
-.badge-jour--libre {
-  color: var(--color-nutrient-carbs-ink);
-  background: var(--color-nutrient-carbs-pale);
+  background: var(--color-nutrient-fiber-pale);
 }
 
 .badge-jour--encours {
@@ -109,33 +136,39 @@
   background: var(--color-surface-hover);
 }
 
-/* ---------- Puces de repas ---------- */
+/* ---------- Le bilan de la semaine ---------- */
 
-.chips-repas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
-}
-
-.chip-repas {
-  max-width: 100%;
-  overflow: hidden;
-  padding: 3px var(--space-sm);
+.semaine-bilan__cout {
+  margin: var(--space-sm) 0 0;
   font-size: var(--font-size-md);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: var(--color-surface-hover);
-  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
 }
 
-/* Ce qui MANQUE, en pointilles : sur un ecran de planification, c'est
-   l'information la plus utile de la carte. */
-.chip-repas--vide {
-  /* Le gris de suggestion tombait a 3,5:1 sur la carte. « + Soir » n'est pas
-     un texte d'attente : c'est ce que l'ecran a de plus utile a dire. */
+/* ---------- L'ecran d'une journee ---------- */
+
+.jour-entete {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.jour-entete__titre {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.jour-entete__kcal {
+  font-size: var(--font-size-xl);
+}
+
+.jour-entete__kcal::after {
+  content: " kcal";
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-regular);
   color: var(--color-text-secondary);
-  background: transparent;
-  border: 1px dashed var(--color-border-hover);
 }
 
 .slot {
@@ -257,7 +290,7 @@
 }
 
 .meal__kcal::after {
-  content: ' kcal';
+  content: " kcal";
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-regular);
   color: var(--color-text-secondary);
@@ -484,7 +517,7 @@
    `animation-timeline: scroll()` n'est pas encore partout : le filet est donc
    permanent, discret, et ne coute aucun script. */
 .week-head::after {
-  content: '';
+  content: "";
   position: absolute;
   right: 0;
   bottom: 0;

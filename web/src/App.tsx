@@ -16,6 +16,7 @@ import { RecipeDetailScreen, RecipesScreen } from './screens/RecipesScreen.js'
 import { ActivityScreen } from './screens/ActivityScreen.js'
 import { SettingsScreen } from './screens/SettingsScreen.js'
 import { ShoppingScreen } from './screens/ShoppingScreen.js'
+import { DayScreen } from './screens/DayScreen.js'
 import { WeekScreen } from './screens/WeekScreen.js'
 
 /**
@@ -68,6 +69,7 @@ const SCAN = '/scan'
 const TITLES: Array<[RegExp, string]> = [
   [/^\/accueil$/, 'Aujourd’hui'],
   [/^\/planning$/, 'Ma semaine'],
+  [/^\/planning\/[0-6]$/, 'Ma journée'],
   [/^\/objectifs$/, 'Mes objectifs'],
   [/^\/profil$/, 'Mon espace'],
   [/^\/scan$/, 'Scanner'],
@@ -93,7 +95,7 @@ const TITLES: Array<[RegExp, string]> = [
  * geste systeme du navigateur, absent d'une PWA installee en plein ecran.
  */
 const STACKED =
-  /^\/(ingredients|recettes|courses|frigo|scan|activite)$|^\/(ingredients|recettes)\/[^/]+$|^\/parametres(\/(icones|rayons|mes-icones))?$/
+  /^\/(ingredients|recettes|courses|frigo|scan|activite)$|^\/(ingredients|recettes)\/[^/]+$|^\/planning\/[0-6]$|^\/parametres(\/(icones|rayons|mes-icones))?$/
 
 /** L'alias `/semaine`, qui emporte sa chaine de requete vers `/planning`. */
 function RedirigeVersPlanning() {
@@ -184,6 +186,9 @@ export function App() {
             <Route path="/" element={<Navigate to="/accueil" replace />} />
             <Route path="/accueil" element={<AccueilScreen />} />
             <Route path="/planning" element={<WeekScreen />} />
+            {/* Le jour est un ECRAN et non un depliant : deux niveaux de
+                cartes blanches imbriquees se lisaient comme un seul. */}
+            <Route path="/planning/:jour" element={<DayScreen />} />
             <Route path="/objectifs" element={<ProfileScreen />} />
             <Route path="/profil" element={<SettingsScreen />} />
             <Route path="/scan" element={<ScanScreen />} />

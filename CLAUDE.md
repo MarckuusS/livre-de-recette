@@ -138,6 +138,25 @@ la forme du mockup. Ce qui ne se devine pas :
   utilise des paramètres **numérotés** (`?3` relu dans la branche UPDATE) — avec `excluded.ml` on
   relirait la valeur déjà bornée à zéro et un retrait serait perdu.
 
+## Planning : la semaine et le jour (web)
+
+Deux ecrans, et c'est une decision, pas un accident :
+
+- `/planning` montre **sept lignes de hauteur fixe** : jour, badge, cinq marques de creneau, total,
+  tri-barre. Rien qui grandisse avec le nombre de repas. Elle a d'abord porte une puce par repas :
+  le mockup en montre trois par jour, la vraie donnee en met huit, et la ligne du mercredi faisait
+  trois fois celle du mardi.
+- `/planning/:jour` montre **la journee**, avec ses cinq creneaux, le tableau des apports, l'anneau,
+  le cout et les outils. Le jour a d'abord ete un depliant sous sa ligne : deux niveaux de cartes
+  blanches imbriquees se lisent comme un seul, et l'on ne savait plus si "MATIN" appartenait a
+  mercredi ou a jeudi.
+- Les **cinq marques** portent la seule information de contenu qui ne grandit pas. Elles ont un
+  `aria-label` qui enumere ce qui est prevu et ce qui manque : cinq ronds ne se lisent pas a voix
+  haute.
+- Le total d'une ligne est celui de **la cuisine** ; le badge "Objectif tenu" compare une part
+  **individuelle** (`perEater`) a la cible. Ne jamais ecrire les deux comme un rapport sur la meme
+  ligne, ce serait un total de foyer face a une cible personnelle.
+
 ## Pieds d'action fixes (web)
 
 Six ecrans posent un pied fixe au-dessus de la barre d'onglets (fiche ingredient, liste et editeur
