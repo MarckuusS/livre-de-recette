@@ -24,7 +24,6 @@ import {
   MEAL_SLOTS,
   MEAL_SLOT_LABELS,
   datesOfIsoWeek,
-  formatEuros,
   perEater,
 } from "@livre/shared";
 
@@ -34,6 +33,7 @@ import { WeekPicker } from "../components/WeekPicker.js";
 import { useCalendar, type CalendarResponse } from "../lib/queries.js";
 import { useDailyTargets } from "../lib/useDailyTargets.js";
 import { useIsoWeekParam } from "../lib/useIsoWeekParam.js";
+import { CarteCout, TableauApports } from "./semaine/Apports.js";
 import { entriesCost, entriesOfDay, sumNutrition } from "./semaine/totals.js";
 import "../styles/week.css";
 
@@ -49,8 +49,11 @@ export function WeekScreen() {
 
   const semaine = useMemo(() => {
     if (data === undefined) return null;
-    const total = sumNutrition(data.entries, data);
-    return { total, cout: entriesCost(data.entries, data) };
+    return {
+      total: sumNutrition(data.entries, data),
+      cout: entriesCost(data.entries, data),
+      count: data.entries.length,
+    };
   }, [data]);
 
   return (
@@ -84,25 +87,23 @@ export function WeekScreen() {
         ))}
       </ul>
 
-      {semaine !== null && semaine.total.kcal > 0 && (
-        <div className="card semaine-bilan">
-          <div className="card-entete">
-            <h2 className="card__title card-entete__titre">Toute la semaine</h2>
-            <span className="card-entete__valeur">
-              {Math.round(semaine.total.kcal).toLocaleString("fr-FR")} kcal
-            </span>
-          </div>
-          <MacroBar total={semaine.total} />
-          {/* Le cout de la semaine vivait dans le bloc du jour, donc il fallait
-              ouvrir un jour pour lire un total de semaine. */}
-          <p className="semaine-bilan__cout">
-            Coût estimé : <strong>{formatEuros(semaine.cout.total)}</strong>
-            {semaine.cout.missingLines > 0 &&
-              ` (${semaine.cout.missingLines} ligne${
-                semaine.cout.missingLines > 1 ? "s" : ""
-              } sans prix)`}
-          </p>
-        </div>
+      {/* Les memes deux cartes que sur l'ecran d'un jour, mais sur SA portee.
+          Elles vivaient dans le bloc du jour, avec une colonne "Semaine" en
+          plus : il fallait ouvrir un jour pour lire un total de semaine, et le
+          tableau melangeait deux portees. */}
+      {semaine !== null && (
+        <>
+          <TableauApports
+            titre="Apports de la semaine"
+            total={semaine.total}
+            entryCount={semaine.count}
+          />
+          <CarteCout
+            titre="Coût de la semaine"
+            cout={semaine.cout}
+            portee="de la semaine"
+          />
+        </>
       )}
     </section>
   );

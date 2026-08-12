@@ -42,6 +42,7 @@ import {
 import { useIsoWeekParam } from "../lib/useIsoWeekParam.js";
 import { AddEntrySheet } from "./semaine/AddEntrySheet.js";
 import { EntrySheet } from "./semaine/EntrySheet.js";
+import { CarteCout, TableauApports } from "./semaine/Apports.js";
 import { GoalCard } from "./semaine/GoalCard.js";
 import { MealRow } from "./semaine/MealRow.js";
 import { WeekTools, type WeekTool } from "./semaine/WeekTools.js";
@@ -154,11 +155,7 @@ export function DayScreen() {
             </EmptyState>
           )}
 
-          <DayTotals
-            data={data}
-            dayEntries={dayEntries}
-            weekEntries={weekEntries}
-          />
+          <DayTotals data={data} dayEntries={dayEntries} />
         </>
       )}
 
@@ -267,87 +264,38 @@ function SlotCard({
   );
 }
 
+/**
+ * Ce qu'une journee apporte, et ce qu'elle coute.
+ *
+ * Le tableau ne porte PLUS de colonne "Semaine". Elle obligeait a ouvrir un
+ * jour pour lire un total de semaine, et mettait deux portees dans un meme
+ * tableau : on comparait sans le vouloir une journee a sept. La semaine a
+ * desormais les siens, sur son propre ecran.
+ */
 function DayTotals({
   data,
   dayEntries,
-  weekEntries,
 }: {
   data: CalendarResponse;
   dayEntries: readonly SavedEntry[];
-  weekEntries: CalendarResponse["entries"];
 }) {
   const dayTotal = useMemo(
     () => sumNutrition(dayEntries, data),
     [dayEntries, data],
   );
-  const weekTotal = useMemo(
-    () => sumNutrition(weekEntries, data),
-    [weekEntries, data],
-  );
   const dayCost = useMemo(
     () => entriesCost(dayEntries, data),
     [dayEntries, data],
   );
-  const weekCost = useMemo(
-    () => entriesCost(weekEntries, data),
-    [weekEntries, data],
-  );
 
   return (
     <>
-      <div className="card">
-        <h3 className="card__title">Apports</h3>
-        <div className="table-scroll">
-          <table className="nutrition-table">
-            <thead>
-              <tr>
-                <th scope="col">Nutriment</th>
-                <th scope="col">Jour</th>
-                <th scope="col">Part</th>
-                <th scope="col">Semaine</th>
-              </tr>
-            </thead>
-            <tbody>
-              {NUTRIENT_ROWS.map((row) => (
-                <tr key={row.key}>
-                  <th scope="row" className={row.sub ? "unit" : undefined}>
-                    <NutrientLabel
-                      nutrient={row.key}
-                      label={row.label}
-                      sub={row.sub ?? false}
-                    />
-                  </th>
-                  <td>
-                    {formatNutrient(dayEntries.length, dayTotal[row.key], row)}
-                  </td>
-                  {/* La part porte sur le JOUR, c'est elle que l'anneau plus
-                      bas resume. Elle se range donc juste apres sa colonne. */}
-                  <td className="nutrition-table__part">
-                    {dayEntries.length > 0
-                      ? energyShare(dayTotal, row.key)
-                      : null}
-                  </td>
-                  <td>
-                    {formatNutrient(
-                      weekEntries.length,
-                      weekTotal[row.key],
-                      row,
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <TableauApports
+        titre="Apports du jour"
+        total={dayTotal}
+        entryCount={dayEntries.length}
+      />
 
-      {/*
-        Repartition du jour selectionne, en pourcentage.
-        Le tableau ci-dessus donne les nombres, pas les proportions : savoir
-        qu'une journee pese 92 g de lipides ne dit pas qu'elle est a 55 %
-        lipidique. C'est la lecture qui manquait, et c'est celle qui se fait
-        d'un coup d'oeil. Le meme composant sert a la fiche recette.
-      */}
       {/* Entre les nombres bruts et l'anneau : c'est la lecture personnelle de
           la journee, et elle n'a de sens qu'apres avoir vu les totaux. */}
       <GoalCard dayTotal={dayTotal} hasEntries={dayEntries.length > 0} />
@@ -361,43 +309,12 @@ function DayTotals({
             ? "Rien de prévu ce jour."
             : "Aucune donnée : les repas de ce jour n’ont pas de macros renseignées."
         }
-        // Le tableau des apports du jour est rendu juste au-dessus : la
-        // legende reprenait quatre de ses huit lignes.
+        // Le tableau des apports est rendu juste au-dessus : la legende
+        // reprenait quatre de ses huit lignes.
         showLegend={false}
       />
 
-      <div className="card">
-        <h3 className="card__title">Coût</h3>
-        <dl className="kv">
-          <div className="kv__pair">
-            <dt>Ce jour</dt>
-            <dd>{formatEuros(dayCost.total)}</dd>
-          </div>
-          <div className="kv__pair">
-            <dt>La semaine</dt>
-            <dd>{formatEuros(weekCost.total)}</dd>
-          </div>
-        </dl>
-        {weekCost.missingLines > 0 && (
-          <p className="note">
-            <Icon name="ui-alert" size={14} className="icon--inline" />{" "}
-            {weekCost.missingLines === 1
-              ? "Un ingrédient de la semaine n’a pas de prix"
-              : `${weekCost.missingLines} ingrédients de la semaine n’ont pas de prix`}{" "}
-            : le total ci-dessus est <strong>sous-estimé</strong>.
-          </p>
-        )}
-        {weekCost.orphanCount > 0 && (
-          <p className="note">
-            <Icon name="ui-alert" size={14} className="icon--inline" />{" "}
-            {weekCost.orphanCount === 1
-              ? "Un repas pointe vers une recette ou un ingrédient supprimé"
-              : `${weekCost.orphanCount} repas pointent vers une recette ou un ingrédient supprimé`}{" "}
-            : rien n’a pu être chiffré pour{" "}
-            {weekCost.orphanCount === 1 ? "lui" : "eux"}.
-          </p>
-        )}
-      </div>
+      <CarteCout titre="Coût du jour" cout={dayCost} portee="de ce jour" />
     </>
   );
 }

@@ -136,14 +136,6 @@
   background: var(--color-surface-hover);
 }
 
-/* ---------- Le bilan de la semaine ---------- */
-
-.semaine-bilan__cout {
-  margin: var(--space-sm) 0 0;
-  font-size: var(--font-size-md);
-  color: var(--color-text-secondary);
-}
-
 /* ---------- L'ecran d'une journee ---------- */
 
 .jour-entete {
