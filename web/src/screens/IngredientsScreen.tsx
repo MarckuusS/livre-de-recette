@@ -28,6 +28,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { formatGrams, isInSeasonNow, type Ingredient } from '@livre/shared'
 
+import { formatDecimalInput, parseDecimal } from '../components/Field.js'
 import { Sheet } from '../components/Sheet.js'
 import { EmptyState, ErrorState, LoadingRows, SourceBadge } from '../components/States.js'
 import {
@@ -645,18 +646,29 @@ function CriteriaFields({
               }
               aria-label="Sens de la borne"
             >
-              <option value="min">au moins</option>
-              <option value="max">au plus</option>
+              {/* Les symboles plutot que « au moins » / « au plus » : dans une
+                  ligne qui se lit « Protéines ≥ 20 g/100 g », le signe se
+                  comprend d'un coup d'oeil la ou les mots demandaient d'etre
+                  lus. Les valeurs stockees restent `min` et `max` : les liens
+                  deja partages continuent de fonctionner. */}
+              <option value="min">≥</option>
+              <option value="max">≤</option>
             </select>
 
+            {/* `type="text"` et non `number` : le clavier francais produit une
+                virgule, que `type="number"` refuse dans plusieurs navigateurs —
+                on saisirait « 0,5 » et le champ se viderait. `parseDecimal`
+                accepte les deux separateurs, comme partout ailleurs dans
+                l'application, et `inputMode` garde le pave numerique. */}
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
               className="search-field ing-criterion__value"
-              value={String(criterion.value)}
-              min={0}
+              value={formatDecimalInput(criterion.value, 2)}
               onChange={(e) =>
-                onChange(updateCriterion(filters, index, { value: Number(e.target.value) || 0 }))
+                onChange(
+                  updateCriterion(filters, index, { value: parseDecimal(e.target.value) ?? 0 }),
+                )
               }
               aria-label={`Valeur en ${champ?.unit ?? ''}`}
             />

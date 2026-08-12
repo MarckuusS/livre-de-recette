@@ -235,7 +235,7 @@ export type CriterionField = (typeof CRITERION_FIELDS)[number]['code']
 
 const CRITERION_CODES: ReadonlySet<string> = new Set(CRITERION_FIELDS.map((f) => f.code))
 
-/** Une borne : « proteines au moins 20 », « sel au plus 1 ». */
+/** Une borne, lue « Protéines ≥ 20 » ou « Sel ≤ 1 » a l'ecran. */
 export interface Criterion {
   readonly field: CriterionField
   readonly bound: 'min' | 'max'
@@ -246,8 +246,8 @@ export interface Criterion {
  * La valeur d'un champ pour un ingredient, ou `null` si elle est inconnue.
  *
  * La distinction compte : `null` n'est pas zero. Un ingredient dont les macros
- * ne sont pas renseignees ne satisfait AUCUNE borne, ni « au moins », ni « au
- * plus » — sans quoi « moins de 1 g de sel » ramenerait toute la bibliotheque
+ * ne sont pas renseignees ne satisfait AUCUNE borne, ni « ≥ », ni « ≤ » —
+ * sans quoi « moins de 1 g de sel » ramenerait toute la bibliotheque
  * incomplete, et l'utilisateur croirait avoir trouve des aliments pauvres en
  * sel alors qu'il aurait trouve des fiches vides.
  */

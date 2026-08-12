@@ -182,13 +182,13 @@
 }
 
 /* ---------- Bornes chiffrees ----------
-   Une regle par ligne : nutriment, sens, valeur, unite, retrait. Sur 375 px
-   les deux listes deroulantes prennent la premiere ligne et la valeur la
-   seconde — trois selecteurs cote a cote seraient tous illisibles. */
+   Une regle se lit « Protéines ≥ 20 g/100 g ». Le nutriment prend la premiere
+   ligne, le reste tient sur la seconde : depuis que le sens est un signe et
+   non deux mots, il n'occupe plus qu'un caractere et la ligne rentre. */
 
 .ing-criterion {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: auto 1fr auto auto;
   gap: var(--space-sm);
   align-items: center;
   width: 100%;
@@ -199,13 +199,16 @@
   grid-column: 1 / -1;
 }
 
+/* Un glyphe seul, mais une cible au doigt : la largeur ne suit pas le texte. */
 .ing-criterion__bound {
   grid-column: 1;
+  min-width: 3.5rem;
+  text-align: center;
+  font-size: var(--font-size-xl);
 }
 
 .ing-criterion__value {
   grid-column: 2;
-  width: 6rem;
   text-align: right;
 }
 
@@ -217,7 +220,7 @@
 }
 
 .ing-criterion__remove {
-  grid-column: 3;
+  grid-column: 4;
   justify-self: end;
   min-width: var(--control-height-md);
   padding: 0;
