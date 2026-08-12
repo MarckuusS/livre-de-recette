@@ -18,6 +18,7 @@ import {
   SOURCE_LABELS,
   SOURCES,
   isInSeasonNow,
+  normalizeName,
   seasonMonths as parseSeasonMonths,
   type Ingredient,
   type Source,
@@ -201,32 +202,88 @@ export function groupIngredients(
 // ---------------------------------------------------------------------------
 
 /**
- * Les quatre bascules rapides du desktop, plus les deux listes.
+ * Etat d'une bascule. Trois positions, et non deux.
  *
- * Semantique reprise telle quelle : une bascule active n'affiche QUE les
- * ingredients qui portent la propriete — il n'existe pas de « sans marque ».
- * Une liste vide veut dire « toutes », jamais « aucune ».
- *
- * Les 12 bornes min/max sur les macros ne sont pas portees : douze champs
- * numeriques dans une feuille sont intenables au pouce, et l'inventaire les
- * classe deja en « polish ».
+ * Le desktop n'avait que « coche / non coche », donc pas de filtre inverse :
+ * impossible de demander « ce qui n'a PAS de prix », qui est pourtant la
+ * question qu'on se pose quand on complete sa bibliotheque. Le troisieme etat
+ * ne coute rien a l'ecran — la meme pastille, une couleur de plus.
  */
+export type ToggleState = 'indifferent' | 'avec' | 'sans'
+
+/**
+ * Champs sur lesquels une borne chiffree a un sens.
+ *
+ * `priceKg` n'est pas un champ de la table : il se calcule du prix et de la
+ * quantite qu'il couvre. Comparer des prix bruts n'aurait aucun sens, un
+ * ingredient etant tarife au kilo et l'autre a la piece.
+ */
+export const CRITERION_FIELDS = [
+  { code: 'kcal', label: 'Énergie', unit: 'kcal/100 g' },
+  { code: 'proteins', label: 'Protéines', unit: 'g/100 g' },
+  { code: 'carbs', label: 'Glucides', unit: 'g/100 g' },
+  { code: 'sugars', label: 'dont sucres', unit: 'g/100 g' },
+  { code: 'fats', label: 'Lipides', unit: 'g/100 g' },
+  { code: 'saturatedFats', label: 'dont saturés', unit: 'g/100 g' },
+  { code: 'fiber', label: 'Fibres', unit: 'g/100 g' },
+  { code: 'salt', label: 'Sel', unit: 'g/100 g' },
+  { code: 'priceKg', label: 'Prix', unit: '€/kg' },
+  { code: 'pieceWeightG', label: 'Poids unitaire', unit: 'g' },
+] as const
+
+export type CriterionField = (typeof CRITERION_FIELDS)[number]['code']
+
+const CRITERION_CODES: ReadonlySet<string> = new Set(CRITERION_FIELDS.map((f) => f.code))
+
+/** Une borne : « proteines au moins 20 », « sel au plus 1 ». */
+export interface Criterion {
+  readonly field: CriterionField
+  readonly bound: 'min' | 'max'
+  readonly value: number
+}
+
+/**
+ * La valeur d'un champ pour un ingredient, ou `null` si elle est inconnue.
+ *
+ * La distinction compte : `null` n'est pas zero. Un ingredient dont les macros
+ * ne sont pas renseignees ne satisfait AUCUNE borne, ni « au moins », ni « au
+ * plus » — sans quoi « moins de 1 g de sel » ramenerait toute la bibliotheque
+ * incomplete, et l'utilisateur croirait avoir trouve des aliments pauvres en
+ * sel alors qu'il aurait trouve des fiches vides.
+ */
+export function criterionValue(item: Ingredient, field: CriterionField): number | null {
+  if (field === 'priceKg') {
+    const eur = item.priceEur === null ? null : Number(item.priceEur)
+    const grams = item.priceQuantityG
+    if (eur === null || !Number.isFinite(eur) || grams === null || grams <= 0) return null
+    return (eur / grams) * 1000
+  }
+  if (field === 'pieceWeightG') return item.pieceWeightG ?? null
+  return item[field] ?? null
+}
+
 export interface LibraryFilters {
   readonly sources: readonly Source[]
   readonly rayons: readonly string[]
-  readonly inSeason: boolean
-  readonly withBrand: boolean
-  readonly withPieceWeight: boolean
-  readonly withPrice: boolean
+  readonly inSeason: ToggleState
+  readonly withBrand: ToggleState
+  readonly withPieceWeight: ToggleState
+  readonly withPrice: ToggleState
+  /** Sous-chaine cherchee dans la marque, accents et casse ignores. */
+  readonly brand: string
+  /** Bornes chiffrees, cumulables. Toutes doivent etre satisfaites. */
+  readonly criteria: readonly Criterion[]
 }
 
 export const NO_FILTERS: LibraryFilters = {
   sources: [],
   rayons: [],
-  inSeason: false,
-  withBrand: false,
-  withPieceWeight: false,
-  withPrice: false,
+  inSeason: 'indifferent',
+  withBrand: 'indifferent',
+  withPieceWeight: 'indifferent',
+  withPrice: 'indifferent',
+  brand: '',
+  criteria: [],
 }
 
 /**
@@ -237,31 +294,50 @@ export const NO_FILTERS: LibraryFilters = {
  * fichier intestable hors du navigateur.
  */
 export const QUICK_TOGGLES = [
-  { code: 'inSeason', icon: 'ui-leaf', label: 'De saison' },
-  { code: 'withPrice', icon: 'ui-price', label: 'Avec un prix' },
-  { code: 'withPieceWeight', icon: 'ui-scale', label: 'Poids unitaire' },
-  { code: 'withBrand', icon: 'ui-tag', label: 'Avec une marque' },
-] as const satisfies ReadonlyArray<{ code: string; icon: IconName; label: string }>
+  { code: 'inSeason', icon: 'ui-leaf', label: 'Saison', avec: 'De saison', sans: 'Hors saison' },
+  { code: 'withPrice', icon: 'ui-price', label: 'Prix', avec: 'Avec prix', sans: 'Sans prix' },
+  { code: 'withPieceWeight', icon: 'ui-scale', label: 'Poids unitaire', avec: 'Avec poids unitaire', sans: 'Sans poids unitaire' },
+  { code: 'withBrand', icon: 'ui-tag', label: 'Marque', avec: 'Avec marque', sans: 'Sans marque' },
+] as const satisfies ReadonlyArray<{
+  code: string
+  icon: IconName
+  /** Etat indifferent : le nom de la propriete, sans jugement. */
+  label: string
+  avec: string
+  sans: string
+}>
+
+/** Le libelle a afficher, qui DIT l'etat plutot que de le suggerer par une couleur. */
+export const toggleLabel = (
+  toggle: (typeof QUICK_TOGGLES)[number],
+  state: ToggleState,
+): string => (state === 'avec' ? toggle.avec : state === 'sans' ? toggle.sans : toggle.label)
 
 export type QuickToggle = (typeof QUICK_TOGGLES)[number]['code']
+
+const NEXT_STATE: Record<ToggleState, ToggleState> = {
+  indifferent: 'avec',
+  avec: 'sans',
+  sans: 'indifferent',
+}
 
 /**
  * Bascules et listes, exprimees en `switch` plutot qu'en cle calculee.
  *
- * `{ ...filters, [code]: !filters[code] }` avec une cle d'union se degrade en
+ * `{ ...filters, [code]: suivant }` avec une cle d'union se degrade en
  * signature d'index sous `exactOptionalPropertyTypes` : le controle de type
  * disparait exactement la ou il servirait.
  */
 export function toggleQuickFilter(filters: LibraryFilters, code: QuickToggle): LibraryFilters {
   switch (code) {
     case 'inSeason':
-      return { ...filters, inSeason: !filters.inSeason }
+      return { ...filters, inSeason: NEXT_STATE[filters.inSeason] }
     case 'withPrice':
-      return { ...filters, withPrice: !filters.withPrice }
+      return { ...filters, withPrice: NEXT_STATE[filters.withPrice] }
     case 'withPieceWeight':
-      return { ...filters, withPieceWeight: !filters.withPieceWeight }
+      return { ...filters, withPieceWeight: NEXT_STATE[filters.withPieceWeight] }
     case 'withBrand':
-      return { ...filters, withBrand: !filters.withBrand }
+      return { ...filters, withBrand: NEXT_STATE[filters.withBrand] }
   }
 }
 
@@ -279,12 +355,47 @@ export function toggleRayon(filters: LibraryFilters, rayon: string): LibraryFilt
   return { ...filters, rayons }
 }
 
+export function addCriterion(filters: LibraryFilters, criterion: Criterion): LibraryFilters {
+  return { ...filters, criteria: [...filters.criteria, criterion] }
+}
+
+export function removeCriterion(filters: LibraryFilters, index: number): LibraryFilters {
+  return { ...filters, criteria: filters.criteria.filter((_, i) => i !== index) }
+}
+
+export function updateCriterion(
+  filters: LibraryFilters,
+  index: number,
+  patch: Partial<Criterion>,
+): LibraryFilters {
+  return {
+    ...filters,
+    criteria: filters.criteria.map((c, i) => (i === index ? { ...c, ...patch } : c)),
+  }
+}
+
+/** Une borne par ligne, plus une unite par liste et par texte libre. */
 export function activeFilterCount(filters: LibraryFilters): number {
   let count = 0
   if (filters.sources.length > 0) count += 1
   if (filters.rayons.length > 0) count += 1
-  for (const toggle of QUICK_TOGGLES) if (filters[toggle.code]) count += 1
-  return count
+  if (filters.brand.trim() !== '') count += 1
+  for (const toggle of QUICK_TOGGLES) if (filters[toggle.code] !== 'indifferent') count += 1
+  return count + filters.criteria.length
+}
+
+/** Vrai si la propriete est portee — la question que posent les bascules. */
+function has(item: Ingredient, code: QuickToggle, now: Date): boolean {
+  switch (code) {
+    case 'inSeason':
+      return isInSeasonNow(item, now)
+    case 'withPrice':
+      return item.priceEur !== null
+    case 'withPieceWeight':
+      return Boolean(item.pieceWeightG)
+    case 'withBrand':
+      return (item.brand ?? '').trim() !== ''
+  }
 }
 
 export function filterIngredients(
@@ -294,14 +405,28 @@ export function filterIngredients(
 ): Ingredient[] {
   const sources = new Set<string>(filters.sources)
   const rayons = new Set<string>(filters.rayons)
+  const brand = normalizeName(filters.brand)
 
   return items.filter((item) => {
     if (sources.size > 0 && !sources.has(item.source)) return false
     if (rayons.size > 0 && !rayons.has(item.categoryL1 ?? '')) return false
-    if (filters.inSeason && !isInSeasonNow(item, now)) return false
-    if (filters.withBrand && (item.brand ?? '').trim() === '') return false
-    if (filters.withPieceWeight && !item.pieceWeightG) return false
-    if (filters.withPrice && item.priceEur === null) return false
+
+    for (const toggle of QUICK_TOGGLES) {
+      const state = filters[toggle.code]
+      if (state === 'indifferent') continue
+      if (has(item, toggle.code, now) !== (state === 'avec')) return false
+    }
+
+    if (brand !== '' && !normalizeName(item.brand).includes(brand)) return false
+
+    for (const c of filters.criteria) {
+      const value = criterionValue(item, c.field)
+      // Valeur inconnue : la borne n'est pas satisfaite. Voir `criterionValue`.
+      if (value === null) return false
+      if (c.bound === 'min' && value < c.value) return false
+      if (c.bound === 'max' && value > c.value) return false
+    }
+
     return true
   })
 }
@@ -374,7 +499,12 @@ export function readViewOptions(params: URLSearchParams): ViewOptions {
   const sort = rawSort !== undefined && SORT_CODES.has(rawSort) ? (rawSort as SortField) : DEFAULT_VIEW.sort
   const rawGroup = params.get('groupe')
   const group = rawGroup !== null && GROUP_CODES.has(rawGroup) ? (rawGroup as GroupMode) : DEFAULT_VIEW.group
+  // « f=withPrice » veut dire « avec », « f=-withPrice » veut dire « sans ».
+  // Les liens partages avant l'ajout du troisieme etat continuent donc de se
+  // relire, et disent la meme chose qu'a l'epoque.
   const toggles = new Set(splitCsv(params.get('f')))
+  const etat = (code: QuickToggle): ToggleState =>
+    toggles.has(code) ? 'avec' : toggles.has(`-${code}`) ? 'sans' : 'indifferent'
 
   return {
     query: params.get('q') ?? '',
@@ -385,10 +515,12 @@ export function readViewOptions(params: URLSearchParams): ViewOptions {
     filters: {
       sources: splitCsv(params.get('sources')).filter(isSource),
       rayons: splitCsv(params.get('rayons')),
-      inSeason: toggles.has('inSeason'),
-      withBrand: toggles.has('withBrand'),
-      withPieceWeight: toggles.has('withPieceWeight'),
-      withPrice: toggles.has('withPrice'),
+      inSeason: etat('inSeason'),
+      withBrand: etat('withBrand'),
+      withPieceWeight: etat('withPieceWeight'),
+      withPrice: etat('withPrice'),
+      brand: params.get('marque') ?? '',
+      criteria: splitCsv(params.get('bornes')).flatMap(readCriterion),
     },
   }
 }
@@ -411,11 +543,38 @@ export function viewOptionsToParams(view: ViewOptions): URLSearchParams {
   if (view.filters.sources.length > 0) params.set('sources', view.filters.sources.join(','))
   if (view.filters.rayons.length > 0) params.set('rayons', view.filters.rayons.join(','))
 
-  const toggles = QUICK_TOGGLES.filter((toggle) => view.filters[toggle.code]).map((t) => t.code)
+  const toggles = QUICK_TOGGLES.filter((toggle) => view.filters[toggle.code] !== 'indifferent').map(
+    (toggle) => (view.filters[toggle.code] === 'sans' ? `-${toggle.code}` : toggle.code),
+  )
   if (toggles.length > 0) params.set('f', toggles.join(','))
+  if (view.filters.brand.trim() !== '') params.set('marque', view.filters.brand.trim())
+  if (view.filters.criteria.length > 0) {
+    params.set('bornes', view.filters.criteria.map(writeCriterion).join(','))
+  }
 
   return params
 }
+
+/**
+ * Une borne s'ecrit « champ:sens:valeur » — « proteins:min:20 ».
+ *
+ * Le deux-points et non le point : le point est deja le separateur decimal, et
+ * « priceKg.max.12.5 » se relisait en 12. Un test d'aller-retour l'a montre.
+ *
+ * Toute borne illisible est ignoree en silence, comme le reste des options :
+ * un lien d'une version anterieure doit s'ouvrir sur une bibliotheque un peu
+ * moins filtree, jamais sur une page en erreur.
+ */
+function readCriterion(brut: string): Criterion[] {
+  const [field, bound, valeur] = brut.split(':')
+  const nombre = Number(valeur)
+  if (field === undefined || !CRITERION_CODES.has(field)) return []
+  if (bound !== 'min' && bound !== 'max') return []
+  if (!Number.isFinite(nombre)) return []
+  return [{ field: field as CriterionField, bound, value: nombre }]
+}
+
+const writeCriterion = (c: Criterion): string => `${c.field}:${c.bound}:${c.value}`
 
 // ---------------------------------------------------------------------------
 // Saisonnalite

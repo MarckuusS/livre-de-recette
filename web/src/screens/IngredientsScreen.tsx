@@ -49,9 +49,15 @@ import {
   groupIngredients,
   readViewOptions,
   sortIngredients,
+  toggleLabel,
   toggleQuickFilter,
   toggleRayon,
   toggleSource,
+  updateCriterion,
+  removeCriterion,
+  addCriterion,
+  CRITERION_FIELDS,
+  type CriterionField,
   viewOptionsToParams,
   type GroupMode,
   type LibraryFilters,
@@ -197,11 +203,12 @@ export function IngredientsScreen() {
           <button
             key={toggle.code}
             type="button"
-            className={`ing-chip${view.filters[toggle.code] ? ' ing-chip--on' : ''}`}
-            aria-pressed={view.filters[toggle.code]}
+            className={`ing-chip ing-chip--${view.filters[toggle.code]}`}
+            aria-pressed={view.filters[toggle.code] !== 'indifferent'}
             onClick={() => setView({ filters: toggleQuickFilter(view.filters, toggle.code) })}
           >
-            <Icon name={toggle.icon} size={14} className="icon--inline" /> {toggle.label}
+            <Icon name={toggle.icon} size={14} className="icon--inline" />{' '}
+            {toggleLabel(toggle, view.filters[toggle.code])}
           </button>
         ))}
         <button
@@ -556,19 +563,133 @@ function FiltersSheet({
           <button
             key={toggle.code}
             type="button"
-            className={`ing-choice${filters[toggle.code] ? ' ing-choice--on' : ''}`}
-            aria-pressed={filters[toggle.code]}
+            className={`ing-choice ing-choice--${filters[toggle.code]}`}
+            aria-pressed={filters[toggle.code] !== 'indifferent'}
             onClick={() => onChange(toggleQuickFilter(filters, toggle.code))}
           >
-            <Icon name={toggle.icon} size={14} className="icon--inline" /> {toggle.label}
+            <Icon name={toggle.icon} size={14} className="icon--inline" />{' '}
+            {toggleLabel(toggle, filters[toggle.code])}
           </button>
         ))}
         <p className="field__hint">
-          Coché = n’afficher que les ingrédients qui portent la propriété. Il n’existe pas de filtre
-          inverse.
+          Trois positions : indifférent, puis « avec », puis « sans ». Le troisième état est celui
+          qui sert à compléter sa bibliothèque — « sans prix » montre ce qu’il reste à renseigner.
         </p>
       </fieldset>
+
+      <fieldset className="ing-choices">
+        <legend className="ing-choices__legend">Marque</legend>
+        <input
+          type="text"
+          className="search-field"
+          value={filters.brand}
+          onChange={(e) => onChange({ ...filters, brand: e.target.value })}
+          placeholder="Une partie du nom suffit"
+          autoCapitalize="off"
+          autoCorrect="off"
+          aria-label="Filtrer par marque"
+        />
+        <p className="field__hint">Accents et majuscules sont ignorés.</p>
+      </fieldset>
+
+      <CriteriaFields filters={filters} onChange={onChange} />
     </Sheet>
+  )
+}
+
+/**
+ * Les bornes chiffrees, empilables.
+ *
+ * Le modele avait ecarte les douze champs min/max du desktop, et il avait
+ * raison : douze champs numeriques dans une feuille sont intenables au pouce.
+ * La forme retenue n'est pas douze champs mais une LISTE DE REGLES — on
+ * ajoute « Protéines au moins 20 », puis « Sel au plus 1 ». On ne paie que ce
+ * qu'on demande, et n'importe quel nutriment est atteignable, ce que douze
+ * champs figes n'offraient pas non plus.
+ */
+function CriteriaFields({
+  filters,
+  onChange,
+}: {
+  readonly filters: LibraryFilters
+  readonly onChange: (filters: LibraryFilters) => void
+}) {
+  return (
+    <fieldset className="ing-choices">
+      <legend className="ing-choices__legend">Bornes chiffrées</legend>
+
+      {filters.criteria.map((criterion, index) => {
+        const champ = CRITERION_FIELDS.find((f) => f.code === criterion.field)
+        return (
+          <div className="ing-criterion" key={`${criterion.field}-${index}`}>
+            <select
+              className="field__select ing-criterion__field"
+              value={criterion.field}
+              onChange={(e) =>
+                onChange(updateCriterion(filters, index, { field: e.target.value as CriterionField }))
+              }
+              aria-label="Nutriment ou propriété"
+            >
+              {CRITERION_FIELDS.map((f) => (
+                <option key={f.code} value={f.code}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="field__select ing-criterion__bound"
+              value={criterion.bound}
+              onChange={(e) =>
+                onChange(updateCriterion(filters, index, { bound: e.target.value as 'min' | 'max' }))
+              }
+              aria-label="Sens de la borne"
+            >
+              <option value="min">au moins</option>
+              <option value="max">au plus</option>
+            </select>
+
+            <input
+              type="number"
+              inputMode="decimal"
+              className="search-field ing-criterion__value"
+              value={String(criterion.value)}
+              min={0}
+              onChange={(e) =>
+                onChange(updateCriterion(filters, index, { value: Number(e.target.value) || 0 }))
+              }
+              aria-label={`Valeur en ${champ?.unit ?? ''}`}
+            />
+            <span className="ing-criterion__unit">{champ?.unit}</span>
+
+            <button
+              type="button"
+              className="button button--danger ing-criterion__remove"
+              onClick={() => onChange(removeCriterion(filters, index))}
+              aria-label="Retirer cette borne"
+            >
+              <Icon name="ui-close" size={16} />
+            </button>
+          </div>
+        )
+      })}
+
+      <button
+        type="button"
+        className="button button--secondary"
+        onClick={() =>
+          onChange(addCriterion(filters, { field: 'proteins', bound: 'min', value: 10 }))
+        }
+      >
+        <Icon name="ui-plus" size={16} className="icon--inline" /> Ajouter une borne
+      </button>
+
+      <p className="field__hint">
+        Toutes les bornes doivent être satisfaites. Un ingrédient dont la valeur n’est pas
+        renseignée n’en satisfait aucune — sinon « moins de 1 g de sel » ramènerait les fiches
+        vides.
+      </p>
+    </fieldset>
   )
 }
 

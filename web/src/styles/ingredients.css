@@ -76,10 +76,16 @@
     color var(--duration-fast) var(--easing-standard);
 }
 
-.ing-chip--on {
+.ing-chip--avec {
   color: var(--color-on-primary);
   background: var(--color-primary);
   border-color: var(--color-primary);
+}
+
+.ing-chip--sans {
+  color: var(--color-on-primary);
+  background: var(--color-warning);
+  border-color: var(--color-warning);
 }
 
 /* ---------- Sections de la liste ---------- */
@@ -163,10 +169,70 @@
     color var(--duration-fast) var(--easing-standard);
 }
 
-.ing-choice--on {
+.ing-choice--avec {
   color: var(--color-on-primary);
   background: var(--color-primary);
   border-color: var(--color-primary);
+}
+
+.ing-choice--sans {
+  color: var(--color-on-primary);
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+/* ---------- Bornes chiffrees ----------
+   Une regle par ligne : nutriment, sens, valeur, unite, retrait. Sur 375 px
+   les deux listes deroulantes prennent la premiere ligne et la valeur la
+   seconde — trois selecteurs cote a cote seraient tous illisibles. */
+
+.ing-criterion {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-sm);
+  align-items: center;
+  width: 100%;
+  margin-bottom: var(--space-sm);
+}
+
+.ing-criterion__field {
+  grid-column: 1 / -1;
+}
+
+.ing-criterion__bound {
+  grid-column: 1;
+}
+
+.ing-criterion__value {
+  grid-column: 2;
+  width: 6rem;
+  text-align: right;
+}
+
+.ing-criterion__unit {
+  grid-column: 3;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.ing-criterion__remove {
+  grid-column: 3;
+  justify-self: end;
+  min-width: var(--control-height-md);
+  padding: 0;
+}
+
+@media (min-width: 480px) {
+  .ing-criterion {
+    grid-template-columns: 1fr auto 6rem auto auto;
+  }
+
+  .ing-criterion__field { grid-column: 1; }
+  .ing-criterion__bound { grid-column: 2; }
+  .ing-criterion__value { grid-column: 3; }
+  .ing-criterion__unit { grid-column: 4; }
+  .ing-criterion__remove { grid-column: 5; }
 }
 
 /* ---------- Bandeau d'annulation ---------- */
