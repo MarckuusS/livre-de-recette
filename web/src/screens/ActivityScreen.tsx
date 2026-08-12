@@ -49,7 +49,7 @@ export function ActivityScreen() {
     <section className="screen">
       <p className="card__lead">
         Deux identifiants, une seule cuisine : ce journal dit qui a fait quoi. Le compte et l’état
-        de l’application sont dans les <Link to="/parametres">paramètres</Link>.
+        de l’application sont dans les <Link to="/profil">mon espace</Link>.
       </p>
 
       {activity.isPending && <LoadingRows />}

@@ -227,7 +227,10 @@
   left: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* Quatre onglets et une colonne centrale plus large pour le bouton de scan.
+     Le bouton n'est PAS un cinquieme onglet : il ne mene pas a un endroit ou
+     l'on reste, il declenche un geste. D'ou sa forme a part. */
+  grid-template-columns: 1fr 1fr 76px 1fr 1fr;
   height: calc(var(--tabbar-height) + var(--safe-bottom));
   padding-bottom: var(--safe-bottom);
   background: var(--color-surface);
@@ -296,6 +299,50 @@
   .tabbar__label {
     display: none;
   }
+}
+
+/* ---------- Le bouton de scan, au centre et en relief ----------
+ *
+ * Il DEBORDE vers le haut de la barre. C'est ce qui le sort de la rangee et le
+ * designe comme l'action principale : scanner un code-barres est le geste le
+ * plus frequent de l'application, et il etait jusqu'ici enfoui dans trois
+ * ecrans differents.
+ *
+ * L'ombre porte vers le bas pour qu'il paraisse pose SUR la barre, et non
+ * decoupe dedans. La barre ne rogne pas ses enfants — aucun `overflow` — donc
+ * la marge negative suffit.
+ */
+.tabbar__scan {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  /* Le remonte de 20 px hors de la barre. Sa cible tactile reste entiere : le
+     haut du cercle deborde sur le contenu, mais rien n'y est cliquable — la
+     barre est au-dessus (z-index 20). */
+  margin: -20px auto 0;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: 0;
+  border-radius: var(--radius-full);
+  box-shadow: 0 8px 18px rgb(var(--shadow-color) / 35%);
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    transform var(--duration-fast) var(--easing-standard);
+}
+
+.tabbar__scan:active {
+  background: var(--color-primary-pressed);
+  transform: scale(0.94);
+}
+
+/* Sur l'ecran de scan lui-meme, le bouton est l'onglet courant : il le montre
+   par un anneau clair, la ou les autres onglets changent de couleur. */
+.tabbar__scan--active {
+  box-shadow:
+    0 0 0 3px var(--color-background),
+    0 0 0 5px var(--color-primary),
+    0 8px 18px rgb(var(--shadow-color) / 35%);
 }
 
 /* ---------- Boutons ---------- */

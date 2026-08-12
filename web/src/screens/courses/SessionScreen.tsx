@@ -40,6 +40,7 @@ import {
   type SessionState,
 } from '../../lib/queries.js'
 import { CartLineSheet } from './CartLineSheet.js'
+import type { ScanRequest } from '../../lib/useScanParam.js'
 import { ScanToCart } from './ScanToCart.js'
 import '../../styles/session.css'
 
@@ -51,9 +52,11 @@ export interface SessionScreenProps {
   readonly onShowList: () => void
   /** Remonte le bilan de la validation : la session, elle, vient de disparaitre. */
   readonly onCommitted: (result: CommitResult) => void
+  /** Code venu de l'URL, a traiter exactement comme s'il sortait de la camera. */
+  readonly scan: ScanRequest | null
 }
 
-export function SessionScreen({ state, session, onShowList, onCommitted }: SessionScreenProps) {
+export function SessionScreen({ state, session, onShowList, onCommitted, scan }: SessionScreenProps) {
   // La liste de la semaine DE LA SESSION, et non celle qu'affichait l'ecran :
   // c'est elle que la validation cochera, et se tromper de semaine ici ferait
   // mentir tous les compteurs.
@@ -230,7 +233,7 @@ export function SessionScreen({ state, session, onShowList, onCommitted }: Sessi
         Abandonner cette session
       </button>
 
-      <ScanToCart listIngredientIds={listIngredientIds} />
+      <ScanToCart listIngredientIds={listIngredientIds} scan={scan} />
 
       {editing !== null && (
         <CartLineSheet

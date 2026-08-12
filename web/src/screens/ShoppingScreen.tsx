@@ -21,6 +21,7 @@ import {
   type ShoppingListResponse,
 } from '../lib/queries.js'
 import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
+import { useScanParam } from '../lib/useScanParam.js'
 import { Icon, RayonIcon } from '../icons/index.js'
 import { useRayonStyle } from '../lib/useRayonStyle.js'
 import { CostHistorySheet } from './courses/CostHistorySheet.js'
@@ -68,8 +69,20 @@ export function ShoppingScreen() {
    */
   const session = useShoppingSession()
   const [showList, setShowList] = useState(false)
+  /** Code arrive par `/courses?scan=…`, depuis le point d'entree de scan. */
+  const scan = useScanParam()
   /** Bilan de la derniere validation. Il survit a la session, qui vient de disparaitre. */
   const [summary, setSummary] = useState<CommitResult | null>(null)
+
+  // Un code qui arrive doit trouver le CHARIOT, pas le bilan de la derniere
+  // validation ni la liste. Ce n'est pas theorique : naviguer vers
+  // `/courses?scan=…` alors qu'on est deja sur `/courses` ne remonte pas
+  // l'ecran, et les deux etats ci-dessous garderaient leur valeur.
+  useEffect(() => {
+    if (scan === null) return
+    setSummary(null)
+    setShowList(false)
+  }, [scan])
 
   const state = session.data
   const live =
@@ -88,13 +101,18 @@ export function ShoppingScreen() {
         session={live.session}
         onShowList={() => setShowList(true)}
         onCommitted={setSummary}
+        scan={scan}
       />
     )
   }
 
   return (
     <section className={`screen screen--shopping${store.active ? ' screen--store' : ''}`}>
-      <SessionBar isoWeek={week.isoWeek} onEnterCart={() => setShowList(false)} />
+      <SessionBar
+        isoWeek={week.isoWeek}
+        onEnterCart={() => setShowList(false)}
+        pendingScan={scan}
+      />
 
       <WeekPicker {...week} />
 

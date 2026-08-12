@@ -16,6 +16,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ACTIVITY_LEVELS,
+  HYDRATION_BOUNDS,
+  hydrationTarget,
   ENERGY_GOALS,
   KCAL_PER_KG,
   MACRO_SPLITS,
@@ -451,6 +453,30 @@ describe('effetsSecondaires', () => {
       if (s.code === 'perso') continue
       const avis = codes({ ...HOMME, split: s.code })
       expect(avis, `${s.code} : ${avis.join(', ')}`).toEqual([])
+    }
+  })
+})
+
+describe('hydrationTarget', () => {
+  // Valeurs posees a la main depuis 30 ml/kg, arrondies a la centaine :
+  //   80 kg -> 2400   |   62 kg -> 1860 -> 1900   |   55 kg -> 1650 -> 1700
+  it('rend 30 ml par kilo, arrondis a la centaine', () => {
+    expect(hydrationTarget(80)).toEqual({ ml: 2400, estimated: true })
+    expect(hydrationTarget(62)).toEqual({ ml: 1900, estimated: true })
+    expect(hydrationTarget(55)).toEqual({ ml: 1700, estimated: true })
+  })
+
+  it('borne aux deux extremites', () => {
+    // 40 kg -> 1200, sous le plancher ; 150 kg -> 4500, au-dessus du plafond.
+    expect(hydrationTarget(40).ml).toBe(HYDRATION_BOUNDS.min)
+    expect(hydrationTarget(150).ml).toBe(HYDRATION_BOUNDS.max)
+  })
+
+  it('rend le repere general, et le DIT, quand le poids manque', () => {
+    // `estimated: false` est le point du test : l'ecran doit pouvoir annoncer
+    // « repere general » plutot que de faire passer 2 L pour un calcul.
+    for (const absent of [null, 0, -5, Number.NaN]) {
+      expect(hydrationTarget(absent), String(absent)).toEqual({ ml: 2000, estimated: false })
     }
   })
 })

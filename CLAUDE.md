@@ -97,6 +97,44 @@ L'interface suit un mockup adopté le 2026-08-12. Ce qui ne se devine pas :
   système de codes calibré pour rester distinct côte à côte dans une liste triée par nom. En
   retoucher une seule le déséquilibre.
 
+## Navigation (web) — `web/src/App.tsx`
+
+**Quatre onglets et un bouton de scan central** : Accueil · Planning · [SCAN] · Objectifs · Profil.
+La barre en portait cinq (Ingrédients / Recettes / Semaine / Courses / Frigo) ; elle suit désormais
+la forme du mockup. Ce qui ne se devine pas :
+
+- **Le bouton de scan n'est PAS dans `TABS`.** Il n'y a que 4 emplacements d'onglet : le cinquième
+  est le bouton, qui mange la colonne centrale. Un élément de `TABS` porte un surtitre, un grand
+  titre et un état actif d'onglet — un déclencheur d'action n'en a que faire. Il est inséré par
+  `TABS.slice(0, 2)` / `TABS.slice(2)` dans le rendu de la barre.
+- **`kicker` fait TROIS choses** : il marque l'entrée comme onglet, il déclenche `.app-header--effacee`,
+  et il s'affiche au-dessus du grand titre. Un chemin absent de `TABS` n'a donc ni hero ni en-tête
+  effacée. La comparaison est une **égalité stricte** de `pathname`.
+- **Bibliothèque, Recettes, Courses et Frigo ne sont plus des onglets.** Leur SEUL point d'entrée est
+  le bloc `ACCES` en bas de `AccueilScreen.tsx`. Le supprimer rendrait quatre écrans inatteignables.
+  Ils ont rejoint `STACKED` pour retrouver un bouton retour.
+- **Les anciennes adresses redirigent** (`/semaine`, `/parametres`, `/parametres/profil`,
+  `/diagnostic`) : favoris, historique, et `start_url: '/'` d'une PWA déjà installée. `replace` pour
+  ne pas coincer le bouton retour. Le précédent était `/diagnostic`.
+- **`/scan` ne résout et n'écrit rien.** Il lit le code, l'affiche pour confirmation, puis **renvoie**
+  vers l'écran choisi avec `?scan=<code>` — ou `?ean=` pour la bibliothèque, où le paramètre existait
+  déjà et veut dire autre chose (« pré-remplis la référence », pas « traite ce produit »). C'est le
+  code déjà éprouvé de chaque destination qui travaille : quantité par défaut, session de courses,
+  produit inconnu, doublon de nom. `useScanParam` (`web/src/lib/useScanParam.ts`) rattrape le
+  paramètre, le **valide** comme la caméra, l'**efface** de l'URL en `replace` (sinon le geste retour
+  rouvre la feuille en boucle) et le **retient** — côté Courses il doit survivre à l'ouverture d'une
+  session.
+- **Ajouter au chariot exige une session ouverte.** `SessionBar` ouvre d'office sa feuille de
+  démarrage quand un code attend, et dit pourquoi.
+- **`useDailyTargets`** (`web/src/lib/useDailyTargets.ts`) est la seule source de la cible du jour,
+  partagée par `GoalCard` et l'Accueil. Deux copies de ce calcul afficheraient deux objectifs
+  différents pour la même journée.
+- **L'hydratation** est la **deuxième table cloisonnée par PERSONNE** après `user_profile`. Sa cible
+  se recalcule du poids (`hydrationTarget`, 30 ml/kg borné 1,5–4 L), jamais stockée. Le dépôt écrit
+  un **delta**, pas un total : deux appareils peuvent ajouter un verre dans la même minute. Le SQL
+  utilise des paramètres **numérotés** (`?3` relu dans la branche UPDATE) — avec `excluded.ml` on
+  relirait la valeur déjà bornée à zéro et un retrait serait perdu.
+
 ## Profil et objectifs (web) — `shared/src/profile.ts`
 
 Cible journalière en kcal et macros, par Mifflin-St Jeor. Le calcul est un module **pur**, testé

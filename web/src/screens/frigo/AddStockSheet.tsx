@@ -53,9 +53,11 @@ const NOTES_MAX_LENGTH = 500
 
 export interface AddStockSheetProps {
   readonly onClose: () => void
+  /** Code venu du point d'entree de scan : la feuille s'ouvre deja remplie. */
+  readonly initialScan?: string | undefined
 }
 
-export function AddStockSheet({ onClose }: AddStockSheetProps) {
+export function AddStockSheet({ onClose, initialScan }: AddStockSheetProps) {
   const add = useAddStock()
   const toast = useToast()
 
@@ -78,9 +80,20 @@ export function AddStockSheet({ onClose }: AddStockSheetProps) {
    */
   const addPrice = useAddPrice(ingredient?.id ?? 0)
 
+  /**
+   * Code injecte, efface des qu'un ingredient est choisi.
+   *
+   * L'EFFACEMENT EST LE POINT DELICAT. `ScanToStock` n'est rendu que tant
+   * qu'aucun ingredient n'est choisi ; le bouton « Changer » le remonte, et un
+   * code toujours present re-choisirait aussitot le meme produit — « Changer »
+   * deviendrait inoperant.
+   */
+  const [scanInjecte, setScanInjecte] = useState(initialScan)
+
   const pick = (picked: Ingredient) => {
     setIngredient(picked)
     setQuantityG(picked.pieceWeightG ?? DEFAULT_QUANTITY_G)
+    setScanInjecte(undefined)
   }
 
   const missingIngredient = ingredient === null || ingredient.id === null
@@ -182,7 +195,7 @@ export function AddStockSheet({ onClose }: AddStockSheetProps) {
           {/* Sous le champ et non a cote : la liste de suggestions s'ouvre DANS
               le flux, juste dessous, et un bouton place sur la meme ligne
               sauterait a chaque frappe en plus de retrecir le champ sur 375 px. */}
-          <ScanToStock onPick={pick} />
+          <ScanToStock onPick={pick} initialCode={scanInjecte} />
         </>
       ) : (
         <div className="picked">

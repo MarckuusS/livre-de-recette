@@ -27,12 +27,13 @@
  * le pouce : le tap de trop est un prix honnete pour un ecran previsible.
  */
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Ingredient } from '@livre/shared'
 
 import { BarcodeScanner } from '../../components/BarcodeScanner.js'
 import { Icon } from '../../icons/index.js'
 import { Sheet } from '../../components/Sheet.js'
+import type { ScanRequest } from '../../lib/useScanParam.js'
 import { useToast } from '../../components/Toast.js'
 import { ApiError } from '../../lib/api.js'
 import {
@@ -53,6 +54,14 @@ import {
 export interface ScanToCartProps {
   /** Ingredients de la liste de courses : sert a annoncer la correspondance. */
   readonly listIngredientIds: ReadonlySet<number>
+  /**
+   * Code venu de l'URL, via le point d'entree de scan global.
+   *
+   * Il passe par `openDraft`, exactement comme un code lu par la camera :
+   * meme compteur, meme feuille, meme resolution bibliotheque puis
+   * OpenFoodFacts puis Open Prices. Rien de ce chemin n'est duplique.
+   */
+  readonly scan: ScanRequest | null
 }
 
 /** Un code en attente de confirmation. Le compteur force une feuille NEUVE. */
@@ -61,7 +70,7 @@ interface Pending {
   readonly nonce: number
 }
 
-export function ScanToCart({ listIngredientIds }: ScanToCartProps) {
+export function ScanToCart({ listIngredientIds, scan }: ScanToCartProps) {
   const [scanning, setScanning] = useState(false)
   const [pending, setPending] = useState<Pending | null>(null)
   const [lastAdded, setLastAdded] = useState<string | null>(null)
@@ -75,6 +84,18 @@ export function ScanToCart({ listIngredientIds }: ScanToCartProps) {
     nonce.current += 1
     setPending({ ean, nonce: nonce.current })
   }
+
+  // Dans un effet et non pendant le rendu : `openDraft` mute une ref et pose
+  // un etat. L'effet couvre les DEUX arrivees possibles d'un seul coup — le
+  // composant deja monte (l'identite de `scan` change) et le composant qui
+  // vient de monter parce qu'une session vient d'etre ouverte pour ce code.
+  useEffect(() => {
+    if (scan === null) return
+    openDraft(scan.ean)
+    // `openDraft` est recree a chaque rendu et n'a pas a relancer l'effet :
+    // seule une nouvelle demande de scan doit le faire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scan])
 
   return (
     <>

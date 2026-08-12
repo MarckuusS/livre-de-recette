@@ -28,6 +28,7 @@ import { Icon } from '../icons/index.js'
 import { SelectField } from '../components/Field.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
 import { usePantry } from '../lib/queries.js'
+import { useScanParam, type ScanRequest } from '../lib/useScanParam.js'
 import { AddStockSheet } from './frigo/AddStockSheet.js'
 import { LotSheet } from './frigo/LotSheet.js'
 import {
@@ -77,6 +78,33 @@ export function PantryScreen() {
   }
 
   const [addingStock, setAddingStock] = useState(false)
+
+  /*
+   * Un code arrive par `/frigo?scan=…`, depuis le point d'entree de scan.
+   *
+   * La cle de remontage porte le compteur : deux arrivees du MEME code doivent
+   * reconstruire une feuille vierge, pas reprendre le brouillon precedent
+   * (quantite, prix, date). C'est le motif deja en place cote chariot.
+   */
+  const scan = useScanParam()
+  /*
+   * Copie LOCALE du code, effacee a la fermeture.
+   *
+   * `useScanParam` retient sa valeur pour qu'elle survive a l'effacement de
+   * l'URL — elle reste donc posee apres usage. Sans cette copie, rouvrir la
+   * feuille par le bouton « + » y re-injecterait le produit deja range.
+   */
+  const [scanEnCours, setScanEnCours] = useState<ScanRequest | null>(null)
+  useEffect(() => {
+    if (scan === null) return
+    setScanEnCours(scan)
+    setAddingStock(true)
+  }, [scan])
+
+  const fermerAjout = () => {
+    setAddingStock(false)
+    setScanEnCours(null)
+  }
   const [editingId, setEditingId] = useState<number | null>(null)
 
   const lots = useMemo(
@@ -181,7 +209,13 @@ export function PantryScreen() {
         </button>
       )}
 
-      {addingStock && <AddStockSheet onClose={() => setAddingStock(false)} />}
+      {addingStock && (
+        <AddStockSheet
+          key={scanEnCours === null ? 'manuel' : `${scanEnCours.ean}-${scanEnCours.nonce}`}
+          initialScan={scanEnCours?.ean}
+          onClose={fermerAjout}
+        />
+      )}
       {editing && <LotSheet key={editing.id} lot={editing} onClose={() => setEditingId(null)} />}
     </section>
   )

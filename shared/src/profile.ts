@@ -491,6 +491,47 @@ function addWeeks(from: Date, weeks: number): string {
  * chose et en meme quantite. Elle est juste pour des repas communs, fausse pour
  * une portion d'enfant ou un dejeuner pris dehors.
  */
+/**
+ * Millilitres d'eau par kilo et par jour.
+ *
+ * 30 ml/kg est la regle courante chez l'adulte (EFSA raisonne en volumes fixes
+ * — 2 L pour une femme, 2,5 L pour un homme — ce qui revient au meme autour de
+ * 70 kg mais ignore la corpulence). Le chiffre couvre l'eau de BOISSON seule ;
+ * l'eau des aliments, environ 20 % des apports, n'est pas comptee ici puisque
+ * l'ecran ne compte que ce qu'on boit.
+ */
+export const ML_PER_KG = 30
+
+/** Bornes de securite : en deca c'est trop peu, au-dela on ne le boira pas. */
+export const HYDRATION_BOUNDS = { min: 1500, max: 4000 } as const
+
+/**
+ * Cible d'hydratation du jour, en millilitres.
+ *
+ * Recalculee du poids, JAMAIS stockee — meme regle que les cibles en kcal et
+ * en macros, et pour la meme raison : une cible ecrite en base resterait a
+ * 2 L apres une perte de dix kilos, sans que rien ne le signale.
+ *
+ * Sans poids connu, on rend le repere general de 2 L plutot que `null` : a la
+ * difference d'une cible calorique, une cible d'hydratation fausse de 300 ml ne
+ * fait de mal a personne, et un verre a remplir vaut mieux qu'un tiret.
+ * L'appelant sait lequel des deux il a par `estimated`.
+ */
+export function hydrationTarget(weightKg: number | null): {
+  readonly ml: number
+  /** Vrai si le chiffre vient du poids, faux si c'est le repere general. */
+  readonly estimated: boolean
+} {
+  if (weightKg === null || !Number.isFinite(weightKg) || weightKg <= 0) {
+    return { ml: 2000, estimated: false }
+  }
+  const brut = Math.round((weightKg * ML_PER_KG) / 100) * 100
+  return {
+    ml: Math.min(HYDRATION_BOUNDS.max, Math.max(HYDRATION_BOUNDS.min, brut)),
+    estimated: true,
+  }
+}
+
 export const perEater = (total: number, eaters: number): number =>
   eaters > 0 ? total / eaters : total
 

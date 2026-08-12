@@ -15,7 +15,7 @@
  * insupportable sur trente produits.
  */
 
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { formatEuros } from '@livre/shared'
 
 import { TextField } from '../../components/Field.js'
@@ -31,9 +31,18 @@ export interface SessionBarProps {
   readonly isoWeek: string
   /** Ramene l'ecran sur le chariot — la liste et la session partagent l'onglet. */
   readonly onEnterCart: () => void
+  /**
+   * Code en attente, venu du point d'entree de scan.
+   *
+   * Ajouter au chariot exige une session OUVERTE : sans elle, il n'existe
+   * aucun destinataire et le code serait perdu. On ouvre donc la feuille de
+   * demarrage d'office, et on DIT pourquoi — une feuille qui s'ouvre seule,
+   * sans explication, passe pour un defaut.
+   */
+  readonly pendingScan?: { readonly ean: string } | null
 }
 
-export function SessionBar({ isoWeek, onEnterCart }: SessionBarProps) {
+export function SessionBar({ isoWeek, onEnterCart, pendingScan = null }: SessionBarProps) {
   // Meme cle de cache que l'ecran : aucune requete de plus, et les deux
   // composants voient toujours le meme chariot.
   const query = useShoppingSession()
@@ -41,6 +50,13 @@ export function SessionBar({ isoWeek, onEnterCart }: SessionBarProps) {
 
   const state = query.data
   const session = state !== undefined && state.active ? state.session : null
+
+  // `query.isSuccess` et non `session === null` seul : pendant le chargement,
+  // l'absence de session n'est pas une information, et la feuille clignoterait
+  // devant quelqu'un qui a deja un chariot ouvert.
+  useEffect(() => {
+    if (pendingScan !== null && query.isSuccess && session === null) setOpening(true)
+  }, [pendingScan, query.isSuccess, session])
 
   if (session !== null) {
     const count = state?.itemCount ?? session.items.length
@@ -71,10 +87,13 @@ export function SessionBar({ isoWeek, onEnterCart }: SessionBarProps) {
     <>
       <div className="session-entry">
         <div className="session-entry__body">
-          <p className="session-entry__title">Tu es au magasin ?</p>
+          <p className="session-entry__title">
+            {pendingScan === null ? 'Tu es au magasin ?' : 'Il faut d’abord ouvrir les courses'}
+          </p>
           <p className="session-entry__lead">
-            Scanne chaque produit en le mettant dans le caddie. Tout part au frigo d’un seul coup
-            à la fin.
+            {pendingScan === null
+              ? 'Scanne chaque produit en le mettant dans le caddie. Tout part au frigo d’un seul coup à la fin.'
+              : 'Un produit scanné attend d’être mis au chariot. Choisis le magasin et il y sera ajouté.'}
           </p>
         </div>
         <button

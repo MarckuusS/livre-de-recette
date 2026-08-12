@@ -54,6 +54,7 @@ export const keys = {
   rayons: ['rayons'] as const,
   customIcons: ['custom-icons'] as const,
   profile: ['profile'] as const,
+  hydration: (day: string) => ['hydration', day] as const,
   calendar: (week: string) => ['calendar', week] as const,
   templates: ['templates'] as const,
   pantry: ['pantry'] as const,
@@ -728,6 +729,40 @@ export type ProfilePayload = ProfileResponse['profile'] & { eaters: number }
 
 export const useProfile = () =>
   useQuery({ queryKey: keys.profile, queryFn: () => apiFetch<ProfileResponse>('/api/profile') })
+
+/** Jour LOCAL au format AAAA-MM-JJ. `toISOString()` decalerait la date le soir. */
+export function todayIso(now: Date = new Date()): string {
+  const mois = String(now.getMonth() + 1).padStart(2, '0')
+  const jour = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${mois}-${jour}`
+}
+
+export interface HydrationDay {
+  readonly day: string
+  readonly ml: number
+}
+
+export const useHydration = (day: string) =>
+  useQuery({
+    queryKey: keys.hydration(day),
+    queryFn: () => apiFetch<HydrationDay>(`/api/hydration?day=${encodeURIComponent(day)}`),
+  })
+
+/**
+ * Ajoute (ou retranche) des millilitres.
+ *
+ * ON ENVOIE UN DELTA, pas un total : deux appareils peuvent ajouter un verre
+ * dans la meme minute, et le second effacerait le premier. Le serveur additionne
+ * et rend le nouveau total, qu'on pose tel quel — inutile de redemander ce
+ * qu'on vient d'ecrire.
+ */
+export function useDrink(day: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (deltaMl: number) => post<HydrationDay>('/api/hydration', { day, deltaMl }),
+    onSuccess: (data) => client.setQueryData(keys.hydration(day), data),
+  })
+}
 
 export function useSaveProfile() {
   const client = useQueryClient()

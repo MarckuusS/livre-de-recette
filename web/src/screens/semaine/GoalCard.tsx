@@ -17,21 +17,11 @@
  *      chiffre finissent toujours par diverger.
  */
 
-import { useMemo } from 'react'
 import { Link } from 'react-router'
-import {
-  estimateTargets,
-  perEater,
-  progressToward,
-  type ActivityCode,
-  type GoalCode,
-  type NutritionTotal,
-  type PaceCode,
-  type SplitCode,
-} from '@livre/shared'
+import { perEater, progressToward, type NutritionTotal } from '@livre/shared'
 
 import { NutrientLabel } from '../../components/NutrientLabel.js'
-import { useProfile } from '../../lib/queries.js'
+import { useDailyTargets } from '../../lib/useDailyTargets.js'
 import '../../styles/profile.css'
 
 const round = (value: number) => Math.round(value).toLocaleString('fr-FR')
@@ -43,52 +33,18 @@ export function GoalCard({
   readonly dayTotal: NutritionTotal
   readonly hasEntries: boolean
 }) {
-  const query = useProfile()
-
-  const computed = useMemo(() => {
-    if (query.data === undefined) return null
-    const { profile, eaters } = query.data
-    const targets = estimateTargets({
-      sex: profile.sex,
-      birthYear: profile.birthYear,
-      heightCm: profile.heightCm,
-      weightKg: profile.weightKg,
-      // Le serveur rend des chaines libres : un code retire des listes ne doit
-      // pas faire tomber l'ecran. `estimateTargets` rend `null` s'il ne le
-      // reconnait pas, ce qui est exactement le comportement voulu ici.
-      activity: profile.activity as ActivityCode | null,
-      goal: profile.goal as GoalCode | null,
-      // La repartition et le poids vise comptent AUSSI ici : sans eux, la carte
-      // comparerait la journee aux macros par defaut de l'objectif, pas a
-      // celles que la personne a reglees.
-      split: profile.split as SplitCode | null,
-      customSplit:
-        profile.splitProteins === null
-          ? null
-          : {
-              proteins: profile.splitProteins,
-              carbs: profile.splitCarbs ?? 0,
-              fats: profile.splitFats ?? 0,
-            },
-      targetWeightKg: profile.targetWeightKg,
-      pace: profile.pace as PaceCode | null,
-    })
-    const kcalTarget = profile.kcalTarget ?? targets?.kcal ?? null
-    return { targets, kcalTarget, eaters }
-  }, [query.data])
+  const { etat, targets, kcalTarget, eaters } = useDailyTargets()
 
   // Une carte secondaire ne doit pas parasiter l'ecran principal : tant que le
   // profil n'est pas charge, ou s'il a echoue, elle ne s'affiche simplement pas.
-  if (query.isPending || query.isError || computed === null) return null
-
-  const { targets, kcalTarget, eaters } = computed
+  if (etat === 'chargement') return null
 
   if (kcalTarget === null) {
     return (
       <div className="card">
         <h3 className="card__title">Mon objectif</h3>
         <p className="card__lead">
-          <Link to="/parametres/profil">Renseigne ton profil</Link> pour comparer cette journée à un
+          <Link to="/objectifs">Renseigne ton profil</Link> pour comparer cette journée à un
           objectif journalier.
         </p>
       </div>
@@ -145,7 +101,7 @@ export function GoalCard({
       {eaters > 1 && (
         <p className="note">
           Part pour une personne : le total du jour a été divisé par {eaters} mangeurs. Réglage dans{' '}
-          <Link to="/parametres/profil">Mon profil</Link>.
+          <Link to="/objectifs">Mes objectifs</Link>.
         </p>
       )}
     </div>

@@ -5,7 +5,9 @@ import { Icon, type IconName } from './icons/index.js'
 import { useTheme } from './lib/theme.js'
 import { IconGalleryScreen } from './screens/IconGalleryScreen.js'
 import { CustomIconsScreen } from './screens/CustomIconsScreen.js'
+import { AccueilScreen, libelleDuJour } from './screens/AccueilScreen.js'
 import { ProfileScreen } from './screens/ProfileScreen.js'
+import { ScanScreen } from './screens/ScanScreen.js'
 import { RayonsScreen } from './screens/RayonsScreen.js'
 import { IngredientDetailScreen, IngredientsScreen } from './screens/IngredientsScreen.js'
 import { PantryScreen } from './screens/PantryScreen.js'
@@ -16,14 +18,21 @@ import { ShoppingScreen } from './screens/ShoppingScreen.js'
 import { WeekScreen } from './screens/WeekScreen.js'
 
 /**
- * Les 5 onglets reprennent ceux du desktop, dans le meme ordre. « Calendrier »
- * devient « Semaine » : sur un ecran de telephone on affiche un jour a la fois,
- * et le mot decrit mieux ce qu'on y trouve.
+ * QUATRE onglets, plus un bouton de scan au centre.
  *
- * `kicker` est le surtitre affiche au-dessus du grand titre de l'ecran. Il ne
- * paraphrase pas le titre — il dit ce que le titre ne peut pas dire, a savoir
- * ce qu'on vient chercher la. « Ingrédients » nomme, « Ce que je cuisine »
- * situe.
+ * La barre reprenait les cinq ecrans du desktop. Elle suit desormais la forme
+ * du mockup : Accueil, Planning, [scan], Objectifs, Profil. Les quatre ecrans
+ * qui en sortent — Bibliotheque, Recettes, Courses, Frigo — sont rassembles
+ * sur l'Accueil, qui est leur SEUL point d'entree : voir `ACCES` dans
+ * AccueilScreen.tsx avant d'y toucher.
+ *
+ * Cinq onglets tenaient. Le sixieme emplacement n'existe pas : le bouton de
+ * scan mange la colonne centrale, et c'est ce qui a impose l'arbitrage.
+ *
+ * `kicker` est le surtitre affiche au-dessus du grand titre. Il ne paraphrase
+ * pas le titre — il dit ce que le titre ne peut pas dire. Sa PRESENCE decide
+ * aussi de deux choses : que l'ecran est un onglet, et donc que l'en-tete
+ * s'efface au profit du grand titre dans la page.
  */
 export const TABS: ReadonlyArray<{
   to: string
@@ -31,14 +40,20 @@ export const TABS: ReadonlyArray<{
   label: string
   kicker: string
 }> = [
-  { to: '/ingredients', icon: 'ui-basket', label: 'Ingrédients', kicker: 'Ce que je cuisine' },
-  { to: '/recettes', icon: 'ui-utensils', label: 'Recettes', kicker: 'Mon répertoire' },
-  // Le libelle d'onglet reste court — il dispose d'un cinquieme de la largeur.
-  // Le grand titre de l'ecran, lui, vient de TITLES et peut respirer.
-  { to: '/semaine', icon: 'ui-calendar', label: 'Semaine', kicker: 'Ce qui est prévu' },
-  { to: '/courses', icon: 'ui-cart', label: 'Courses', kicker: 'Ce qu’il me faut' },
-  { to: '/frigo', icon: 'ui-fridge', label: 'Frigo', kicker: 'Ce que j’ai déjà' },
+  // Le surtitre de l'Accueil est remplace a l'affichage par la date du jour :
+  // c'est la seule information que le titre « Aujourd'hui » ne porte pas.
+  // Celui-ci ne sert donc qu'a marquer l'entree comme onglet.
+  { to: '/accueil', icon: 'ui-home', label: 'Accueil', kicker: 'Aujourd’hui' },
+  { to: '/planning', icon: 'ui-calendar', label: 'Planning', kicker: 'Ce qui est prévu' },
+  // Le bouton de scan s'insere ICI, entre le 2e et le 3e onglet. Il n'est pas
+  // dans cette liste : il ne mene pas a un endroit ou l'on reste, et l'y
+  // mettre lui donnerait un surtitre et un grand titre qu'il n'a que faire.
+  { to: '/objectifs', icon: 'ui-goal', label: 'Objectifs', kicker: 'Où j’en suis' },
+  { to: '/profil', icon: 'ui-user', label: 'Profil', kicker: 'Mon espace' },
 ]
+
+/** Le chemin du point d'entree de scan, au centre de la barre. */
+const SCAN = '/scan'
 
 /**
  * Titres de l'en-tete, testes DANS L'ORDRE : le premier motif qui accroche
@@ -50,25 +65,34 @@ export const TABS: ReadonlyArray<{
  * s'afficher au-dessus d'un formulaire de creation.
  */
 const TITLES: Array<[RegExp, string]> = [
+  [/^\/accueil$/, 'Aujourd’hui'],
+  [/^\/planning$/, 'Ma semaine'],
+  [/^\/objectifs$/, 'Mes objectifs'],
+  [/^\/profil$/, 'Mon espace'],
+  [/^\/scan$/, 'Scanner'],
   [/^\/ingredients\/nouveau$/, 'Nouvel ingrédient'],
   [/^\/ingredients\/[^/]+$/, 'Ingrédient'],
   [/^\/ingredients$/, 'Ingrédients'],
   [/^\/recettes\/[^/]+$/, 'Recette'],
   [/^\/recettes$/, 'Recettes'],
-  [/^\/semaine$/, 'Ma semaine'],
   [/^\/courses$/, 'Liste de courses'],
   [/^\/frigo$/, 'Frigo & cellier'],
-  [/^\/parametres\/profil$/, 'Mon profil'],
   [/^\/parametres\/icones$/, 'Jeu d’icônes'],
   [/^\/parametres\/rayons$/, 'Rayons'],
   [/^\/parametres\/mes-icones$/, 'Mes icônes'],
-  [/^\/(parametres|diagnostic)$/, 'Paramètres'],
   [/^\/activite$/, 'Journal d’activité'],
 ]
 
-/** Les vues empilees sur une liste : elles ont besoin d'un retour visible. */
+/**
+ * Les vues empilees : elles ont besoin d'un retour visible.
+ *
+ * Quatre ecrans ont REJOINT cette liste — Bibliotheque, Recettes, Courses et
+ * Frigo. Ils etaient des onglets ; on y arrive desormais depuis l'Accueil, donc
+ * on doit pouvoir en revenir. Sans cela, le seul chemin de retour serait le
+ * geste systeme du navigateur, absent d'une PWA installee en plein ecran.
+ */
 const STACKED =
-  /^\/(ingredients|recettes)\/[^/]+$|^\/(parametres|diagnostic|activite)$|^\/parametres\/(profil|icones|rayons|mes-icones)$/
+  /^\/(ingredients|recettes|courses|frigo|scan|activite)$|^\/(ingredients|recettes)\/[^/]+$|^\/parametres(\/(icones|rayons|mes-icones))?$/
 
 export function App() {
   const { isDark, toggle } = useTheme()
@@ -77,9 +101,10 @@ export function App() {
 
   const title = TITLES.find(([re]) => re.test(pathname))?.[1] ?? 'Prandia'
   const isStacked = STACKED.test(pathname)
-  // Le surtitre n'existe que pour les cinq onglets. Une vue empilee garde son
+  // Le surtitre n'existe que pour les quatre onglets. Une vue empilee garde son
   // titre dans la barre, a cote du bouton retour qui a besoin d'un ancrage.
-  const kicker = TABS.find((tab) => tab.to === pathname)?.kicker
+  const tab = TABS.find((t) => t.to === pathname)
+  const kicker = tab === undefined ? undefined : tab.to === '/accueil' ? libelleDuJour() : tab.kicker
 
   return (
     // Le fournisseur enveloppe TOUT l'arbre : sans lui, `useToast()` retombe
@@ -103,6 +128,9 @@ export function App() {
 
           <h1 className="app-header__title">{title}</h1>
 
+          {/* La roue dentee a disparu : elle menait aux parametres, devenus
+              l'onglet Profil, visible en permanence dans la barre. Un raccourci
+              vers un onglet est un detour, pas un raccourci. */}
           <div className="app-header__actions">
             <button
               type="button"
@@ -112,9 +140,6 @@ export function App() {
             >
               <Icon name={isDark ? 'ui-sun' : 'ui-moon'} size={20} strokeWidth={1.7} />
             </button>
-            <NavLink to="/parametres" className="icon-button" aria-label="Paramètres">
-              <Icon name="ui-settings" size={20} strokeWidth={1.7} />
-            </NavLink>
           </div>
         </header>
 
@@ -133,14 +158,19 @@ export function App() {
 
           <Routes>
             {/* `/` REDIRIGE, il ne rend pas.
-                Rendre ShoppingScreen ici donnait le bon ecran mais aucun onglet
-                en surbrillance : le NavLink de la barre pointe sur `/courses`,
-                et `/` ne lui correspond pas. Comme le manifeste PWA declare
-                `start_url: '/'`, l'application installee s'ouvrait donc
-                systematiquement sans onglet actif. La redirection avec `replace`
-                remet l'adresse sur `/courses` sans laisser d'etape dans
-                l'historique, donc sans casser le bouton Retour. */}
-            <Route path="/" element={<Navigate to="/courses" replace />} />
+                Rendre un ecran ici donnait le bon contenu mais aucun onglet en
+                surbrillance : les NavLink de la barre portent des chemins
+                precis, et `/` ne correspond a aucun. Comme le manifeste PWA
+                declare `start_url: '/'`, l'application installee s'ouvrait
+                donc systematiquement sans onglet actif. `replace` evite de
+                laisser la redirection dans l'historique, donc de casser le
+                bouton Retour. */}
+            <Route path="/" element={<Navigate to="/accueil" replace />} />
+            <Route path="/accueil" element={<AccueilScreen />} />
+            <Route path="/planning" element={<WeekScreen />} />
+            <Route path="/objectifs" element={<ProfileScreen />} />
+            <Route path="/profil" element={<SettingsScreen />} />
+            <Route path="/scan" element={<ScanScreen />} />
             <Route path="/ingredients" element={<IngredientsScreen />} />
             {/* Un seul motif, `:id`, y compris pour « /ingredients/nouveau ».
                 L'ecran reconnait lui-meme ce segment et ouvre un formulaire
@@ -150,19 +180,25 @@ export function App() {
             <Route path="/ingredients/:id" element={<IngredientDetailScreen />} />
             <Route path="/recettes" element={<RecipesScreen />} />
             <Route path="/recettes/:id" element={<RecipeDetailScreen />} />
-            <Route path="/semaine" element={<WeekScreen />} />
             <Route path="/courses" element={<ShoppingScreen />} />
             <Route path="/frigo" element={<PantryScreen />} />
-            <Route path="/parametres" element={<SettingsScreen />} />
-            <Route path="/parametres/profil" element={<ProfileScreen />} />
+
+            {/* ---------- Anciennes adresses ----------
+                Elles ont pu etre mises en favori, partagees, ou rester dans
+                l'historique d'une PWA deja installee — dont le `start_url`
+                pointait sur `/`. Le precedent est `/diagnostic`, alias
+                conserve depuis le deplacement de l'ecran de diagnostic.
+                `replace` pour ne pas coincer le bouton retour sur la
+                redirection. */}
+            <Route path="/semaine" element={<Navigate to="/planning" replace />} />
+            <Route path="/parametres" element={<Navigate to="/profil" replace />} />
+            <Route path="/parametres/profil" element={<Navigate to="/objectifs" replace />} />
             {/* Galerie du jeu d'icones : verifier un dessin sur l'appareil reel
                 vaut mieux que sur un ecran de bureau, ou tout parait lisible. */}
             <Route path="/parametres/icones" element={<IconGalleryScreen />} />
             <Route path="/parametres/rayons" element={<RayonsScreen />} />
             <Route path="/parametres/mes-icones" element={<CustomIconsScreen />} />
-            {/* Ancienne adresse : elle a pu etre mise en favori, et un lien
-                mort au moment ou l'on cherche a diagnostiquer serait ironique. */}
-            <Route path="/diagnostic" element={<SettingsScreen />} />
+            <Route path="/diagnostic" element={<Navigate to="/profil" replace />} />
             <Route path="/activite" element={<ActivityScreen />} />
             <Route
               path="*"
@@ -178,8 +214,33 @@ export function App() {
           </Routes>
         </main>
 
+        {/* Quatre onglets, et le scan AU MILIEU — pas en cinquieme position.
+            Il est coupe en deux par `slice` plutot que glisse dans TABS :
+            un element de TABS porte un surtitre, un grand titre et un etat
+            actif d'onglet, dont un declencheur d'action n'a que faire. */}
         <nav className="tabbar" aria-label="Navigation principale">
-          {TABS.map((tab) => (
+          {TABS.slice(0, 2).map((tab) => (
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              className={({ isActive }) => `tabbar__item${isActive ? ' tabbar__item--active' : ''}`}
+            >
+              <span className="tabbar__icon">
+                <Icon name={tab.icon} size={24} strokeWidth={1.7} />
+              </span>
+              <span className="tabbar__label">{tab.label}</span>
+            </NavLink>
+          ))}
+
+          <NavLink
+            to={SCAN}
+            className={({ isActive }) => `tabbar__scan${isActive ? ' tabbar__scan--active' : ''}`}
+            aria-label="Scanner un code-barres"
+          >
+            <Icon name="ui-scan" size={26} strokeWidth={1.9} />
+          </NavLink>
+
+          {TABS.slice(2).map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}

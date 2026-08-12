@@ -23,7 +23,7 @@
  * cela vit dans BarcodeScanner. Ici on ne recoit qu'un code deja valide.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { Ingredient } from '@livre/shared'
 
@@ -41,9 +41,17 @@ export interface ScanToStockProps {
   /** Appele avec l'ingredient resolu — la feuille le traite comme un choix du picker. */
   readonly onPick: (ingredient: Ingredient) => void
   readonly disabled?: boolean | undefined
+  /**
+   * Code venu du point d'entree de scan global, injecte au montage.
+   *
+   * Il passe par `detect`, la meme et unique porte que la camera : resolution
+   * locale d'abord, OpenFoodFacts ensuite, revendication de la fiche si elle
+   * existe deja au catalogue. Rien de ce chemin n'est duplique.
+   */
+  readonly initialCode?: string | undefined
 }
 
-export function ScanToStock({ onPick, disabled }: ScanToStockProps) {
+export function ScanToStock({ onPick, disabled, initialCode }: ScanToStockProps) {
   const [scanning, setScanning] = useState(false)
   /** Code lu qui n'a PAS ete reconnu localement : il attend OpenFoodFacts. */
   const [pending, setPending] = useState<string | null>(null)
@@ -52,7 +60,7 @@ export function ScanToStock({ onPick, disabled }: ScanToStockProps) {
 
   const detect = (code: string) => {
     setScanning(false)
-    const known = library.get(code)
+    const known = library.byRef.get(code)
     if (known) {
       // Chemin instantane : aucune requete, aucune carte intermediaire a
       // valider. La feuille bascule sur « ingrédient choisi », ce qui est le
@@ -63,6 +71,31 @@ export function ScanToStock({ onPick, disabled }: ScanToStockProps) {
     }
     setPending(code)
   }
+
+  /*
+   * Injection du code venu de l'URL.
+   *
+   * DANS UN EFFET et non pendant le rendu : `detect` appelle `onPick`, qui
+   * ecrit l'etat du PARENT — React interdit de mettre a jour un composant
+   * pendant le rendu d'un autre.
+   *
+   * ON ATTEND L'INDEX DE LA BIBLIOTHEQUE. Sur ce chemin la feuille vient de
+   * monter, donc la requete est encore en vol : sans cette garde, un produit
+   * pourtant deja en bibliotheque serait declare inconnu et partirait chez
+   * OpenFoodFacts, imposant un tap de plus. On teste `!isPending` et non le
+   * succes : une bibliotheque en erreur ne doit pas retenir le code.
+   *
+   * La ref garantit UNE SEULE injection : `detect` est aussi la porte de la
+   * camera, et rejouer l'effet ecraserait un choix fait a la main.
+   */
+  const injecte = useRef<string | null>(null)
+  useEffect(() => {
+    if (initialCode === undefined || library.pending) return
+    if (injecte.current === initialCode) return
+    injecte.current = initialCode
+    detect(initialCode)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCode, library.pending])
 
   return (
     <div className="scan">
@@ -118,20 +151,31 @@ export function ScanToStock({ onPick, disabled }: ScanToStockProps) {
  * import de ticket porte le meme code sous une autre source — la retrouver
  * quand meme est exactement ce qu'on veut.
  */
-function useLibraryByBarcode(): ReadonlyMap<string, Ingredient> {
+/**
+ * L'index local des codes-barres, ET son etat de chargement.
+ *
+ * L'etat compte : un index vide parce que la requete est en vol ne dit PAS la
+ * meme chose qu'un index vide parce que le code est inconnu. Sans cette
+ * distinction, un code injecte au montage partirait systematiquement chez
+ * OpenFoodFacts. Aucune requete supplementaire : meme cle de cache que le
+ * picker.
+ */
+function useLibraryByBarcode(): { byRef: ReadonlyMap<string, Ingredient>; pending: boolean } {
   const library = useIngredients('')
   const items = library.data?.items
 
-  return useMemo(() => {
-    const byRef = new Map<string, Ingredient>()
+  const byRef = useMemo(() => {
+    const index = new Map<string, Ingredient>()
     for (const item of items ?? []) {
       if (item.id === null || item.sourceRef === null) continue
       // Premiere arrivee gagnante : deux fiches pour un meme code sont une
       // anomalie, en choisir une au hasard a chaque rendu en serait une autre.
-      if (!byRef.has(item.sourceRef)) byRef.set(item.sourceRef, item)
+      if (!index.has(item.sourceRef)) index.set(item.sourceRef, item)
     }
-    return byRef
+    return index
   }, [items])
+
+  return { byRef, pending: library.isPending }
 }
 
 // ---------------------------------------------------------------------------

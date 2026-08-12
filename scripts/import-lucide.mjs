@@ -138,6 +138,17 @@ const MAP = {
   'ui-barcode': 'barcode',
   'ui-camera': 'camera',
 
+  // ---------- Barre d'onglets ----------
+  // Ces quatre-la ne servent QU'A la navigation principale, d'ou leur groupe :
+  // les changer se voit sur tous les ecrans a la fois.
+  'ui-home': 'house',
+  // La fleche qui monte, et non un graphique : un objectif est une direction,
+  // pas un releve. C'est le dessin du mockup.
+  'ui-goal': 'trending-up',
+  // Le cadre de visee avec sa ligne de balayage — `barcode` dessine le
+  // code-barres lui-meme, ce qui decrit la CIBLE et non le geste.
+  'ui-scan': 'scan-line',
+
   // ---------- Rayons ----------
   'rayon-fruits-legumes': 'apple',
   'rayon-boulangerie': 'croissant',
@@ -175,6 +186,8 @@ const FALLBACKS = {
   'circle-x': ['x-circle'],
   ellipsis: ['more-horizontal'],
   'badge-euro': ['euro', 'circle-dollar-sign'],
+  house: ['home'],
+  'scan-line': ['scan', 'scan-barcode'],
 }
 
 async function loadSanitizer() {
