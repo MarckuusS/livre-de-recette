@@ -105,6 +105,10 @@
 .app-header__actions {
   display: flex;
   gap: var(--space-xs);
+  /* Sans cela, l'etirement par defaut colle chaque enfant en haut de la
+     rangee des qu'il a une hauteur propre : l'avatar fait 34 px, le bouton de
+     theme 44, et les deux ne se centraient pas l'un sur l'autre. */
+  align-items: center;
 }
 
 .icon-button {
@@ -1129,6 +1133,21 @@
 .app-header {
   display: grid;
   grid-template-columns: var(--control-height-lg) 1fr auto;
+}
+
+/* PLACEMENT EXPLICITE dans la derniere colonne.
+ *
+ * Sur les onglets, le titre est masque par `position: absolute` : il sort donc
+ * de la grille et ne tient plus sa cellule. Les actions, placees
+ * automatiquement, glissaient alors dans la colonne du milieu et se
+ * retrouvaient au tiers de l'ecran au lieu du bord droit.
+ *
+ * Fixer la colonne plutot que changer la facon de masquer le titre : la regle
+ * tient quelle que soit la technique employee plus haut, et elle ne fait rien
+ * sur les vues empilees, ou le titre occupe deja sa cellule.
+ */
+.app-header__actions {
+  grid-column: 3;
 }
 
 .icon-button--spacer {
