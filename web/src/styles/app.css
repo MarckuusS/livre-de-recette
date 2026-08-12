@@ -425,6 +425,14 @@
 }
 
 .badge {
+  /* `inline-flex` et non `inline` : `.icon` est en `display: block`, donc un
+     picto dans un badge poussait le texte a la ligne suivante — « saison »
+     s'affichait sous sa feuille. Le `white-space: nowrap` ci-dessous n'y
+     pouvait rien : la coupure ne venait pas du texte mais d'une boite de bloc
+     au milieu d'une ligne. */
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   padding: 1px var(--space-sm);
   font-size: var(--font-size-xs);
   border-radius: var(--radius-full);

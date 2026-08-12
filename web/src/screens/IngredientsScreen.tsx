@@ -387,7 +387,8 @@ function IngredientRow({ ingredient }: { ingredient: Ingredient }) {
             <SourceBadge source={ingredient.source} />
             {isInSeasonNow(ingredient) && (
               <span className="badge badge--season">
-                <Icon name="ui-leaf" size={12} /> saison
+                <Icon name="ui-leaf" size={12} />
+                saison
               </span>
             )}
             {ingredient.kcal !== null && <span>{Math.round(ingredient.kcal)} kcal</span>}
