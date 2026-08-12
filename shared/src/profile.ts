@@ -511,3 +511,241 @@ export function progressToward(actual: number, target: number): Progress {
   if (!Number.isFinite(target) || target <= 0) return { ratio: 0, over: false, gap: 0 }
   return { ratio: actual / target, over: actual > target, gap: Math.abs(target - actual) }
 }
+
+// ---------------------------------------------------------------------------
+// Reglage libre de la repartition
+// ---------------------------------------------------------------------------
+
+export type MacroCle = keyof MacroSplit
+
+/**
+ * Deplace UNE macro et redistribue le reste sur les deux autres.
+ *
+ * Sans cela, trois champs independants obligent l'utilisateur a faire
+ * l'arithmetique lui-meme : monter les proteines de 10 points suppose d'en
+ * retrancher 10 ailleurs, et tant que ce n'est pas fait le total est faux.
+ * Ici, bouger un curseur suffit — les deux autres cedent ou reprennent la
+ * place, chacun a proportion de ce qu'il occupait.
+ *
+ * Quand les deux autres valent zero, on partage a egalite : leur rapport
+ * n'existe pas, et tout donner a l'une des deux serait arbitraire.
+ */
+export function ajusterSplit(split: MacroSplit, macro: MacroCle, valeur: number): MacroSplit {
+  const cible = Math.max(0, Math.min(100, Math.round(valeur)))
+  const autres = (['proteins', 'carbs', 'fats'] as const).filter((k) => k !== macro)
+  const a = autres[0]!
+  const b = autres[1]!
+  const reste = 100 - cible
+  const somme = split[a] + split[b]
+
+  // Le premier est arrondi, le second prend le reliquat : la somme fait 100
+  // exactement, sans quoi l'affichage et le calcul divergeraient d'un point.
+  const partA = somme > 0 ? Math.round((split[a] / somme) * reste) : Math.round(reste / 2)
+
+  const resultat: Record<MacroCle, number> = { proteins: 0, carbs: 0, fats: 0 }
+  resultat[macro] = cible
+  resultat[a] = partA
+  resultat[b] = reste - partA
+  return resultat
+}
+
+// ---------------------------------------------------------------------------
+// Effets secondaires d'un reglage extreme
+// ---------------------------------------------------------------------------
+
+/**
+ * Seuils au-dela desquels l'ecran doit dire quelque chose.
+ *
+ * Ils ne sont pas inventes : ce sont les bornes couramment retenues par les
+ * agences — les AMDR de l'Institute of Medicine (proteines 10-35 %, lipides
+ * 20-35 %, glucides 45-65 %), l'apport de reference EFSA de 0,83 g/kg de
+ * proteines, et le besoin en glucose du cerveau, de l'ordre de 130 g par jour.
+ *
+ * Depasser une borne n'est pas une faute : beaucoup de regimes documentes le
+ * font volontairement, et un plafond franchi de peu ne veut rien dire. C'est
+ * pourquoi l'ecran AVERTIT et n'interdit jamais.
+ */
+export const SEUILS = {
+  /** g/kg — sous l'apport de reference pour un adulte. */
+  proteinesBasses: 0.83,
+  /** g/kg — plancher usuel pour preserver la masse maigre EN DEFICIT. */
+  proteinesDeficitBasses: 1.2,
+  /** g/kg — au-dela, aucun benefice supplementaire demontre. */
+  proteinesHautes: 2.2,
+  /**
+   * g/kg — territoire ou la charge renale commence a se discuter.
+   *
+   * Calibre a 3,5 et non a 3 : la repartition « Riche en proteines » du
+   * catalogue (35 % de l'energie, soit la borne haute des AMDR) atteint
+   * 3,0 g/kg chez un homme de 80 kg au maintien. Un seuil qui accuse une
+   * proposition de l'application elle-meme est un seuil faux — c'est un test
+   * de couverture du catalogue qui l'a montre.
+   */
+  proteinesTresHautes: 3.5,
+  /** % de l'energie — plancher des AMDR. */
+  lipidesBas: 20,
+  /** % de l'energie — au-dela, on est de fait sur un regime cetogene. */
+  lipidesHauts: 55,
+  /** g/jour — besoin en glucose du cerveau. */
+  glucidesGrammesBas: 130,
+  /** part de la depense — deficit au-dela duquel la masse maigre paie. */
+  deficitFort: 0.25,
+  /** part de la depense — surplus au-dela duquel la prise se fait en gras. */
+  surplusFort: 0.2,
+} as const
+
+export type Gravite = 'attention' | 'serieux'
+export type Sujet = 'energie' | 'proteines' | 'glucides' | 'lipides'
+
+/**
+ * Un effet secondaire annonce, par horizon.
+ *
+ * Les trois horizons ne sont pas un habillage : un deficit creuse se paie en
+ * fatigue la premiere semaine, en masse musculaire au bout de deux mois, en
+ * densite osseuse au bout de deux ans. Une seule phrase melangerait des
+ * consequences sans commune mesure, et la plus grave serait lue comme
+ * immediate — donc soit paniquante, soit ignoree.
+ */
+export interface Avertissement {
+  readonly code: string
+  readonly gravite: Gravite
+  readonly sujet: Sujet
+  /** Ce qui, dans le reglage, declenche l'avertissement. */
+  readonly constat: string
+  /** Jours a semaines. */
+  readonly court: string | null
+  /** Semaines a mois. */
+  readonly moyen: string | null
+  /** Mois a annees. */
+  readonly long: string | null
+}
+
+const fr = (n: number, d = 1) => n.toLocaleString('fr-FR', { maximumFractionDigits: d })
+
+/**
+ * Ce que la litterature dit d'un reglage, quand il sort des bornes usuelles.
+ *
+ * Fonction PURE et exhaustive : elle ne connait ni l'ecran ni la personne, et
+ * elle rend TOUT ce qui depasse — a l'interface de trier. Ce sont des ordres
+ * de grandeur pour un adulte en bonne sante, pas un diagnostic, et l'ecran
+ * doit le dire.
+ */
+export function effetsSecondaires(cibles: Targets): readonly Avertissement[] {
+  const out: Avertissement[] = []
+  const ecart = (cibles.tdee - cibles.kcal) / cibles.tdee // > 0 en deficit
+  const gkg = cibles.proteinsPerKg
+
+  // ---------- Energie ----------
+  if (ecart > SEUILS.deficitFort) {
+    out.push({
+      code: 'deficit-fort',
+      gravite: 'serieux',
+      sujet: 'energie',
+      constat: `Déficit de ${Math.round(ecart * 100)} % sous ta dépense estimée.`,
+      court: 'Faim persistante, fatigue, frilosité, sommeil moins réparateur.',
+      moyen:
+        'La perte ne vient plus seulement du gras : la masse musculaire paie, et la dépense ' +
+        'baisse avec elle — le fameux palier.',
+      long:
+        'Chez la femme, cycles perturbés voire interrompus ; chez tous, densité osseuse et ' +
+        'fonction thyroïdienne peuvent être touchées.',
+    })
+  } else if (ecart < -SEUILS.surplusFort) {
+    out.push({
+      code: 'surplus-fort',
+      gravite: 'attention',
+      sujet: 'energie',
+      constat: `Surplus de ${Math.round(-ecart * 100)} % au-dessus de ta dépense estimée.`,
+      court: 'Digestion lourde, sensation de lourdeur après les repas.',
+      moyen: 'Au-delà d’un petit surplus, ce qui se prend en plus se prend surtout en gras.',
+      long: 'Masse grasse en hausse, et une sèche à faire ensuite pour la reperdre.',
+    })
+  }
+
+  if (cibles.floored) {
+    out.push({
+      code: 'plancher',
+      gravite: 'serieux',
+      sujet: 'energie',
+      constat: `Le calcul descendait sous le seuil d’un régime non supervisé.`,
+      court: 'Un apport aussi bas relève d’un suivi médical, pas d’une application de recettes.',
+      moyen: 'À ce niveau d’apport, les carences en micronutriments sont difficiles à éviter.',
+      long: null,
+    })
+  }
+
+  // ---------- Proteines ----------
+  if (gkg < SEUILS.proteinesBasses) {
+    out.push({
+      code: 'proteines-tres-basses',
+      gravite: 'serieux',
+      sujet: 'proteines',
+      constat: `${fr(gkg)} g de protéines par kilo — sous l’apport de référence de ${fr(SEUILS.proteinesBasses, 2)}.`,
+      court: 'Récupération plus lente après l’effort, faim qui revient vite.',
+      moyen: 'Fonte musculaire, y compris sans que la balance ne bouge.',
+      long: 'Cicatrisation ralentie, défenses immunitaires moins efficaces.',
+    })
+  } else if (ecart > 0 && gkg < SEUILS.proteinesDeficitBasses) {
+    out.push({
+      code: 'proteines-basses-deficit',
+      gravite: 'attention',
+      sujet: 'proteines',
+      constat: `${fr(gkg)} g par kilo en déficit — le plancher usuel est ${fr(SEUILS.proteinesDeficitBasses)}.`,
+      court: 'Rassasiement moindre : le déficit est plus dur à tenir.',
+      moyen: 'Une part de ce que tu perds sera du muscle plutôt que du gras.',
+      long: null,
+    })
+  } else if (gkg > SEUILS.proteinesTresHautes) {
+    out.push({
+      code: 'proteines-tres-hautes',
+      gravite: 'attention',
+      sujet: 'proteines',
+      constat: `${fr(gkg)} g par kilo — bien au-delà de ${fr(SEUILS.proteinesHautes)}, où les bénéfices cessent.`,
+      court: 'Soif, digestion pesante, haleine chargée.',
+      moyen: 'Le reste de l’assiette se réduit d’autant : fibres et micronutriments en pâtissent.',
+      long:
+        'Sur des reins sains, aucun dommage démontré ; en cas d’atteinte rénale connue, ' +
+        'c’est un sujet à voir avec un médecin.',
+    })
+  }
+
+  // ---------- Lipides ----------
+  if (cibles.split.fats < SEUILS.lipidesBas) {
+    out.push({
+      code: 'lipides-bas',
+      gravite: 'serieux',
+      sujet: 'lipides',
+      constat: `${cibles.split.fats} % de lipides — sous le plancher de ${SEUILS.lipidesBas} %.`,
+      court: 'Peau et cheveux secs, satiété en berne.',
+      moyen: 'Production hormonale perturbée — cycle menstruel, libido, humeur.',
+      long: 'Absorption des vitamines A, D, E et K compromise, et carence en acides gras essentiels.',
+    })
+  } else if (cibles.split.fats > SEUILS.lipidesHauts) {
+    out.push({
+      code: 'lipides-hauts',
+      gravite: 'attention',
+      sujet: 'lipides',
+      constat: `${cibles.split.fats} % de lipides — de fait un régime cétogène.`,
+      court: 'Fatigue et maux de tête les premiers jours, transit ralenti.',
+      moyen: 'Performance en berne sur les efforts intenses et courts.',
+      long: 'Peu de données au-delà de deux ans ; un suivi du bilan lipidique est raisonnable.',
+    })
+  }
+
+  // ---------- Glucides ----------
+  if (cibles.carbs.grams < SEUILS.glucidesGrammesBas) {
+    out.push({
+      code: 'glucides-bas',
+      gravite: 'attention',
+      sujet: 'glucides',
+      constat:
+        `${cibles.carbs.grams} g de glucides — sous les ${SEUILS.glucidesGrammesBas} g ` +
+        'que le cerveau consomme chaque jour.',
+      court: 'Coup de barre, difficulté à se concentrer, maux de tête.',
+      moyen: 'L’organisme fabrique le glucose manquant, en partie à partir des protéines.',
+      long: 'Tenable, mais les efforts intenses et le sommeil s’en ressentent souvent.',
+    })
+  }
+
+  return out
+}

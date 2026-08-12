@@ -23,6 +23,8 @@ import {
   MIN_SAFE_KCAL,
   ageFrom,
   basalMetabolicRate,
+  ajusterSplit,
+  effetsSecondaires,
   estimateTargets,
   normalizeSplit,
   perEater,
@@ -327,6 +329,128 @@ describe('progressToward', () => {
     // Sans ce garde-fou, un ecran afficherait « 340 % » pour une cible a zero.
     for (const cible of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(progressToward(1500, cible).ratio, String(cible)).toBe(0)
+    }
+  })
+})
+
+describe('ajusterSplit', () => {
+  const EQ = { proteins: 25, carbs: 45, fats: 30 }
+
+  it('redistribue le reste sur les deux autres, a proportion', () => {
+    // 100 - 40 = 60 a partager entre 45 et 30, soit 60 % / 40 %.
+    expect(ajusterSplit(EQ, 'proteins', 40)).toEqual({ proteins: 40, carbs: 36, fats: 24 })
+  })
+
+  it('rend TOUJOURS un total de 100', () => {
+    for (const macro of ['proteins', 'carbs', 'fats'] as const) {
+      for (let v = 0; v <= 100; v++) {
+        const s = ajusterSplit(EQ, macro, v)
+        expect(s.proteins + s.carbs + s.fats, `${macro}=${v}`).toBe(100)
+        expect(s[macro], `${macro}=${v}`).toBe(v)
+      }
+    }
+  })
+
+  it('partage a egalite quand les deux autres sont a zero', () => {
+    // Leur rapport n'existe pas : tout donner a l'une serait arbitraire.
+    expect(ajusterSplit({ proteins: 100, carbs: 0, fats: 0 }, 'proteins', 40))
+      .toEqual({ proteins: 40, carbs: 30, fats: 30 })
+  })
+
+  it('borne la valeur demandee entre 0 et 100', () => {
+    expect(ajusterSplit(EQ, 'fats', 140).fats).toBe(100)
+    expect(ajusterSplit(EQ, 'fats', -20).fats).toBe(0)
+  })
+})
+
+describe('effetsSecondaires', () => {
+  const codes = (p: Profile) => effetsSecondaires(estimateTargets(p, NOW)!).map((a) => a.code)
+
+  it('ne dit rien sur un reglage raisonnable', () => {
+    // Maintien, repartition equilibree : il n'y a rien a signaler, et le dire
+    // quand meme rendrait tous les autres avertissements inaudibles.
+    expect(codes(HOMME)).toEqual([])
+  })
+
+  it('signale un deficit au-dela du quart de la depense', () => {
+    const t = estimateTargets({ ...HOMME, targetWeightKg: 70, pace: 'rapide' }, NOW)!
+    expect(effetsSecondaires(t).map((a) => a.code)).toContain('deficit-fort')
+  })
+
+  it('signale un surplus franc', () => {
+    expect(codes({ ...HOMME, goal: 'prise' })).toContain('surplus-fort')
+  })
+
+  it('signale des lipides sous le plancher hormonal', () => {
+    const avis = effetsSecondaires(estimateTargets(
+      { ...HOMME, split: 'perso', customSplit: { proteins: 45, carbs: 40, fats: 15 } }, NOW)!)
+    const lipides = avis.find((a) => a.code === 'lipides-bas')!
+    expect(lipides.gravite).toBe('serieux')
+    // Les trois horizons doivent etre renseignes : c'est tout l'interet de la
+    // graduation, et un horizon vide passerait inapercu a la relecture.
+    expect(lipides.court).not.toBeNull()
+    expect(lipides.moyen).not.toBeNull()
+    expect(lipides.long).not.toBeNull()
+  })
+
+  it('signale une part de lipides digne d’un regime cetogene', () => {
+    expect(codes({ ...HOMME, split: 'perso', customSplit: { proteins: 20, carbs: 15, fats: 65 } }))
+      .toContain('lipides-hauts')
+  })
+
+  it('signale des glucides sous le besoin en glucose du cerveau', () => {
+    expect(codes({ ...HOMME, split: 'perso', customSplit: { proteins: 40, carbs: 10, fats: 50 } }))
+      .toContain('glucides-bas')
+  })
+
+  it('distingue proteines trop basses et proteines basses EN DEFICIT', () => {
+    const maigre = { proteins: 8, carbs: 60, fats: 32 }
+    expect(codes({ ...HOMME, split: 'perso', customSplit: maigre })).toContain('proteines-tres-basses')
+
+    // 15 % de 2 345 kcal = 88 g pour 80 kg, soit 1,1 g/kg : au-dessus de
+    // l'apport de reference, mais sous le plancher d'un deficit.
+    const moyen = { proteins: 15, carbs: 55, fats: 30 }
+    const enDeficit = codes({ ...HOMME, goal: 'perte', split: 'perso', customSplit: moyen })
+    expect(enDeficit).toContain('proteines-basses-deficit')
+    expect(enDeficit).not.toContain('proteines-tres-basses')
+
+    // Meme repartition hors deficit : ce n'est plus le muscle qui est en jeu.
+    expect(codes({ ...HOMME, split: 'perso', customSplit: moyen })).not.toContain('proteines-basses-deficit')
+  })
+
+  it('signale un exces de proteines', () => {
+    expect(codes({ ...HOMME, split: 'perso', customSplit: { proteins: 60, carbs: 20, fats: 20 } }))
+      .toContain('proteines-tres-hautes')
+  })
+
+  it('signale le plancher de securite', () => {
+    const t = estimateTargets(
+      { sex: 'f', birthYear: 1966, heightCm: 150, weightKg: 45, activity: 'sedentaire', goal: 'seche' },
+      NOW)!
+    expect(effetsSecondaires(t).map((a) => a.code)).toContain('plancher')
+  })
+
+  it('n’avertit jamais sans dire ce qui le declenche', () => {
+    // Un avertissement sans constat serait un reproche sans motif : la personne
+    // ne saurait pas quel curseur bouger.
+    const extreme = estimateTargets(
+      { ...HOMME, goal: 'seche', split: 'perso', customSplit: { proteins: 70, carbs: 5, fats: 25 } }, NOW)!
+    const avis = effetsSecondaires(extreme)
+    expect(avis.length).toBeGreaterThan(1)
+    for (const a of avis) {
+      expect(a.constat.length, a.code).toBeGreaterThan(10)
+      expect([a.court, a.moyen, a.long].some(Boolean), a.code).toBe(true)
+      expect(['attention', 'serieux']).toContain(a.gravite)
+    }
+  })
+
+  it('couvre les repartitions proposees sans rien signaler', () => {
+    // Si une repartition du catalogue declenchait un avertissement, c'est le
+    // catalogue qu'il faudrait corriger, pas l'avertissement.
+    for (const s of MACRO_SPLITS) {
+      if (s.code === 'perso') continue
+      const avis = codes({ ...HOMME, split: s.code })
+      expect(avis, `${s.code} : ${avis.join(', ')}`).toEqual([])
     }
   })
 })
