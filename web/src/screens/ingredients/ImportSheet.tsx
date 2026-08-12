@@ -22,7 +22,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import type { UseQueryResult } from '@tanstack/react-query'
-import type { Ingredient } from '@livre/shared'
+import type { Criterion, Ingredient } from '@livre/shared'
 
 import { BarcodeScanner } from '../../components/BarcodeScanner.js'
 import { SelectField } from '../../components/Field.js'
@@ -40,7 +40,8 @@ import {
   useOffSearch,
   type BarcodeResult,
 } from '../../lib/queries.js'
-import { catalogKey } from './model.js'
+import { CriteriaFields } from './CriteriaFields.js'
+import { CATALOG_CRITERION_FIELDS, catalogKey } from './model.js'
 import { ScanReview } from './ScanReview.js'
 import '../../styles/ingredients.css'
 
@@ -299,7 +300,11 @@ function CiqualTab({
     return () => clearTimeout(timer)
   }, [text])
 
-  const results = useCatalog(debounced, { source: 'ciqual', category: category || null })
+  const [criteria, setCriteria] = useState<Criterion[]>([])
+  const results = useCatalog(debounced, { source: 'ciqual', category: category || null, criteria })
+  // Les pages s'empilent : `pages` est la liste des reponses, pas des lignes.
+  const items = results.data?.pages.flatMap((page) => page.items) ?? []
+  const total = results.data?.pages[0]?.totalCount ?? 0
 
   return (
     <>
@@ -326,6 +331,13 @@ function CiqualTab({
         }))}
       />
 
+      <CriteriaFields
+        criteria={criteria}
+        onChange={setCriteria}
+        fields={CATALOG_CRITERION_FIELDS}
+        hint="Les bornes filtrent à la source, sur les 3 000 lignes du catalogue — pas seulement sur la page affichée."
+      />
+
       <p className="field__hint">
         La table CIQUAL de l’ANSES, ~3 000 aliments bruts. Sans requête ni catégorie, elle se
         parcourt par ordre alphabétique.
@@ -337,19 +349,14 @@ function CiqualTab({
       {results.isPending && <LoadingRows rows={3} />}
       {results.isError && <ErrorState error={results.error} onRetry={() => void results.refetch()} />}
 
-      {results.isSuccess && results.data.items.length === 0 && (
+      {results.isSuccess && items.length === 0 && (
         <EmptyState title="Aucun résultat">Aucun aliment ne correspond à ces critères.</EmptyState>
       )}
 
-      {results.isSuccess && results.data.items.length > 0 && (
+      {results.isSuccess && items.length > 0 && (
         <>
-          <p className="list-count">
-            {results.data.totalCount} résultat{results.data.totalCount > 1 ? 's' : ''}
-            {results.data.totalCount > results.data.items.length &&
-              ` · ${results.data.items.length} affichés, affine ta recherche`}
-          </p>
           <ul className="ing-results">
-            {results.data.items.map((candidate) => (
+            {items.map((candidate) => (
               <CandidateRow
                 key={catalogKey(candidate)}
                 candidate={candidate}
@@ -360,9 +367,56 @@ function CiqualTab({
               />
             ))}
           </ul>
+          <PageSuivante
+            charges={items.length}
+            total={total}
+            encore={results.hasNextPage}
+            enCours={results.isFetchingNextPage}
+            onSuivant={() => void results.fetchNextPage()}
+          />
         </>
       )}
     </>
+  )
+}
+
+/**
+ * « Voir plus » — et le decompte qui dit ou l'on en est.
+ *
+ * Un bouton plutot qu'un defilement infini : dans une feuille modale, le
+ * chargement automatique vole le controle et empeche d'atteindre le bas. Le
+ * decompte « 20 sur 3 484 » est la moitie du dispositif — sans lui, on ne sait
+ * pas s'il reste dix resultats ou trois mille.
+ */
+function PageSuivante({
+  charges,
+  total,
+  encore,
+  enCours,
+  onSuivant,
+}: {
+  readonly charges: number
+  readonly total: number
+  readonly encore: boolean
+  readonly enCours: boolean
+  readonly onSuivant: () => void
+}) {
+  return (
+    <div className="ing-pagination">
+      <p className="list-count">
+        {charges} sur {total} résultat{total > 1 ? 's' : ''}
+      </p>
+      {encore && (
+        <button
+          type="button"
+          className="button button--secondary"
+          onClick={onSuivant}
+          disabled={enCours}
+        >
+          {enCours ? 'Chargement…' : 'Voir plus'}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -391,7 +445,10 @@ function OffTab({
   /** Code lu par la camera. Interroge le produit exact, pas la recherche texte. */
   const [scanned, setScanned] = useState<string | null>(null)
 
-  const results = useOffSearch(submitted, submitted.length >= 2)
+  const [criteria, setCriteria] = useState<Criterion[]>([])
+  const results = useOffSearch(submitted, submitted.length >= 2, criteria)
+  const items = results.data?.pages.flatMap((page) => page.items) ?? []
+  const total = results.data?.pages[0]?.totalCount ?? 0
   const barcode = useBarcode(scanned)
   const canSearch = text.trim().length >= 2
 
@@ -486,16 +543,17 @@ function OffTab({
             <ErrorState error={results.error} onRetry={() => void results.refetch()} />
           )}
 
-          {results.isSuccess && !results.isFetching && results.data.items.length === 0 && (
+          {results.isSuccess && !results.isFetching && items.length === 0 && (
             <EmptyState title="Aucun résultat">
               Rien ne correspond à « {submitted} » sur OpenFoodFacts. Tu peux créer la fiche à la
               main.
             </EmptyState>
           )}
 
-          {results.isSuccess && results.data.items.length > 0 && (
+          {results.isSuccess && items.length > 0 && (
+            <>
             <ul className="ing-results">
-              {results.data.items.map((candidate) => (
+              {items.map((candidate) => (
                 <CandidateRow
                   key={catalogKey(candidate)}
                   candidate={candidate}
@@ -506,6 +564,14 @@ function OffTab({
                 />
               ))}
             </ul>
+            <PageSuivante
+              charges={items.length}
+              total={total}
+              encore={results.hasNextPage}
+              enCours={results.isFetchingNextPage}
+              onSuivant={() => void results.fetchNextPage()}
+            />
+            </>
           )}
         </>
       )}

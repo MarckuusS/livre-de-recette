@@ -12,7 +12,13 @@
  * aller-retour se voit a l'oeil nu.
  */
 
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import {
   currentIsoWeek,
   type Ingredient,
@@ -24,6 +30,8 @@ import {
   type SessionItem,
   type ShoppingSession,
   type ShoppingList,
+  formatCriteria,
+  type Criterion,
 } from '@livre/shared'
 
 import { apiFetch } from './api.js'
@@ -183,30 +191,51 @@ export interface CatalogPage extends IngredientList {
   readonly offset: number
 }
 
+/**
+ * Le catalogue, page par page.
+ *
+ * `useInfiniteQuery` et non une limite qui grandit : demander 10, puis 20,
+ * puis 30 retelechargerait a chaque fois ce qu'on a deja. Ici chaque page est
+ * une requete de dix lignes, et les pages s'empilent.
+ *
+ * Les bornes partent au SERVEUR. Filtrer les dix lignes recues cote client
+ * dirait « aucun resultat » alors que le onzieme convenait.
+ */
 export function useCatalog(
   query: string,
   options: {
     source?: string | null
     category?: string | null
+    criteria?: readonly Criterion[]
     enabled?: boolean
-    limit?: number
-    offset?: number
+    pageSize?: number
   } = {},
 ) {
-  const { source = null, category = null, enabled = true, limit = 50, offset = 0 } = options
-  const search = new URLSearchParams()
-  if (query) search.set('q', query)
-  if (source) search.set('source', source)
-  if (category) search.set('category', category)
-  search.set('limit', String(limit))
-  search.set('offset', String(offset))
+  const { source = null, category = null, criteria = [], enabled = true, pageSize = 10 } = options
+  const bornes = formatCriteria(criteria)
 
-  return useQuery({
-    queryKey: [...keys.catalog(query, source, category), limit, offset],
-    queryFn: () => apiFetch<CatalogPage>(`/api/catalog?${search.toString()}`),
+  return useInfiniteQuery({
+    queryKey: [...keys.catalog(query, source, category), bornes, pageSize],
+    queryFn: ({ pageParam }) => {
+      const search = new URLSearchParams()
+      if (query) search.set('q', query)
+      if (source) search.set('source', source)
+      if (category) search.set('category', category)
+      if (bornes) search.set('bornes', bornes)
+      search.set('limit', String(pageSize))
+      search.set('offset', String(pageParam))
+      return apiFetch<CatalogPage>(`/api/catalog?${search.toString()}`)
+    },
+    initialPageParam: 0,
+    // `undefined` arrete la pagination : c'est ce que lit `hasNextPage`.
+    getNextPageParam: (last: CatalogPage, pages: CatalogPage[]) => {
+      const charges = pages.reduce((n, p) => n + p.items.length, 0)
+      return charges < last.totalCount ? charges : undefined
+    },
     // Sans requete ni filtre, le catalogue rendrait ses 4 000 premieres lignes
     // par ordre alphabetique — inexploitable et couteux sur un telephone.
-    enabled: enabled && (query.trim().length > 0 || source !== null || category !== null),
+    enabled:
+      enabled && (query.trim().length > 0 || source !== null || category !== null || bornes !== ''),
     placeholderData: (previous) => previous,
   })
 }
@@ -230,17 +259,51 @@ export function useAddToLibrary() {
   })
 }
 
-/** Recherche OpenFoodFacts, relayee par le Worker (CORS + User-Agent). */
-export function useOffSearch(query: string, enabled: boolean) {
-  return useQuery({
-    queryKey: ['off-search', query],
-    queryFn: () => apiFetch<IngredientList>(`/api/off/search?q=${encodeURIComponent(query)}`),
+/**
+ * Recherche OpenFoodFacts, relayee par le Worker (CORS + User-Agent).
+ *
+ * Paginee comme le catalogue, mais pour une raison de plus : OpenFoodFacts
+ * limite le debit des clients anonymes. Charger dix resultats a la demande
+ * plutot que cinquante d'office menage la source autant que le forfait.
+ */
+export function useOffSearch(
+  query: string,
+  enabled: boolean,
+  criteria: readonly Criterion[] = [],
+  pageSize = 10,
+) {
+  const bornes = formatCriteria(criteria)
+
+  return useInfiniteQuery({
+    queryKey: ['off-search', query, bornes, pageSize],
+    queryFn: ({ pageParam }) => {
+      const search = new URLSearchParams({
+        q: query,
+        page: String(pageParam),
+        limit: String(pageSize),
+      })
+      if (bornes) search.set('bornes', bornes)
+      return apiFetch<OffSearchPage>(`/api/off/search?${search.toString()}`)
+    },
+    initialPageParam: 1,
+    getNextPageParam: (last: OffSearchPage, pages: OffSearchPage[]) => {
+      const charges = pages.reduce((n, p) => n + p.items.length, 0)
+      // Une page vide arrete tout : OpenFoodFacts annonce parfois un total
+      // superieur a ce qu'il sait reellement rendre.
+      if (last.items.length === 0) return undefined
+      return charges < last.totalCount ? pages.length + 1 : undefined
+    },
     // Pas de debounce ici : OpenFoodFacts limite les clients anonymes, la
     // recherche est declenchee par un bouton explicite.
     enabled: enabled && query.trim().length > 0,
     staleTime: 5 * 60 * 1000,
     retry: false,
   })
+}
+
+export interface OffSearchPage extends IngredientList {
+  readonly page: number
+  readonly limit: number
 }
 
 export type BarcodeResult = Ingredient & {

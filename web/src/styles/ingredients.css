@@ -967,3 +967,16 @@
   background: var(--color-surface);
   border-radius: var(--radius-full);
 }
+
+/* ---------- Pagination des resultats d'import ----------
+   Le decompte et le bouton vont ensemble : « 20 sur 3 484 » sans bouton
+   laisserait croire qu'il n'y a rien de plus a voir, et le bouton sans
+   decompte ne dirait pas s'il reste dix lignes ou trois mille. */
+
+.ing-pagination {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-md) 0;
+}

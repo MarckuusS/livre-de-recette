@@ -11,7 +11,7 @@
  * passer — toute requete de ce fichier se filtre sur le foyer, sans exception.
  */
 
-import type { Ingredient } from '@livre/shared'
+import type { Criterion, Ingredient } from '@livre/shared'
 import { escapeLike, normalizeName, toFtsQuery } from '@livre/shared'
 
 import { toIngredient, type IngredientRow } from '../rows.js'
@@ -63,6 +63,17 @@ export interface IngredientUsage {
   readonly recipes: number
   readonly mealPlan: number
   readonly pantry: number
+}
+
+const CRITERION_COLUMNS: Readonly<Record<string, string>> = {
+  kcal: 'kcal_per_100g',
+  proteins: 'proteins_g',
+  carbs: 'carbs_g',
+  sugars: 'sugars_g',
+  fats: 'fats_g',
+  saturatedFats: 'saturated_fats_g',
+  fiber: 'fiber_g',
+  salt: 'salt_g',
 }
 
 export class IngredientRepo {
@@ -163,11 +174,27 @@ export class IngredientRepo {
    * plutot que d'etre masquees, sinon rechercher un ingredient qu'on possede
    * deja donnerait « aucun resultat », ce qui est deroutant.
    */
+  /**
+   * Champs chiffrables du catalogue, et leur colonne.
+   *
+   * Le prix au kilo et le poids unitaire n'y sont pas : ils existent dans la
+   * bibliotheque personnelle, pas dans un catalogue de reference. Un champ
+   * inconnu est ignore plutot que rejete — c'est la meme tolerance que
+   * `parseCriteria`.
+   */
+  static readonly COLUMNS = CRITERION_COLUMNS
+
   async searchCatalog(
     query: string | null,
-    options: { source?: string | null; categoryL1?: string | null; limit?: number; offset?: number } = {},
+    options: {
+      source?: string | null
+      categoryL1?: string | null
+      criteria?: readonly Criterion[]
+      limit?: number
+      offset?: number
+    } = {},
   ): Promise<{ items: Ingredient[]; totalCount: number }> {
-    const { source = null, categoryL1 = null, limit = 50, offset = 0 } = options
+    const { source = null, categoryL1 = null, criteria = [], limit = 50, offset = 0 } = options
     const fts = toFtsQuery(query)
 
     // Le foyer ouvre la liste, donc la clause n'est JAMAIS vide : sans requete
@@ -189,6 +216,20 @@ export class IngredientRepo {
     if (categoryL1) {
       where.push('i.category_l1 = ?')
       args.push(categoryL1)
+    }
+
+    // Les bornes filtrent A LA SOURCE, et c'est le point : filtrer une page de
+    // dix resultats cote client mentirait sur les 3 474 autres.
+    //
+    // `IS NOT NULL` est explicite plutot que laisse a SQL : une comparaison
+    // avec NULL rend NULL, donc la ligne serait deja ecartee — mais l'ecrire
+    // dit que c'est VOULU. Une fiche sans valeur ne satisfait aucune borne,
+    // pas meme une borne haute, exactement comme dans la bibliotheque.
+    for (const c of criteria) {
+      const column = CRITERION_COLUMNS[c.field]
+      if (!column) continue
+      where.push(`(i.${column} IS NOT NULL AND i.${column} ${c.bound === 'min' ? '>=' : '<='} ?)`)
+      args.push(c.value)
     }
 
     const clause = `WHERE ${where.join(' AND ')}`

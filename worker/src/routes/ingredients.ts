@@ -10,6 +10,7 @@
 import {
   ingredientCreateSchema,
   ingredientPatchSchema,
+  parseCriteria,
   parseQuantityToGrams,
   priceHistoryEntrySchema,
 } from '@livre/shared'
@@ -159,6 +160,7 @@ route('GET', '/api/catalog', async ({ repos, url }) => {
   const page = await repos.ingredients.searchCatalog(url.searchParams.get('q'), {
     source: url.searchParams.get('source'),
     categoryL1: url.searchParams.get('category'),
+    criteria: parseCriteria(url.searchParams.get('bornes')),
     limit,
     offset,
   })
@@ -275,13 +277,42 @@ route('DELETE', '/api/prices/:id', async ({ repos, params, url, env, user }) => 
  * qu'OFF exige pour ne pas brider les clients anonymes n'est pas modifiable
  * depuis une page web.
  */
+const OFF_NUTRIMENTS: Readonly<Record<string, string>> = {
+  kcal: 'nutriments.energy-kcal_100g',
+  proteins: 'nutriments.proteins_100g',
+  carbs: 'nutriments.carbohydrates_100g',
+  sugars: 'nutriments.sugars_100g',
+  fats: 'nutriments.fat_100g',
+  saturatedFats: 'nutriments.saturated-fat_100g',
+  fiber: 'nutriments.fiber_100g',
+  salt: 'nutriments.salt_100g',
+}
+
 route('GET', '/api/off/search', async ({ url, env }) => {
   const query = (url.searchParams.get('q') ?? '').trim()
   if (!query) return json({ items: [], totalCount: 0 })
 
+  const limit = Math.min(Number(url.searchParams.get('limit') ?? 25) || 25, 50)
+  const page = Math.max(Number(url.searchParams.get('page') ?? 1) || 1, 1)
+
+  // Les bornes s'ecrivent DANS la requete, en syntaxe Lucene : Search-a-licious
+  // n'a pas de parametre de filtre separe. Un champ que OpenFoodFacts ne
+  // connait pas est ignore plutot que rejete — mieux vaut une recherche un peu
+  // moins filtree qu'une erreur 400 devant un rayon de supermarche.
+  const bornes = parseCriteria(url.searchParams.get('bornes'))
+    .map((c) => {
+      const champ = OFF_NUTRIMENTS[c.field]
+      if (!champ) return null
+      return c.bound === 'min'
+        ? `${champ}:[${c.value} TO *]`
+        : `${champ}:[* TO ${c.value}]`
+    })
+    .filter((part): part is string => part !== null)
+
   const target = new URL('https://search.openfoodfacts.org/search')
-  target.searchParams.set('q', query)
-  target.searchParams.set('page_size', String(Math.min(Number(url.searchParams.get('limit') ?? 25) || 25, 50)))
+  target.searchParams.set('q', [query, ...bornes].join(' AND '))
+  target.searchParams.set('page_size', String(limit))
+  target.searchParams.set('page', String(page))
   target.searchParams.set('langs', 'fr,en')
 
   let response: Response
@@ -298,7 +329,12 @@ route('GET', '/api/off/search', async ({ url, env }) => {
   const body = (await response.json()) as { hits?: unknown[]; count?: number }
   const hits = Array.isArray(body.hits) ? body.hits : []
 
-  return json({ items: hits.map(toOffCandidate), totalCount: body.count ?? hits.length })
+  return json({
+    items: hits.map(toOffCandidate),
+    totalCount: body.count ?? hits.length,
+    page,
+    limit,
+  })
 })
 
 /** Code-barres : le chemin du scan par la camera du telephone. */

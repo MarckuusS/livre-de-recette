@@ -17,11 +17,14 @@
 import {
   SOURCE_LABELS,
   SOURCES,
+  formatCriteria,
   isInSeasonNow,
   normalizeName,
+  parseCriteria,
   seasonMonths as parseSeasonMonths,
   type Ingredient,
   type Source,
+  type Criterion as SharedCriterion,
 } from '@livre/shared'
 
 import type { IconName } from '../../icons/index.js'
@@ -233,13 +236,22 @@ export const CRITERION_FIELDS = [
 
 export type CriterionField = (typeof CRITERION_FIELDS)[number]['code']
 
+/**
+ * Ce que le CATALOGUE sait filtrer : les huit nutriments, rien de plus.
+ *
+ * Le prix au kilo et le poids unitaire appartiennent a la bibliotheque
+ * personnelle — un catalogue de reference ne les porte pas, et les proposer
+ * rendrait toute recherche vide.
+ */
+export const CATALOG_CRITERION_FIELDS = CRITERION_FIELDS.filter(
+  (f) => f.code !== 'priceKg' && f.code !== 'pieceWeightG',
+)
+
 const CRITERION_CODES: ReadonlySet<string> = new Set(CRITERION_FIELDS.map((f) => f.code))
 
 /** Une borne, lue « Protéines ≥ 20 » ou « Sel ≤ 1 » a l'ecran. */
-export interface Criterion {
+export interface Criterion extends SharedCriterion {
   readonly field: CriterionField
-  readonly bound: 'min' | 'max'
-  readonly value: number
 }
 
 /**
@@ -520,7 +532,7 @@ export function readViewOptions(params: URLSearchParams): ViewOptions {
       withPieceWeight: etat('withPieceWeight'),
       withPrice: etat('withPrice'),
       brand: params.get('marque') ?? '',
-      criteria: splitCsv(params.get('bornes')).flatMap(readCriterion),
+      criteria: knownCriteria(params.get('bornes')),
     },
   }
 }
@@ -549,32 +561,23 @@ export function viewOptionsToParams(view: ViewOptions): URLSearchParams {
   if (toggles.length > 0) params.set('f', toggles.join(','))
   if (view.filters.brand.trim() !== '') params.set('marque', view.filters.brand.trim())
   if (view.filters.criteria.length > 0) {
-    params.set('bornes', view.filters.criteria.map(writeCriterion).join(','))
+    params.set('bornes', formatCriteria(view.filters.criteria))
   }
 
   return params
 }
 
 /**
- * Une borne s'ecrit « champ:sens:valeur » — « proteins:min:20 ».
+ * Ne garde que les bornes dont le champ existe ICI.
  *
- * Le deux-points et non le point : le point est deja le separateur decimal, et
- * « priceKg.max.12.5 » se relisait en 12. Un test d'aller-retour l'a montre.
- *
- * Toute borne illisible est ignoree en silence, comme le reste des options :
- * un lien d'une version anterieure doit s'ouvrir sur une bibliotheque un peu
- * moins filtree, jamais sur une page en erreur.
+ * La lecture et l'ecriture du format vivent dans `shared/criteria` : le Worker
+ * lit le meme texte pour filtrer le catalogue et OpenFoodFacts, et deux
+ * analyseurs pour un seul format finissent toujours par diverger. Ce qui reste
+ * propre a la bibliotheque, c'est la LISTE des champs — elle connait le prix
+ * au kilo, que le catalogue ignore.
  */
-function readCriterion(brut: string): Criterion[] {
-  const [field, bound, valeur] = brut.split(':')
-  const nombre = Number(valeur)
-  if (field === undefined || !CRITERION_CODES.has(field)) return []
-  if (bound !== 'min' && bound !== 'max') return []
-  if (!Number.isFinite(nombre)) return []
-  return [{ field: field as CriterionField, bound, value: nombre }]
-}
-
-const writeCriterion = (c: Criterion): string => `${c.field}:${c.bound}:${c.value}`
+const knownCriteria = (raw: string | null): Criterion[] =>
+  parseCriteria(raw).filter((c): c is Criterion => CRITERION_CODES.has(c.field))
 
 // ---------------------------------------------------------------------------
 // Saisonnalite
