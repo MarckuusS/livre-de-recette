@@ -30,6 +30,8 @@ import {
 } from '@livre/shared'
 
 import { NumberField, SelectField, TextField } from '../../components/Field.js'
+import { Link } from 'react-router'
+
 import { IngredientPicker } from '../../components/IngredientPicker.js'
 import { QuantityField } from '../../components/QuantityField.js'
 import { Sheet } from '../../components/Sheet.js'
@@ -129,6 +131,9 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
             portions={portions}
             onPortionsChange={setPortions}
           />
+          {recipeId !== null && (
+            <VersLaFiche to={`/recettes/${recipeId}`} libelle="Ouvrir la recette" />
+          )}
         </div>
       ) : (
         <div className="form" id="panel-ingredient" role="tabpanel" aria-labelledby="tab-ingredient">
@@ -165,6 +170,9 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
                 pieceWeightG={ingredient.pieceWeightG}
                 required
               />
+              {ingredient.id !== null && (
+                <VersLaFiche to={`/ingredients/${ingredient.id}`} libelle="Ouvrir la fiche ingrédient" />
+              )}
             </>
           )}
         </div>
@@ -180,6 +188,32 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * Le lien vers la fiche de ce qu'on vient de choisir.
+ *
+ * On decouvre au moment d'ajouter que le poids d'une piece est faux, ou qu'il
+ * manque une macro : la correction se faisait en abandonnant l'ajout, en
+ * cherchant la fiche dans la bibliotheque, puis en revenant. Le meme bouton
+ * existe deja sur la feuille d'un repas DEJA planifie ; il manquait a celle qui
+ * le cree.
+ *
+ * IL QUITTE LA FEUILLE, et le dit. Ouvrir la fiche est une navigation, pas une
+ * sous-fenetre : le choix en cours n'est pas conserve. Le taire ferait passer
+ * une consequence connue pour une perte inexpliquee — d'autant qu'on revient
+ * souvent d'avoir corrige le poids unitaire, celui-la meme qui donne la
+ * quantite proposee au moment de rechoisir.
+ */
+function VersLaFiche({ to, libelle }: { readonly to: string; readonly libelle: string }) {
+  return (
+    <>
+      <Link to={to} className="button button--secondary button--block">
+        <Icon name="ui-edit" size={16} className="icon--inline" /> {libelle}
+      </Link>
+      <p className="field__hint">L’ajout en cours n’est pas conservé.</p>
+    </>
+  )
+}
 
 function SegmentedTab({
   id,
