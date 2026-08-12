@@ -345,31 +345,6 @@ button.acces__carte {
   border-radius: 0;
 }
 
-/* La fiche remonte du bas, PAR-DESSUS le viseur qui reste allume : on garde
-   sous les yeux ce qu'on vient de lire. */
-.fiche-scan {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  margin-top: calc(-1 * var(--space-xxl));
-  padding: var(--space-sm) var(--space-lg) var(--space-lg);
-  background: var(--color-surface);
-  border-radius: var(--radius-xxl) var(--radius-xxl) 0 0;
-  box-shadow: 0 -12px 30px rgb(0 0 0 / 0.3);
-}
-
-/* La poignee : elle dit que la fiche est venue de dessous. */
-.fiche-scan__poignee {
-  width: 40px;
-  height: 4px;
-  margin: 0 auto var(--space-xs);
-  background: var(--color-border-hover);
-  border-radius: var(--radius-full);
-}
-
 .fiche-scan__marque {
   margin: 0;
   color: var(--color-text-secondary);

@@ -26,13 +26,13 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme="light"]) {
     --color-toast-bg: var(--color-surface);
   }
 }
 
 /* La bascule manuelle doit l'emporter sur la preference systeme. */
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   --color-toast-bg: var(--color-surface);
 }
 
@@ -590,9 +590,34 @@
  * ------------------------------------------------------------------------- */
 
 .scanner {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+/* Le crayon de saisie manuelle, pose sur le coin du viseur.
+   Il reste visible dans TOUS les etats, camera refusee comprise, ou la saisie
+   a la main est le seul chemin restant. */
+.scanner__crayon {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  color: #fff;
+  background: rgb(0 0 0 / 0.7);
+  backdrop-filter: blur(6px);
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+.scanner__crayon--actif {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
 }
 
 /* ---------- Le viseur occupe l'ecran ----------
@@ -612,14 +637,16 @@
   border-radius: 0;
 }
 
-/* Sous le viseur, le peu de texte qui reste passe sur fond sombre. */
-.scanner--plein > .card__lead,
-.scanner--plein .scanner__manual {
-  padding: 0 var(--space-lg);
-  color: #c9d6cd;
+/* Le panneau de saisie manuelle, ouvert par le crayon du viseur. */
+.scanner__manual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
 }
 
-.scanner--plein .scanner__manual summary {
+/* En plein ecran il se pose sur le fond sombre, d'ou son propre rembourrage. */
+.scanner--plein .scanner__manual {
+  padding: var(--space-lg);
   color: #fff;
 }
 
@@ -677,10 +704,30 @@
   border-radius: 8px;
 }
 
-.viseur__coin--hg { top: 0; left: 0; border-right: 0; border-bottom: 0; }
-.viseur__coin--hd { top: 0; right: 0; border-bottom: 0; border-left: 0; }
-.viseur__coin--bg { bottom: 0; left: 0; border-top: 0; border-right: 0; }
-.viseur__coin--bd { right: 0; bottom: 0; border-top: 0; border-left: 0; }
+.viseur__coin--hg {
+  top: 0;
+  left: 0;
+  border-right: 0;
+  border-bottom: 0;
+}
+.viseur__coin--hd {
+  top: 0;
+  right: 0;
+  border-bottom: 0;
+  border-left: 0;
+}
+.viseur__coin--bg {
+  bottom: 0;
+  left: 0;
+  border-top: 0;
+  border-right: 0;
+}
+.viseur__coin--bd {
+  right: 0;
+  bottom: 0;
+  border-top: 0;
+  border-left: 0;
+}
 
 /* La ligne qui balaie dit que l'appareil CHERCHE. Sans elle, une camera qui ne
    trouve rien parait figee, et l'on croit l'application bloquee. */
@@ -753,52 +800,9 @@
   border-radius: var(--radius-md);
 }
 
-/* Meme piege que sur les valeurs nutritionnelles : `display: flex` retire le
-   marqueur natif, et le depliage devient invisible. On le redessine. */
-.scanner__manual summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  /* Cible tactile : un `summary` fait la hauteur de son texte par defaut,
-     bien en-dessous des 44 px utilisables au pouce. */
-  min-height: var(--control-height-lg);
-  padding: 0 var(--space-md);
-  color: var(--color-text);
-  background: var(--color-surface-hover);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  list-style: none;
-}
-
-.scanner__manual summary::-webkit-details-marker {
-  display: none;
-}
-
-.scanner__manual summary::after {
-  content: '⌄';
-  font-size: var(--font-size-xl);
-  line-height: 1;
-  transition: transform var(--duration-fast) var(--easing-standard);
-}
-
-.scanner__manual[open] summary::after {
-  transform: rotate(180deg);
-}
-
-.scanner__manual[open] summary {
-  margin-bottom: var(--space-sm);
-}
-
-.scanner__manual .button {
-  width: 100%;
-  margin-top: var(--space-sm);
-}
-
 /* ---------- Anneau de repartition des macros ----------
    Partage entre la fiche recette (composition pour 100 g) et l'ecran Semaine
    (repartition du jour). Vit ici pour cette raison. */
-
 
 .macros {
   display: flex;
@@ -978,10 +982,18 @@
   flex-basis: 0;
 }
 
-.macro-bar__part--fats { background: var(--color-nutrient-fats); }
-.macro-bar__part--carbs { background: var(--color-nutrient-carbs); }
-.macro-bar__part--fiber { background: var(--color-nutrient-fiber); }
-.macro-bar__part--proteins { background: var(--color-nutrient-proteins); }
+.macro-bar__part--fats {
+  background: var(--color-nutrient-fats);
+}
+.macro-bar__part--carbs {
+  background: var(--color-nutrient-carbs);
+}
+.macro-bar__part--fiber {
+  background: var(--color-nutrient-fiber);
+}
+.macro-bar__part--proteins {
+  background: var(--color-nutrient-proteins);
+}
 
 /* Anneau SANS legende : il occupe seul sa carte, donc il se centre. La grille
    a deux colonnes le laissait colle a gauche, avec un vide a droite ou la

@@ -24,6 +24,7 @@ import { useNavigate } from "react-router";
 
 import { BarcodeScanner } from "../components/BarcodeScanner.js";
 import { MacroCells } from "../components/MacrosDonut.js";
+import { Sheet } from "../components/Sheet.js";
 import { SourceBadge } from "../components/States.js";
 import { Icon, type IconName } from "../icons/index.js";
 import { ApiError } from "../lib/api.js";
@@ -105,67 +106,17 @@ export function ScanScreen() {
         hint="Visez le code-barres du produit"
       />
 
-      {ean !== null && (
-        <div className="fiche-scan" role="dialog" aria-label="Produit scanné">
-          <span className="fiche-scan__poignee" aria-hidden="true" />
-
-          {produit.isPending ? (
-            <p className="card__lead">Recherche du produit…</p>
-          ) : produit.data === undefined ? (
-            <>
-              <h2 className="card__title">Code {ean}</h2>
-              <p className="card__lead">
-                {inconnu
-                  ? "Aucun produit ne porte ce code chez OpenFoodFacts. Tu peux quand même en faire une fiche : le code y sera conservé."
-                  : "La recherche n’a pas abouti. Les destinations restent ouvertes : chacune sait retrouver ce code par elle-même."}
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="card-entete">
-                <h2 className="card__title card-entete__titre">
-                  {produit.data.name}
-                </h2>
-                <SourceBadge source={produit.data.source} />
-              </div>
-              {produit.data.brand !== null && (
-                <p className="fiche-scan__marque">{produit.data.brand}</p>
-              )}
-              <MacroCells total={macrosDe(produit.data)} />
-            </>
-          )}
-
-          <nav
-            className="acces acces--destinations"
-            aria-label="Où envoyer ce produit"
-          >
-            {DESTINATIONS.map((d) => {
-              const bloquee = d.cle === "courses" && sansSession;
-              return (
-                <button
-                  key={d.cle}
-                  type="button"
-                  className="acces__carte"
-                  onClick={() => void navigate(d.to(ean))}
-                >
-                  <span className="acces__icone" aria-hidden="true">
-                    <Icon name={d.icon} size={22} strokeWidth={1.7} />
-                  </span>
-                  <span className="acces__label">{d.titre}</span>
-                  <span className="acces__detail">
-                    {/* On n'interdit PAS le bouton : la destination ouvre la
-                        feuille de demarrage d'une session, et le code y est
-                        conserve le temps qu'elle s'ouvre. Le dire evite la
-                        surprise d'un detour non demande. */}
-                    {bloquee
-                      ? "Ouvrira d’abord une session de courses"
-                      : d.detail}
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-
+      {/* UNE VRAIE FEUILLE, et non une carte posee dans la page.
+          Collee en bas du flux, elle debordait sans pouvoir defiler : pour
+          atteindre la troisieme destination il fallait faire defiler LA PAGE,
+          donc le viseur avec, et la fiche restait coupee. `Sheet` borne sa
+          hauteur, fait defiler son propre corps et retient le geste a
+          l'interieur. C'est le composant deja eprouve partout ailleurs. */}
+      <Sheet
+        open={ean !== null}
+        onClose={() => setEan(null)}
+        title={produit.data?.name ?? (ean === null ? "" : `Code ${ean}`)}
+        actions={
           <button
             type="button"
             className="button button--secondary"
@@ -173,8 +124,58 @@ export function ScanScreen() {
           >
             Scanner autre chose
           </button>
-        </div>
-      )}
+        }
+      >
+        {produit.isPending ? (
+          <p className="card__lead">Recherche du produit…</p>
+        ) : produit.data === undefined ? (
+          <p className="card__lead">
+            {inconnu
+              ? "Aucun produit ne porte ce code chez OpenFoodFacts. Tu peux quand même en faire une fiche : le code y sera conservé."
+              : "La recherche n’a pas abouti. Les destinations restent ouvertes : chacune sait retrouver ce code par elle-même."}
+          </p>
+        ) : (
+          <>
+            {produit.data.brand !== null && (
+              <p className="fiche-scan__marque">
+                {produit.data.brand}{" "}
+                <SourceBadge source={produit.data.source} />
+              </p>
+            )}
+            <MacroCells total={macrosDe(produit.data)} />
+          </>
+        )}
+
+        <nav
+          className="acces acces--destinations"
+          aria-label="Où envoyer ce produit"
+        >
+          {DESTINATIONS.map((d) => {
+            const bloquee = d.cle === "courses" && sansSession;
+            return (
+              <button
+                key={d.cle}
+                type="button"
+                className="acces__carte"
+                onClick={() => ean !== null && void navigate(d.to(ean))}
+              >
+                <span className="acces__icone" aria-hidden="true">
+                  <Icon name={d.icon} size={22} strokeWidth={1.7} />
+                </span>
+                <span className="acces__label">{d.titre}</span>
+                <span className="acces__detail">
+                  {/* On n'interdit PAS le bouton : la destination ouvre la
+                      feuille de demarrage d'une session, et le code y est
+                      conserve le temps qu'elle s'ouvre. */}
+                  {bloquee
+                    ? "Ouvrira d’abord une session de courses"
+                    : d.detail}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      </Sheet>
     </section>
   );
 }
