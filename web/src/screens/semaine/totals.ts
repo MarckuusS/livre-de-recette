@@ -25,6 +25,7 @@ import {
   type MealSlot,
   type NutritionTotal,
   type Recipe,
+  energyBreakdown,
 } from '@livre/shared'
 
 import type { CalendarResponse } from '../../lib/queries.js'
@@ -249,6 +250,30 @@ export const NUTRIENT_ROWS: readonly NutrientRow[] = [
  * vide laisserait croire a une donnee mesuree. Une macro inconnue, elle,
  * compte pour 0 dans l'agregat — regle du domaine, reprise du desktop.
  */
+/**
+ * Part d'energie d'un nutriment, telle que l'anneau la dessine.
+ *
+ * Rend `null` pour les lignes qui n'en ont pas : l'energie EST le total, le sel
+ * n'apporte rien, et les sous-lignes (sucres, acides gras satures) sont deja
+ * comptees dans leur famille. Leur donner une part ferait un tableau dont la
+ * colonne ne totalise pas 100.
+ *
+ * MEME SEUIL QUE L'ANNEAU, et c'est le point : sous 0,5 % la part s'ecrit
+ * "0 %" et l'anneau ne la dessine pas. Sans ce seuil commun, le tableau
+ * annoncerait "0 %" a cote d'un arc bien visible, ce qui etait exactement le
+ * defaut constate sur un sirop d'agave a 0,02 g de proteines.
+ */
+export function energyShare(total: NutritionTotal, key: keyof NutritionTotal): string | null {
+  const parts = { fats: 'fatsKcal', carbs: 'carbsKcal', fiber: 'fiberKcal', proteins: 'proteinsKcal' } as const
+  if (!(key in parts)) return null
+
+  const breakdown = energyBreakdown(total)
+  if (breakdown.atwaterKcal <= 0) return null
+
+  const share = breakdown[parts[key as keyof typeof parts]] / breakdown.atwaterKcal
+  return share < 0.005 ? '0 %' : `${Math.round(share * 100)} %`
+}
+
 export function formatNutrient(entryCount: number, value: number, row: NutrientRow): string {
   if (entryCount === 0) return '—'
   const formatted = value.toLocaleString('fr-FR', {

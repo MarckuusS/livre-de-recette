@@ -20,7 +20,7 @@
 
 /* Le pied fixe compte desormais trois lignes : libelle, montant, detail. */
 .screen.screen--shopping {
-  padding-bottom: calc(var(--space-lg) + 104px);
+  padding-bottom: calc(var(--reserve-pied) + 104px);
 }
 
 /* ---------- Bandeau de semaine ---------- */

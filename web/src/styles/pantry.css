@@ -19,8 +19,8 @@
  */
 
 /* La place du bouton flottant, qui recouvrirait sinon la derniere ligne. */
-.screen--pantry {
-  padding-bottom: calc(var(--space-lg) + 72px);
+.screen.screen--pantry {
+  padding-bottom: calc(var(--reserve-pied) + 72px);
 }
 
 /* ---------- Le couplage avec la liste de courses ---------- */

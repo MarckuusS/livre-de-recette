@@ -53,6 +53,7 @@ import { EntrySheet } from "./semaine/EntrySheet.js";
 import { WeekTools, type WeekTool } from "./semaine/WeekTools.js";
 import {
   NUTRIENT_ROWS,
+  energyShare,
   entriesCost,
   entriesOfDay,
   entriesOfSlot,
@@ -520,6 +521,13 @@ function DayTotals({
                   </th>
                   <td>
                     {formatNutrient(dayEntries.length, dayTotal[row.key], row)}
+                    {/* Sur la colonne du JOUR seulement : c'est elle que
+                        l'anneau plus bas resume. */}
+                    {dayEntries.length > 0 && energyShare(dayTotal, row.key) !== null && (
+                      <span className="nutrition-table__part">
+                        {energyShare(dayTotal, row.key)}
+                      </span>
+                    )}
                   </td>
                   <td>
                     {formatNutrient(

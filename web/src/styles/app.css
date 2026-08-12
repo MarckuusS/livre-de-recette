@@ -347,10 +347,20 @@
  * la marge negative suffit.
  */
 /* De combien le cercle monte au-dessus de la barre. Les pieds d'action fixes
-   s'en servent pour ne pas glisser leurs boutons dessous — ils sont en
-   `z-index: 15`, le cercle en 20, et il leur prenait le tap. */
+   s'en servent pour ne pas glisser leurs boutons dessous : ils sont en
+   `z-index: 15`, le cercle en 20, et il leur prenait le tap.
+
+   `--reserve-pied` est l'autre moitie de la meme regle, et l'oublier coute
+   cher. Un pied fixe cache la fin du contenu qu'il surmonte : ce contenu doit
+   reserver la hauteur du pied, sinon son dernier element devient
+   inatteignable. Six ecrans le font, avec un nombre propre a chacun puisque
+   leurs pieds n'ont pas la meme hauteur. La PART COMMUNE passe par ce jeton :
+   quand le debordement a grandi de 20 px, il a fallu le rajouter six fois, et
+   il a ete oublie six fois. Ecrire `calc(var(--reserve-pied) + N)` fait que
+   cela n'arrive plus. */
 :root {
   --scan-overlap: 20px;
+  --reserve-pied: calc(var(--space-lg) + var(--scan-overlap));
 }
 
 .tabbar__scan {
@@ -388,7 +398,18 @@
 
 /* ---------- Boutons ---------- */
 
+/* Le meme habillage doit tenir sur un `<button>` ET sur un `<a>`, et les deux
+   ne se comportent PAS pareil : un bouton centre son texte et n'est pas
+   souligne, un lien fait l'inverse. Sans ces trois lignes, le meme `.button`
+   donnait un libelle centre ici et colle a gauche avec un trait dessous la.
+   Le meme piege que `.icon-button` plus haut, pour la meme raison. */
 .button {
+  display: inline-flex;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
   min-height: var(--control-height-lg);
   padding: 0 var(--space-lg);
   font-size: var(--font-size-lg);
@@ -498,9 +519,9 @@
 
 /* ---------- Liste de courses ---------- */
 
-.screen--shopping {
+.screen.screen--shopping {
   /* Laisse passer le pied fixe (total + partage) sous le contenu. */
-  padding-bottom: calc(var(--space-lg) + 72px);
+  padding-bottom: calc(var(--reserve-pied) + 72px);
 }
 
 .shopping-section {
@@ -1034,6 +1055,15 @@
 .nutrient-label--sub .nutrient-label__icon {
   width: 24px;
   height: 24px;
+}
+
+/* La part d'energie, en second rang derriere la masse : c'est la masse qu'on
+   vient chercher dans un tableau d'etiquetage, la part n'est qu'un eclairage. */
+.nutrition-table__part {
+  margin-left: var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
 }
 
 .nutrition-table .unit {

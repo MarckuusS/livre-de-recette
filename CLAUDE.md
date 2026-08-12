@@ -138,6 +138,23 @@ la forme du mockup. Ce qui ne se devine pas :
   utilise des paramètres **numérotés** (`?3` relu dans la branche UPDATE) — avec `excluded.ml` on
   relirait la valeur déjà bornée à zéro et un retrait serait perdu.
 
+## Pieds d'action fixes (web)
+
+Six ecrans posent un pied fixe au-dessus de la barre d'onglets (fiche ingredient, liste et editeur
+de recettes, frigo, courses, session). Deux regles vont ENSEMBLE, et n'en tenir qu'une casse
+l'ecran :
+
+- le pied reserve `--scan-overlap` en bas, sinon le bouton de scan central, qui deborde de 20 px en
+  `z-index: 20`, lui prend le tap sur 56 px de large, exactement au centre ;
+- **le contenu reserve la hauteur du pied**, `calc(var(--reserve-pied) + N)`, sinon son dernier
+  element passe SOUS le pied et devient intapable. `--reserve-pied` porte la part commune ; le `N`
+  est propre a chaque pied, leurs hauteurs different.
+
+**Toutes ces regles doivent doubler la classe** (`.screen.screen--X` et non `.screen--X`) : `.screen`
+pose `padding: var(--space-lg)` dans `app.css`, et a specificite egale c'est l'ordre des fichiers
+qui tranche. Le defaut s'est produit quatre fois dans ce projet, dont une fois sur ce pied precis,
+ou "Annuler" est reste inatteignable un moment.
+
 ## Quantites et unites (web)
 
 - **La masse est stockee EN GRAMMES**, partout, toujours. C'est ce qui permet d'additionner un

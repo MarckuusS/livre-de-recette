@@ -78,9 +78,26 @@ export function MacrosDonut({
     )
   }
 
+  /*
+   * ON ECARTE CE QUI S'ARRONDIT A ZERO, puis on renormalise.
+   *
+   * Un sirop d'agave porte 0,02 g de proteines pour la portion : le tableau
+   * affiche "0,0 g", et l'anneau tracait pourtant un trait rouge visible, un
+   * arc de moins d'un demi-pixel que l'anti-crenelage rend bien present. On
+   * lisait donc une part de proteines dans un aliment que le tableau juste
+   * dessous annonce a zero.
+   *
+   * Le seuil est celui de l'AFFICHAGE, pas une valeur arbitraire : sous 0,5 %
+   * la part s'ecrit "0 %", donc elle ne doit pas se voir non plus. La
+   * renormalisation sur le total retenu garantit que les arcs remplissent
+   * exactement le cercle et que les pourcentages font 100.
+   */
+  const retenus = segments.filter((segment) => segment.kcal / totalKcal >= 0.005)
+  const baseKcal = retenus.reduce((somme, segment) => somme + segment.kcal, 0) || totalKcal
+
   let offset = 0
-  const arcs = segments.map((segment) => {
-    const share = segment.kcal / totalKcal
+  const arcs = retenus.map((segment) => {
+    const share = segment.kcal / baseKcal
     const arc = { ...segment, share, start: offset }
     offset += share
     return arc

@@ -31,6 +31,7 @@ import { Sheet } from '../../components/Sheet.js'
 import { useMoveEntry, useUpdateEntryAmount, type CalendarResponse } from '../../lib/queries.js'
 import {
   NUTRIENT_ROWS,
+  energyShare,
   entryName,
   entryNutrition,
   formatNutrient,
@@ -184,7 +185,6 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
             to={target.kind === 'ingredient' ? `/ingredients/${target.ingredient.id}` : `/recettes/${target.recipe.id}`}
             className="button button--success button--block"
           >
-            <Icon name="ui-edit" size={16} className="icon--inline" />{' '}
             {target.kind === 'ingredient' ? 'Ouvrir la fiche ingrédient' : 'Ouvrir la recette'}
           </Link>
         )}
@@ -223,7 +223,17 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
                   <th scope="row" className={row.sub ? 'unit' : undefined}>
                     <NutrientLabel nutrient={row.key} label={row.label} sub={row.sub ?? false} />
                   </th>
-                  <td>{formatNutrient(1, nutrition[row.key], row)}</td>
+                  <td>
+                    {formatNutrient(1, nutrition[row.key], row)}
+                    {/* La part d'energie, la ou l'anneau la dessine. Elle
+                        vivait dans sa legende, retiree parce qu'elle repetait
+                        ce tableau : elle revient donc ICI, une seule fois. */}
+                    {energyShare(nutrition, row.key) !== null && (
+                      <span className="nutrition-table__part">
+                        {energyShare(nutrition, row.key)}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
