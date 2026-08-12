@@ -312,6 +312,13 @@
  * decoupe dedans. La barre ne rogne pas ses enfants — aucun `overflow` — donc
  * la marge negative suffit.
  */
+/* De combien le cercle monte au-dessus de la barre. Les pieds d'action fixes
+   s'en servent pour ne pas glisser leurs boutons dessous — ils sont en
+   `z-index: 15`, le cercle en 20, et il leur prenait le tap. */
+:root {
+  --scan-overlap: 20px;
+}
+
 .tabbar__scan {
   display: grid;
   place-items: center;
@@ -320,7 +327,7 @@
   /* Le remonte de 20 px hors de la barre. Sa cible tactile reste entiere : le
      haut du cercle deborde sur le contenu, mais rien n'y est cliquable — la
      barre est au-dessus (z-index 20). */
-  margin: -20px auto 0;
+  margin: calc(-1 * var(--scan-overlap)) auto 0;
   color: var(--color-on-primary);
   background: var(--color-primary);
   border: 0;
@@ -1086,3 +1093,18 @@
   box-shadow: var(--shadow-subtle);
 }
 
+/* ---------- Place pour le bouton de scan ----------
+ *
+ * Le bouton central de la barre d'onglets DEBORDE de `--scan-overlap` vers le
+ * haut, en `z-index: 20`. Ce pied est fixe juste au-dessus de la barre, en
+ * `z-index: 15` : le cercle passait donc PAR-DESSUS le bas de ses boutons, sur
+ * 56 px de large au centre exact — la ou tombe le pouce d'une main droite. Le
+ * tap partait vers l'ecran de scan au lieu d'actionner le bouton.
+ *
+ * On reserve la hauteur du debordement plutot que de renoncer au relief : le
+ * cercle sorti de la rangee est ce qui designe le scan comme l'action
+ * principale, et c'est la forme du mockup.
+ */
+.shopping-footer {
+  padding-bottom: calc(var(--space-md) + var(--scan-overlap));
+}

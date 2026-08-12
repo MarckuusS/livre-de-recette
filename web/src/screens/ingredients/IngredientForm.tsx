@@ -125,6 +125,18 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
   // n'enregistrerait — exactement le piege silencieux que la fiche evite.
   const prefillEan = ingredient === null ? readEanParam(searchParams) : null
 
+  /*
+   * `?remplir=1` demande d'interroger OpenFoodFacts d'entree.
+   *
+   * DEUX ARRIVEES, deux intentions. Depuis la feuille d'import, on n'atterrit
+   * ici qu'apres avoir lu « produit inconnu » : relancer la requete reposerait
+   * une question deja tranchee et afficherait un echec en travers d'un
+   * formulaire vide. Depuis le point d'entree de scan, au contraire, le
+   * produit vient d'etre RESOLU et affiche — arriver sur une fiche vide
+   * obligerait a rescanner le meme code. Le parametre distingue les deux.
+   */
+  const remplirDepuisOff = prefillEan !== null && searchParams.get('remplir') === '1'
+
   const initial = useMemo(
     // Le code pre-rempli fait partie de l'etat INITIAL et non d'une
     // modification : sinon la fiche s'ouvrirait en annoncant « Modifications
@@ -236,6 +248,7 @@ export function IngredientForm({ ingredient }: IngredientFormProps) {
           draft={draft}
           nameError={nameError ?? duplicateMessage}
           onPatch={patch}
+          autoLookup={remplirDepuisOff ? prefillEan : null}
           onScan={(code) => {
             setOffEan(code)
             patch({ sourceRef: code })
@@ -431,6 +444,7 @@ function Identity({
   nameError,
   onPatch,
   onScan,
+  autoLookup,
 }: {
   ingredient: Ingredient | null
   draft: IngredientDraft
@@ -438,6 +452,8 @@ function Identity({
   onPatch: (changes: Partial<IngredientDraft>) => void
   /** Code lu par la camera. Remonte pour fixer la source de la fiche. */
   onScan: (code: string) => void
+  /** Code a interroger des l'ouverture, quand l'appelant sait le produit connu. */
+  autoLookup: string | null
 }) {
   const link = ingredient ? sourceUrl(ingredient) : null
   const [scanning, setScanning] = useState(false)
@@ -445,12 +461,13 @@ function Identity({
   /**
    * Code dont on attend la fiche OpenFoodFacts.
    *
-   * Distinct du code pre-rempli par `?ean=` : on n'arrive avec ce parametre
-   * qu'apres avoir lu « produit inconnu » dans la feuille d'import. Relancer la
-   * requete a l'ouverture reposerait une question deja tranchee, et afficherait
-   * un panneau d'echec en travers d'un formulaire vide.
+   * Il n'est amorce que si l'appelant l'a DEMANDE (`?remplir=1`, pose par le
+   * point d'entree de scan, qui vient de resoudre le produit). Depuis la
+   * feuille d'import on arrive apres un « produit inconnu » : relancer la
+   * requete reposerait une question deja tranchee et afficherait un panneau
+   * d'echec en travers d'un formulaire vide.
    */
-  const [lookup, setLookup] = useState<string | null>(null)
+  const [lookup, setLookup] = useState<string | null>(autoLookup)
 
   const refIds = useFieldIds(undefined, { hint: SOURCE_REF_HINT })
 

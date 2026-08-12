@@ -54,9 +54,11 @@ export interface SessionScreenProps {
   readonly onCommitted: (result: CommitResult) => void
   /** Code venu de l'URL, a traiter exactement comme s'il sortait de la camera. */
   readonly scan: ScanRequest | null
+  /** Remonte que le code a ete pris en charge : l'ecran doit l'oublier. */
+  readonly onScanTraite: () => void
 }
 
-export function SessionScreen({ state, session, onShowList, onCommitted, scan }: SessionScreenProps) {
+export function SessionScreen({ state, session, onShowList, onCommitted, scan, onScanTraite }: SessionScreenProps) {
   // La liste de la semaine DE LA SESSION, et non celle qu'affichait l'ecran :
   // c'est elle que la validation cochera, et se tromper de semaine ici ferait
   // mentir tous les compteurs.
@@ -233,7 +235,11 @@ export function SessionScreen({ state, session, onShowList, onCommitted, scan }:
         Abandonner cette session
       </button>
 
-      <ScanToCart listIngredientIds={listIngredientIds} scan={scan} />
+      <ScanToCart
+        listIngredientIds={listIngredientIds}
+        scan={scan}
+        onScanTraite={onScanTraite}
+      />
 
       {editing !== null && (
         <CartLineSheet

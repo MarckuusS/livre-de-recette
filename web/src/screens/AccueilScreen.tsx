@@ -66,10 +66,22 @@ export function AccueilScreen() {
     [repas, data],
   )
 
+  /*
+   * LES ACCES SONT RENDUS DANS LES TROIS ETATS, y compris pendant le
+   * chargement et en cas d'echec — et ce n'est pas un detail de presentation.
+   *
+   * Ils sont le SEUL chemin vers Bibliotheque, Recettes, Courses et Frigo.
+   * Places apres les retours anticipes, ils disparaissaient des que le
+   * calendrier ne repondait pas : en magasin, reseau faible, lancement a froid
+   * (le cache n'est pas persiste), l'ecran Courses — celui pour lequel on a
+   * sorti le telephone — devenait inatteignable. Ils ne dependent d'aucune
+   * donnee : rien ne justifie qu'ils attendent une requete.
+   */
   if (query.isPending) {
     return (
       <section className="screen">
         <LoadingRows rows={4} />
+        <Acces />
       </section>
     )
   }
@@ -78,6 +90,7 @@ export function AccueilScreen() {
     return (
       <section className="screen">
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+        <Acces />
       </section>
     )
   }
@@ -116,17 +129,7 @@ export function AccueilScreen() {
         </Link>
       </div>
 
-      <nav className="acces" aria-label="Les autres écrans">
-        {ACCES.map((a) => (
-          <Link key={a.to} to={a.to} className="acces__carte">
-            <span className="acces__icone" aria-hidden="true">
-              <Icon name={a.icon} size={22} strokeWidth={1.7} />
-            </span>
-            <span className="acces__label">{a.label}</span>
-            <span className="acces__detail">{a.detail}</span>
-          </Link>
-        ))}
-      </nav>
+      <Acces />
 
       {ouverte !== null && (
         <EntrySheet
@@ -155,6 +158,23 @@ export function AccueilScreen() {
         />
       )}
     </section>
+  )
+}
+
+/** Les quatre cartes vers les ecrans sortis de la barre d'onglets. */
+function Acces() {
+  return (
+    <nav className="acces" aria-label="Les autres écrans">
+      {ACCES.map((a) => (
+        <Link key={a.to} to={a.to} className="acces__carte">
+          <span className="acces__icone" aria-hidden="true">
+            <Icon name={a.icon} size={22} strokeWidth={1.7} />
+          </span>
+          <span className="acces__label">{a.label}</span>
+          <span className="acces__detail">{a.detail}</span>
+        </Link>
+      ))}
+    </nav>
   )
 }
 

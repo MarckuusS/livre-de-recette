@@ -479,19 +479,6 @@ function addWeeks(from: Date, weeks: number): string {
 }
 
 /**
- * Part d'une journee revenant a une personne.
- *
- * Le calendrier planifie pour LA CUISINE : aucune entree ne dit qui mange (voir
- * la migration 0005, ou `meal_plan_entry` ne porte que le foyer). Comparer le
- * total d'une journee a l'objectif d'une personne serait donc faux d'un facteur
- * egal au nombre de mangeurs.
- *
- * On divise par le nombre declare sur le foyer. C'est une APPROXIMATION, et
- * l'interface doit le dire : elle suppose que tout le monde mange la meme
- * chose et en meme quantite. Elle est juste pour des repas communs, fausse pour
- * une portion d'enfant ou un dejeuner pris dehors.
- */
-/**
  * Millilitres d'eau par kilo et par jour.
  *
  * 30 ml/kg est la regle courante chez l'adulte (EFSA raisonne en volumes fixes
@@ -532,6 +519,19 @@ export function hydrationTarget(weightKg: number | null): {
   }
 }
 
+/**
+ * Part d'une journee revenant a une personne.
+ *
+ * Le calendrier planifie pour LA CUISINE : aucune entree ne dit qui mange (voir
+ * la migration 0005, ou `meal_plan_entry` ne porte que le foyer). Comparer le
+ * total d'une journee a l'objectif d'une personne serait donc faux d'un facteur
+ * egal au nombre de mangeurs.
+ *
+ * On divise par le nombre declare sur le foyer. C'est une APPROXIMATION, et
+ * l'interface doit le dire : elle suppose que tout le monde mange la meme
+ * chose et en meme quantite. Elle est juste pour des repas communs, fausse pour
+ * une portion d'enfant ou un dejeuner pris dehors.
+ */
 export const perEater = (total: number, eaters: number): number =>
   eaters > 0 ? total / eaters : total
 

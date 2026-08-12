@@ -21,7 +21,7 @@ import {
   type ShoppingListResponse,
 } from '../lib/queries.js'
 import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
-import { useScanParam } from '../lib/useScanParam.js'
+import { useScanParam, type ScanRequest } from '../lib/useScanParam.js'
 import { Icon, RayonIcon } from '../icons/index.js'
 import { useRayonStyle } from '../lib/useRayonStyle.js'
 import { CostHistorySheet } from './courses/CostHistorySheet.js'
@@ -69,8 +69,16 @@ export function ShoppingScreen() {
    */
   const session = useShoppingSession()
   const [showList, setShowList] = useState(false)
-  /** Code arrive par `/courses?scan=…`, depuis le point d'entree de scan. */
+  /*
+   * Code arrive par `/courses?scan=…`, depuis le point d'entree de scan.
+   *
+   * `useScanParam` RETIENT sa valeur — elle doit survivre a l'effacement de
+   * l'URL et, ici, a l'ouverture d'une session. On en garde donc une copie
+   * locale qu'on efface des que le chariot l'a prise, sinon la demande
+   * ressurgit a chaque remontage.
+   */
   const scan = useScanParam()
+  const [scanEnCours, setScanEnCours] = useState<ScanRequest | null>(null)
   /** Bilan de la derniere validation. Il survit a la session, qui vient de disparaitre. */
   const [summary, setSummary] = useState<CommitResult | null>(null)
 
@@ -80,6 +88,7 @@ export function ShoppingScreen() {
   // l'ecran, et les deux etats ci-dessous garderaient leur valeur.
   useEffect(() => {
     if (scan === null) return
+    setScanEnCours(scan)
     setSummary(null)
     setShowList(false)
   }, [scan])
@@ -101,7 +110,8 @@ export function ShoppingScreen() {
         session={live.session}
         onShowList={() => setShowList(true)}
         onCommitted={setSummary}
-        scan={scan}
+        scan={scanEnCours}
+        onScanTraite={() => setScanEnCours(null)}
       />
     )
   }
@@ -111,7 +121,7 @@ export function ShoppingScreen() {
       <SessionBar
         isoWeek={week.isoWeek}
         onEnterCart={() => setShowList(false)}
-        pendingScan={scan}
+        pendingScan={scanEnCours}
       />
 
       <WeekPicker {...week} />
@@ -664,9 +674,17 @@ function weekRangeLabel(isoWeek: string): string {
   return `${format(monday)} → ${format(sunday)}`
 }
 
-/** Lien vers le planning de la meme semaine, sans parametre inutile si c'est celle en cours. */
+/**
+ * Lien vers le planning de la MEME semaine, sans parametre inutile si c'est
+ * celle en cours.
+ *
+ * Il visait `/semaine`, devenu un alias de compatibilite. Or `<Navigate>` avec
+ * une chaine sans `search` ecrase la localisation entiere : la semaine
+ * consultee etait jetee, et on composait ses repas dans la mauvaise semaine
+ * sans que rien ne le signale. On vise donc l'adresse reelle.
+ */
 function planningLink(isoWeek: string, currentWeek: string): string {
-  return isoWeek === currentWeek ? '/semaine' : `/semaine?semaine=${isoWeek}`
+  return isoWeek === currentWeek ? '/planning' : `/planning?semaine=${isoWeek}`
 }
 
 /** Montant en centimes entiers. `null` (prix inconnu) ne compte pas pour zero euro par hasard : il ne compte pas du tout. */

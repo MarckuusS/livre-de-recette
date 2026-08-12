@@ -45,11 +45,17 @@ interface Destination {
  * n'est pas cosmetique : `?ean=` existait deja sur le formulaire d'ingredient
  * et y signifie « pre-remplis la reference source ». `?scan=` veut dire
  * « traite ce produit ». Deux verbes, deux noms.
+ *
+ * `&remplir=1` complete le premier : on vient de resoudre le produit et de
+ * l'afficher, arriver sur une fiche vide obligerait a rescanner le meme code.
+ * La feuille d'import, elle, n'emploie pas ce drapeau — on n'y atterrit
+ * qu'apres un « produit inconnu », et reposer la question afficherait un echec
+ * en travers d'un formulaire vierge.
  */
 const DESTINATIONS: readonly Destination[] = [
   {
     cle: 'bibliotheque',
-    to: (ean) => `/ingredients/nouveau?ean=${ean}`,
+    to: (ean) => `/ingredients/nouveau?ean=${ean}&remplir=1`,
     icon: 'ui-basket',
     titre: 'Ma bibliothèque',
     detail: 'En faire une fiche réutilisable',

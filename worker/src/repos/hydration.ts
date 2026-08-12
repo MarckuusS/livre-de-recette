@@ -35,10 +35,15 @@ export class HydrationRepo {
    * dans la meme minute : avec un total, le second ecraserait le premier et le
    * verre disparaitrait. Avec un delta, les deux comptent.
    *
-   * Le `MAX(0, ...)` est cote SQL et non cote client : c'est la seule facon que
-   * deux retraits concurrents ne puissent pas faire passer la journee sous zero.
-   * Le plafond, lui, est laisse a la contrainte CHECK de la table — le
-   * depasser est une faute de saisie, pas un cas a rattraper en silence.
+   * LES DEUX BORNES SONT COTE SQL, et c'est la seule facon que deux appels
+   * concurrents ne puissent ni creuser la journee sous zero ni la faire
+   * deborder. Elles doublent la contrainte CHECK de la table, qui ne se
+   * declenchera donc jamais sur ce chemin : elle reste comme filet pour toute
+   * autre ecriture.
+   *
+   * Consequence a connaitre : arrive au plafond, chaque ajout rend 200 et le
+   * meme total. L'ecran ne bouge pas, sans rien dire — c'est acceptable a
+   * 20 litres, ou l'on n'arrive pas par accident.
    */
   async add(day: string, deltaMl: number): Promise<number> {
     const row = await this.db

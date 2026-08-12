@@ -62,6 +62,16 @@ export interface ScanToCartProps {
    * OpenFoodFacts puis Open Prices. Rien de ce chemin n'est duplique.
    */
   readonly scan: ScanRequest | null
+  /**
+   * Appele une fois le code pris en charge, pour que l'appelant l'OUBLIE.
+   *
+   * Sans cela, la demande restait posee : chaque remontage de ce composant —
+   * et il en survient un a chaque aller-retour entre le chariot et la liste —
+   * rouvrait la feuille et pouvait creer une seconde ligne pour le meme
+   * article. Une session validee remettait meme la feuille de demarrage a
+   * l'ecran, un code fantome attendant un chariot qui venait de fermer.
+   */
+  readonly onScanTraite: () => void
 }
 
 /** Un code en attente de confirmation. Le compteur force une feuille NEUVE. */
@@ -70,7 +80,7 @@ interface Pending {
   readonly nonce: number
 }
 
-export function ScanToCart({ listIngredientIds, scan }: ScanToCartProps) {
+export function ScanToCart({ listIngredientIds, scan, onScanTraite }: ScanToCartProps) {
   const [scanning, setScanning] = useState(false)
   const [pending, setPending] = useState<Pending | null>(null)
   const [lastAdded, setLastAdded] = useState<string | null>(null)
@@ -92,6 +102,7 @@ export function ScanToCart({ listIngredientIds, scan }: ScanToCartProps) {
   useEffect(() => {
     if (scan === null) return
     openDraft(scan.ean)
+    onScanTraite()
     // `openDraft` est recree a chaque rendu et n'a pas a relancer l'effet :
     // seule une nouvelle demande de scan doit le faire.
     // eslint-disable-next-line react-hooks/exhaustive-deps

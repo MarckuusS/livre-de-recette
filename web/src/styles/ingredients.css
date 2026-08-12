@@ -998,3 +998,19 @@
   align-items: center;
   padding: var(--space-md) 0;
 }
+
+/* ---------- Place pour le bouton de scan ----------
+ *
+ * Le bouton central de la barre d'onglets DEBORDE de `--scan-overlap` vers le
+ * haut, en `z-index: 20`. Ce pied est fixe juste au-dessus de la barre, en
+ * `z-index: 15` : le cercle passait donc PAR-DESSUS le bas de ses boutons, sur
+ * 56 px de large au centre exact — la ou tombe le pouce d'une main droite. Le
+ * tap partait vers l'ecran de scan au lieu d'actionner le bouton.
+ *
+ * On reserve la hauteur du debordement plutot que de renoncer au relief : le
+ * cercle sorti de la rangee est ce qui designe le scan comme l'action
+ * principale, et c'est la forme du mockup.
+ */
+.ing-actions {
+  padding-bottom: calc(var(--space-md) + var(--scan-overlap));
+}

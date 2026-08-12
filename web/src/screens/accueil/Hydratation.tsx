@@ -44,21 +44,34 @@ export function Hydratation() {
 
   const objectif = hydration.ml
   const gouttes = Math.min(GOUTTES_MAX, Math.round(objectif / VERRE_ML))
-  const pleines = Math.min(gouttes, Math.round(bu / VERRE_ML))
+  // La part remplie se calcule sur la CIBLE, pas en verres : au-dela de 2,5 L
+  // la rangee est plafonnee a dix gouttes, et compter en verres les remplissait
+  // toutes alors qu'il restait un demi-litre a boire.
+  const pleines = objectif <= 0 ? 0 : Math.min(gouttes, Math.round((bu / objectif) * gouttes))
+
+  // Une journee dont on ne connait pas le total ne vaut pas une journee a zero.
+  // Sans cette distinction, la bande annonce « 0,00 L » et toutes les gouttes
+  // vides a qui a bu un litre et demi mais dont la requete n'a pas abouti.
+  const inconnu = query.isPending || query.isError
 
   return (
     <div className="hydratation">
       <div className="hydratation__texte">
         <span className="hydratation__titre">Hydratation</span>
         <span className="hydratation__valeur">
-          {litres(bu)} / {litres(objectif)} L
+          {inconnu ? '—' : litres(bu)} / {litres(objectif)} L
           {!hydration.estimated && <span className="hydratation__repere"> · repère général</span>}
         </span>
+        {boire.isError && (
+          <span className="hydratation__echec" role="alert">
+            Ce verre n’a pas été enregistré. Réessaie.
+          </span>
+        )}
       </div>
 
       <div className="hydratation__gouttes" aria-hidden="true">
         {Array.from({ length: gouttes }, (_, i) => (
-          <span key={i} className={`goutte${i < pleines ? ' goutte--pleine' : ''}`} />
+          <span key={i} className={`goutte${!inconnu && i < pleines ? ' goutte--pleine' : ''}`} />
         ))}
       </div>
 
@@ -67,7 +80,7 @@ export function Hydratation() {
           type="button"
           className="hydratation__bouton"
           onClick={() => boire.mutate(-VERRE_ML)}
-          disabled={bu <= 0 || boire.isPending}
+          disabled={inconnu || bu <= 0 || boire.isPending}
           aria-label="Retirer un verre d’eau"
         >
           <Icon name="ui-minus" size={18} />
@@ -76,7 +89,7 @@ export function Hydratation() {
           type="button"
           className="hydratation__bouton hydratation__bouton--plein"
           onClick={() => boire.mutate(VERRE_ML)}
-          disabled={boire.isPending}
+          disabled={inconnu || boire.isPending}
           aria-label="Ajouter un verre d’eau de 25 centilitres"
         >
           <Icon name="ui-plus" size={18} />

@@ -49,7 +49,7 @@ export const TABS: ReadonlyArray<{
   // dans cette liste : il ne mene pas a un endroit ou l'on reste, et l'y
   // mettre lui donnerait un surtitre et un grand titre qu'il n'a que faire.
   { to: '/objectifs', icon: 'ui-goal', label: 'Objectifs', kicker: 'Où j’en suis' },
-  { to: '/profil', icon: 'ui-user', label: 'Profil', kicker: 'Mon espace' },
+  { to: '/profil', icon: 'ui-user', label: 'Profil', kicker: 'Réglages et compte' },
 ]
 
 /** Le chemin du point d'entree de scan, au centre de la barre. */
@@ -93,6 +93,12 @@ const TITLES: Array<[RegExp, string]> = [
  */
 const STACKED =
   /^\/(ingredients|recettes|courses|frigo|scan|activite)$|^\/(ingredients|recettes)\/[^/]+$|^\/parametres(\/(icones|rayons|mes-icones))?$/
+
+/** L'alias `/semaine`, qui emporte sa chaine de requete vers `/planning`. */
+function RedirigeVersPlanning() {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: '/planning', search }} replace />
+}
 
 export function App() {
   const { isDark, toggle } = useTheme()
@@ -190,7 +196,11 @@ export function App() {
                 conserve depuis le deplacement de l'ecran de diagnostic.
                 `replace` pour ne pas coincer le bouton retour sur la
                 redirection. */}
-            <Route path="/semaine" element={<Navigate to="/planning" replace />} />
+            {/* `search` recopie a la main : `<Navigate to="/planning">` avec
+                une simple chaine ecrase la localisation entiere et JETTE le
+                `?semaine=…`. Un lien partage vers une semaine precise doit
+                ouvrir cette semaine-la, pas la semaine courante. */}
+            <Route path="/semaine" element={<RedirigeVersPlanning />} />
             <Route path="/parametres" element={<Navigate to="/profil" replace />} />
             <Route path="/parametres/profil" element={<Navigate to="/objectifs" replace />} />
             {/* Galerie du jeu d'icones : verifier un dessin sur l'appareil reel
