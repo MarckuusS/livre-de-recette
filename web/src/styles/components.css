@@ -580,6 +580,34 @@
   gap: var(--space-md);
 }
 
+/* ---------- Le viseur occupe l'ecran ----------
+ *
+ * Une camera de 4/3 posee au milieu d'une feuille blanche se REGARDE ; un
+ * viseur qui prend l'ecran se VISE. C'est la difference la plus visible avec
+ * la maquette, et elle ne tient qu'a un contenant.
+ */
+.scanner--plein {
+  gap: 0;
+}
+
+.scanner--plein .scanner__stage {
+  /* Toute la hauteur disponible entre l'en-tete et la barre d'onglets. */
+  flex: 1;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+
+/* Sous le viseur, le peu de texte qui reste passe sur fond sombre. */
+.scanner--plein > .card__lead,
+.scanner--plein .scanner__manual {
+  padding: 0 var(--space-lg);
+  color: #c9d6cd;
+}
+
+.scanner--plein .scanner__manual summary {
+  color: #fff;
+}
+
 .scanner__stage {
   position: relative;
   /* Ratio fixe : sans lui, la feuille sursaute au moment ou la video recoit
@@ -609,18 +637,88 @@
   object-fit: cover;
 }
 
-/* Fenetre de visee. Purement indicative, mais indispensable : sans repere on
-   cadre trop large, et le code n'occupe pas assez de pixels pour etre lu. */
-.scanner__frame {
+/* ---------- Le viseur ----------
+ *
+ * QUATRE EQUERRES et non un rectangle ferme : elles bornent la zone sans
+ * poser de trait en travers du code, qu'on cherche justement a laisser lire.
+ * Le voile sombre autour vient de la meme boite, par une ombre etalee.
+ */
+.viseur {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 78%;
-  height: 34%;
+  width: 76%;
+  max-width: 240px;
+  aspect-ratio: 1;
   transform: translate(-50%, -50%);
-  border: 2px solid rgb(255 255 255 / 0.9);
-  border-radius: var(--radius-md);
-  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.4);
+}
+
+.viseur__coin {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border: 3px solid #fff;
+  border-radius: 8px;
+}
+
+.viseur__coin--hg { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+.viseur__coin--hd { top: 0; right: 0; border-bottom: 0; border-left: 0; }
+.viseur__coin--bg { bottom: 0; left: 0; border-top: 0; border-right: 0; }
+.viseur__coin--bd { right: 0; bottom: 0; border-top: 0; border-left: 0; }
+
+/* La ligne qui balaie dit que l'appareil CHERCHE. Sans elle, une camera qui ne
+   trouve rien parait figee, et l'on croit l'application bloquee. */
+.viseur__ligne {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  left: 10px;
+  height: 2px;
+  background: var(--color-nutrient-carbs);
+  box-shadow: 0 0 14px var(--color-nutrient-carbs);
+  animation: balayage 2.4s var(--easing-standard) infinite;
+}
+
+@keyframes balayage {
+  0%,
+  100% {
+    transform: translateY(-70px);
+  }
+
+  50% {
+    transform: translateY(70px);
+  }
+}
+
+/* Le mouvement est un CONFORT, pas une information : la consigne du viseur est
+   ecrite juste au-dessus. Qui demande moins d'animation garde une ligne fixe
+   au centre plutot qu'une ligne absente. */
+@media (prefers-reduced-motion: reduce) {
+  .viseur__ligne {
+    animation: none;
+  }
+}
+
+/* La consigne, en pastille de verre par-dessus l'image — a l'endroit ou porte
+   le regard, et non sous la fenetre ou elle arrivait trop tard.
+   VOILE SOMBRE et non clair comme la maquette : du blanc sur un voile blanc
+   tombe a 1,9:1 des que la camera vise un emballage clair, ce qui est le cas
+   courant en rayon. Le flou reste, la lisibilite ne depend plus de la scene. */
+.viseur__astuce {
+  position: absolute;
+  top: var(--space-lg);
+  left: 50%;
+  z-index: 1;
+  margin: 0;
+  padding: 7px var(--space-lg);
+  font-size: var(--font-size-md);
+  color: #fff;
+  white-space: nowrap;
+  background: rgb(0 0 0 / 0.7);
+  backdrop-filter: blur(6px);
+  border-radius: var(--radius-full);
+  transform: translateX(-50%);
 }
 
 .scanner__overlay {

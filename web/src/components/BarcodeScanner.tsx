@@ -83,6 +83,14 @@ export interface BarcodeScannerProps {
   readonly hint?: string | undefined
   /** Laisse la camera ouverte apres une lecture, pour enchainer les produits. */
   readonly continuous?: boolean
+  /**
+   * Rend le viseur SANS feuille, pour occuper l'ecran entier.
+   *
+   * L'appelant devient responsable de la sortie : plus de croix de fermeture,
+   * plus de fond assombri. Reserve a l'ecran `/scan`, dont c'est tout le
+   * propos.
+   */
+  readonly inline?: boolean
 }
 
 export function BarcodeScanner({
@@ -92,6 +100,7 @@ export function BarcodeScanner({
   title = 'Scanner un code-barres',
   hint,
   continuous = false,
+  inline = false,
 }: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -288,15 +297,25 @@ export function BarcodeScanner({
 
   const manualValid = isValidEan(manual)
 
-  return (
-    <Sheet open={open} onClose={onClose} title={title}>
-      <div className="scanner">
+  const contenu = (
+      <div className={`scanner${inline ? ' scanner--plein' : ''}`}>
         {status === 'scanning' || status === 'starting' ? (
           <div className="scanner__stage">
             <video ref={videoRef} className="scanner__video" muted playsInline />
-            {/* Le cadre n'est pas decoratif : sans reperе visuel, on cadre trop
-                large et le code n'occupe pas assez de pixels pour etre lu. */}
-            <div className="scanner__frame" aria-hidden="true" />
+            {/* Le cadre n'est pas decoratif : sans repere visuel, on cadre trop
+                large et le code n'occupe pas assez de pixels pour etre lu.
+                QUATRE EQUERRES et non un rectangle ferme : elles bornent la
+                zone sans poser de trait en travers du code, qu'on cherche
+                justement a laisser voir. La ligne qui balaie dit que l'appareil
+                cherche — sans elle, une camera qui ne trouve rien parait figee. */}
+            <div className="viseur" aria-hidden="true">
+              <span className="viseur__coin viseur__coin--hg" />
+              <span className="viseur__coin viseur__coin--hd" />
+              <span className="viseur__coin viseur__coin--bg" />
+              <span className="viseur__coin viseur__coin--bd" />
+              <span className="viseur__ligne" />
+            </div>
+            {hint && <p className="viseur__astuce">{hint}</p>}
             {status === 'starting' && <p className="scanner__overlay">Ouverture de la caméra…</p>}
           </div>
         ) : (
@@ -316,8 +335,6 @@ export function BarcodeScanner({
             )}
           </div>
         )}
-
-        {hint && <p className="scanner__hint">{hint}</p>}
 
         <p className="card__lead">
           Vise le code-barres. Tiens le téléphone à une quinzaine de centimètres, bien à plat.
@@ -347,6 +364,26 @@ export function BarcodeScanner({
           </button>
         </details>
       </div>
+  )
+
+  /*
+   * EN PLEIN ECRAN, le viseur n'est pas enferme dans une feuille.
+   *
+   * C'est la difference la plus visible avec la maquette : une camera de 4/3
+   * posee au milieu d'une feuille blanche se regarde, un viseur qui occupe
+   * l'ecran se VISE. Le mode reste optionnel — les trois points de scan
+   * historiques (bibliotheque, chariot, frigo) s'ouvrent par-dessus l'ecran
+   * qu'on consultait, et une feuille y est le bon contenant.
+   *
+   * Toute la mecanique — demarrage de la camera, chargement de ZXing, etats
+   * d'erreur, saisie manuelle, anti-rebond — reste ICI, en un seul endroit :
+   * seul le contenant change.
+   */
+  if (inline) return open ? contenu : null
+
+  return (
+    <Sheet open={open} onClose={onClose} title={title}>
+      {contenu}
     </Sheet>
   )
 }

@@ -19,23 +19,23 @@
  * une demi-heure, et l'ecran de destination interroge la meme cle.
  */
 
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useState } from "react";
+import { useNavigate } from "react-router";
 
-import { BarcodeScanner } from '../components/BarcodeScanner.js'
-import { MacroCells } from '../components/MacrosDonut.js'
-import { SourceBadge } from '../components/States.js'
-import { Icon, type IconName } from '../icons/index.js'
-import { ApiError } from '../lib/api.js'
-import { useBarcode, useShoppingSession } from '../lib/queries.js'
-import '../styles/accueil.css'
+import { BarcodeScanner } from "../components/BarcodeScanner.js";
+import { MacroCells } from "../components/MacrosDonut.js";
+import { SourceBadge } from "../components/States.js";
+import { Icon, type IconName } from "../icons/index.js";
+import { ApiError } from "../lib/api.js";
+import { useBarcode, useShoppingSession } from "../lib/queries.js";
+import "../styles/accueil.css";
 
 interface Destination {
-  readonly cle: string
-  readonly to: (ean: string) => string
-  readonly icon: IconName
-  readonly titre: string
-  readonly detail: string
+  readonly cle: string;
+  readonly to: (ean: string) => string;
+  readonly icon: IconName;
+  readonly titre: string;
+  readonly detail: string;
 }
 
 /**
@@ -54,93 +54,93 @@ interface Destination {
  */
 const DESTINATIONS: readonly Destination[] = [
   {
-    cle: 'bibliotheque',
+    cle: "bibliotheque",
     to: (ean) => `/ingredients/nouveau?ean=${ean}&remplir=1`,
-    icon: 'ui-basket',
-    titre: 'Ma bibliothèque',
-    detail: 'En faire une fiche réutilisable',
+    icon: "ui-basket",
+    titre: "Ma bibliothèque",
+    detail: "En faire une fiche réutilisable",
   },
   {
-    cle: 'courses',
+    cle: "courses",
     to: (ean) => `/courses?scan=${ean}`,
-    icon: 'ui-cart',
-    titre: 'Mon panier',
-    detail: 'L’ajouter à la session de courses',
+    icon: "ui-cart",
+    titre: "Mon panier",
+    detail: "L’ajouter à la session de courses",
   },
   {
-    cle: 'frigo',
+    cle: "frigo",
     to: (ean) => `/frigo?scan=${ean}`,
-    icon: 'ui-fridge',
-    titre: 'Mon frigo',
-    detail: 'L’entrer en stock, avec sa date',
+    icon: "ui-fridge",
+    titre: "Mon frigo",
+    detail: "L’entrer en stock, avec sa date",
   },
-]
+];
 
 export function ScanScreen() {
-  const navigate = useNavigate()
-  // La camera s'ouvre d'elle-meme : on est arrive ici en touchant un bouton
-  // qui ne veut dire que ca. Un second tap pour « commencer » serait un peage.
-  const [scanning, setScanning] = useState(true)
-  const [ean, setEan] = useState<string | null>(null)
+  const navigate = useNavigate();
+  const [ean, setEan] = useState<string | null>(null);
 
-  const produit = useBarcode(ean)
-  const courses = useShoppingSession()
+  const produit = useBarcode(ean);
+  const courses = useShoppingSession();
 
   // Une session de courses OUVERTE est necessaire pour ajouter au chariot :
   // sans elle, l'envoi echouerait. On presente donc la destination, mais on
   // dit ce qui manque plutot que d'offrir un bouton mort.
-  const sansSession = courses.data?.active !== true
+  const sansSession = courses.data?.active !== true;
 
-  const inconnu = produit.error instanceof ApiError && produit.error.status === 404
+  const inconnu =
+    produit.error instanceof ApiError && produit.error.status === 404;
 
   return (
-    <section className="screen">
-      {ean === null ? (
-        <div className="card">
-          <h2 className="card__title">Vise un code-barres</h2>
-          <p className="card__lead">
-            Tu choisiras ensuite ce qu’on en fait : une fiche, une ligne de courses, ou un lot au
-            frigo.
-          </p>
-          <button
-            type="button"
-            className="button button--primary"
-            onClick={() => setScanning(true)}
-          >
-            Ouvrir la caméra
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="card">
-            {produit.isPending ? (
-              <p className="card__lead">Recherche du produit…</p>
-            ) : produit.data === undefined ? (
-              <>
-                <h2 className="card__title">Code {ean}</h2>
-                <p className="card__lead">
-                  {inconnu
-                    ? 'Aucun produit ne porte ce code chez OpenFoodFacts. Tu peux quand même en faire une fiche : le code y sera conservé, et la recherche aboutira peut-être plus tard.'
-                    : 'La recherche n’a pas abouti. Les destinations restent ouvertes : chacune sait retrouver ce code par elle-même.'}
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="card-entete">
-                  <h2 className="card__title card-entete__titre">{produit.data.name}</h2>
-                  <SourceBadge source={produit.data.source} />
-                </div>
-                {produit.data.brand !== null && (
-                  <p className="card__lead">{produit.data.brand}</p>
-                )}
-                <MacroCells total={macrosDe(produit.data)} />
-              </>
-            )}
-          </div>
+    <section className="screen screen--scan">
+      {/* LE VISEUR EST L'ECRAN. Il reste monte meme quand la fiche est
+          ouverte : on voit ce qu'on vient de lire, et « Scanner autre chose »
+          ne fait que refermer la fiche au lieu de tout redemarrer. */}
+      <BarcodeScanner
+        inline
+        open
+        onClose={() => void navigate(-1)}
+        onDetect={(code) => setEan(code)}
+        title="Scanner un produit"
+        hint="Visez le code-barres du produit"
+      />
 
-          <nav className="acces acces--destinations" aria-label="Où envoyer ce produit">
+      {ean !== null && (
+        <div className="fiche-scan" role="dialog" aria-label="Produit scanné">
+          <span className="fiche-scan__poignee" aria-hidden="true" />
+
+          {produit.isPending ? (
+            <p className="card__lead">Recherche du produit…</p>
+          ) : produit.data === undefined ? (
+            <>
+              <h2 className="card__title">Code {ean}</h2>
+              <p className="card__lead">
+                {inconnu
+                  ? "Aucun produit ne porte ce code chez OpenFoodFacts. Tu peux quand même en faire une fiche : le code y sera conservé."
+                  : "La recherche n’a pas abouti. Les destinations restent ouvertes : chacune sait retrouver ce code par elle-même."}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="card-entete">
+                <h2 className="card__title card-entete__titre">
+                  {produit.data.name}
+                </h2>
+                <SourceBadge source={produit.data.source} />
+              </div>
+              {produit.data.brand !== null && (
+                <p className="fiche-scan__marque">{produit.data.brand}</p>
+              )}
+              <MacroCells total={macrosDe(produit.data)} />
+            </>
+          )}
+
+          <nav
+            className="acces acces--destinations"
+            aria-label="Où envoyer ce produit"
+          >
             {DESTINATIONS.map((d) => {
-              const bloquee = d.cle === 'courses' && sansSession
+              const bloquee = d.cle === "courses" && sansSession;
               return (
                 <button
                   key={d.cle}
@@ -157,53 +157,38 @@ export function ScanScreen() {
                         feuille de demarrage d'une session, et le code y est
                         conserve le temps qu'elle s'ouvre. Le dire evite la
                         surprise d'un detour non demande. */}
-                    {bloquee ? 'Ouvrira d’abord une session de courses' : d.detail}
+                    {bloquee
+                      ? "Ouvrira d’abord une session de courses"
+                      : d.detail}
                   </span>
                 </button>
-              )
+              );
             })}
           </nav>
 
           <button
             type="button"
             className="button button--secondary"
-            onClick={() => {
-              setEan(null)
-              setScanning(true)
-            }}
+            onClick={() => setEan(null)}
           >
             Scanner autre chose
           </button>
-        </>
+        </div>
       )}
-
-      <BarcodeScanner
-        open={scanning}
-        onClose={() => setScanning(false)}
-        onDetect={(code) => {
-          // EN PREMIER : la feuille du scanner ne se ferme pas d'elle-meme
-          // apres une lecture. Sans cette ligne, le choix de destination
-          // s'afficherait derriere une camera figee.
-          setScanning(false)
-          setEan(code)
-        }}
-        title="Scanner un produit"
-        hint="Le code lu, tu choisiras la destination."
-      />
     </section>
-  )
+  );
 }
 
 /** Les macros d'un produit, avec zero pour ce qu'OpenFoodFacts n'a pas donne. */
 function macrosDe(p: {
-  kcal: number | null
-  proteins: number | null
-  carbs: number | null
-  fats: number | null
-  saturatedFats: number | null
-  sugars: number | null
-  fiber: number | null
-  salt: number | null
+  kcal: number | null;
+  proteins: number | null;
+  carbs: number | null;
+  fats: number | null;
+  saturatedFats: number | null;
+  sugars: number | null;
+  fiber: number | null;
+  salt: number | null;
 }) {
   return {
     kcal: p.kcal ?? 0,
@@ -214,5 +199,5 @@ function macrosDe(p: {
     sugars: p.sugars ?? 0,
     fiber: p.fiber ?? 0,
     salt: p.salt ?? 0,
-  }
+  };
 }
