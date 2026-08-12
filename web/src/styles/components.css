@@ -375,6 +375,23 @@
   padding: var(--space-lg);
 }
 
+/*
+ * Aucun enfant ne rétrécit — c'est ce qui fait DEFILER la feuille.
+ *
+ * Le corps est un conteneur flex en colonne, de hauteur bornee par le panneau
+ * (92dvh). Sans cette regle, ses enfants prennent le `flex-shrink: 1` par
+ * defaut et se compriment pour tenir dans la place disponible, au lieu de la
+ * depasser. Le debordement n'arrive donc jamais, `overflow-y: auto` n'a rien a
+ * faire defiler — et une liste qui porte `overflow: hidden` (les resultats
+ * d'import, pour ses coins arrondis) COUPE son contenu en silence.
+ *
+ * Symptome observe : dix resultats charges, deux visibles, aucun moyen
+ * d'atteindre les autres. Quarante charges, quatre visibles.
+ */
+.sheet__body > * {
+  flex-shrink: 0;
+}
+
 .sheet__message {
   margin: 0;
   color: var(--color-text-secondary);
