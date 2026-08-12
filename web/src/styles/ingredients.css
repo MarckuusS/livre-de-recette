@@ -124,9 +124,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-.ing-macro--proteins { color: var(--color-nutrient-proteins); }
-.ing-macro--carbs { color: var(--color-nutrient-carbs); }
-.ing-macro--fats { color: var(--color-nutrient-fats); }
+/* Les ENCRES, pas les teintes : ce sont des mots. Ecrit en teinte de surface,
+   « G 12 g » tombait a 2,2:1 sur la carte blanche. */
+.ing-macro--proteins { color: var(--color-nutrient-proteins-ink); }
+.ing-macro--carbs { color: var(--color-nutrient-carbs-ink); }
+.ing-macro--fats { color: var(--color-nutrient-fats-ink); }
 
 .ing-piece {
   color: var(--color-accent);

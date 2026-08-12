@@ -21,6 +21,7 @@ import { useState } from 'react'
 import { formatEuros, type Ingredient } from '@livre/shared'
 
 import { NumberField, TextField } from '../../components/Field.js'
+import { MacroCells } from '../../components/MacrosDonut.js'
 import { SourceBadge } from '../../components/States.js'
 import {
   useAddToLibrary,
@@ -322,6 +323,27 @@ export function ScanReview({ ean, product, known, onAdded, onDismiss }: ScanRevi
           Facultatif. Il alimente l’historique de prix, et donc le coût de ta liste de courses.
         </p>
       </fieldset>
+
+      {/* Ce que le scan a rapporte, en clair et AVANT les champs.
+          Les huit valeurs vivent dans un depliant referme — c'est le bon
+          reglage pour les corriger, le mauvais pour les LIRE : on scannait un
+          produit sans jamais voir ce qu'il valait sans ouvrir le depliant.
+          Les quatre cellules repondent a la seule question qu'on se pose un
+          code-barres a la main, et les champs restent la pour l'amender. */}
+      {found > 0 && (
+        <MacroCells
+          total={{
+            kcal: draft.macros.kcal ?? 0,
+            proteins: draft.macros.proteins ?? 0,
+            carbs: draft.macros.carbs ?? 0,
+            fats: draft.macros.fats ?? 0,
+            saturatedFats: draft.macros.saturatedFats ?? 0,
+            sugars: draft.macros.sugars ?? 0,
+            fiber: draft.macros.fiber ?? 0,
+            salt: draft.macros.salt ?? 0,
+          }}
+        />
+      )}
 
       <details
         className="scan-review__macros"

@@ -68,6 +68,35 @@ L'application web n'utilise **plus d'émoji**. 67 icônes les remplacent : **10 
   d'attaque — et c'est le **serveur** qui fait foi, jamais le navigateur.
 - `node scripts/export-icons.mjs` régénère `docs/icones/` (SVG autonomes + galerie).
 
+## Ligne visuelle (web) — `web/src/styles/theme.css`
+
+L'interface suit un mockup adopté le 2026-08-12. Ce qui ne se devine pas :
+
+- **Deux polices, deux rôles.** Instrument Sans porte ce qui se **lit**, Bricolage Grotesque
+  ce qui s'**annonce** — titres d'écran, titres de section, grands chiffres (classe `.chiffre`).
+  Bricolage dans un paragraphe lui fait perdre son caractère. Les deux sont **servies par
+  l'application** (`@fontsource-variable/*`, licence OFL, importées dans `main.tsx`), jamais par
+  un hôte distant : l'app doit s'ouvrir dans un magasin sans réseau.
+- **Le tricolore macro a DEUX familles de jetons, et c'est le piège.** `--color-nutrient-X`
+  est calibré pour des **surfaces** (barre, arc, fond de pastille) ; `--color-nutrient-X-ink`
+  pour du **texte**. Le miel plafonne à 2,2:1 sur blanc : écrit avec sa teinte, il est
+  invisible. Règle : *un aplat prend la teinte, un mot ou un chiffre prend l'encre.* C'est la
+  même distinction que `--color-primary` / `--color-primary-text`. Les encres et les pastilles
+  se retournent avec le thème ; les teintes, non.
+- **L'énergie n'est pas une macro** : elle reste neutre partout. Quatre couleurs pour trois
+  familles, et le tricolore ne signifie plus rien.
+- **Les cartes n'ont pas de bordure**, seulement une ombre presque nulle sur le papier. À dix
+  cartes par écran, les traits formaient une grille à traverser avant d'atteindre le contenu.
+- **Le titre d'écran vit dans la page, pas dans une barre.** Il est rendu **une seule fois**,
+  dans `App.tsx` (`.hero`), pour les cinq onglets — jamais recopié dans les écrans. La barre
+  garde le `<h1>` masqué pour les lecteurs d'écran, et le `.hero` est `aria-hidden`. Sur les
+  vues empilées, l'ancienne barre titrée revient : le bouton retour a besoin d'un ancrage.
+- L'en-tête effacée prend la couleur du **papier**, pas `transparent` : elle est collante, et
+  le contenu défilait visiblement derrière.
+- **Les 11 teintes de rayon (`styles/icons.css`) ne font pas partie du tricolore.** C'est un
+  système de codes calibré pour rester distinct côte à côte dans une liste triée par nom. En
+  retoucher une seule le déséquilibre.
+
 ## Profil et objectifs (web) — `shared/src/profile.ts`
 
 Cible journalière en kcal et macros, par Mifflin-St Jeor. Le calcul est un module **pur**, testé

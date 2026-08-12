@@ -31,11 +31,75 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/* ---------- L'en-tete des onglets s'efface ----------
+ *
+ * Sur les cinq onglets, le titre ne vit plus dans une barre grise : il
+ * DESCEND DANS LA PAGE, en grand, precede d'un surtitre discret (voir
+ * `.hero` plus bas). C'est le geste le plus visible de la nouvelle ligne —
+ * une barre de titre repete a chaque ecran ce que l'onglet actif dit deja,
+ * et vole 56 px de hauteur sur un telephone.
+ *
+ * La barre reste en place, mais transparente et sans bordure : elle ne porte
+ * plus que le theme et les parametres, qui doivent rester atteignables. Sur
+ * les vues empilees, en revanche, elle garde son titre et sa bordure — le
+ * bouton retour a besoin d'un ancrage, et ces vues n'ont pas de surtitre.
+ */
+/* Elle prend la couleur du PAPIER, et non `transparent`. La barre reste
+   collante : transparente, le contenu defilait visiblement derriere les deux
+   icones. Sur le fond de page, la difference ne se voit pas — mais elle
+   masque. */
+.app-header--effacee {
+  background: var(--color-background);
+  border-bottom-color: transparent;
+}
+
+.app-header--effacee .app-header__title {
+  /* Lu par les technologies d'assistance, invisible a l'oeil : la page a
+     toujours un titre de niveau 1, il est simplement rendu par `.hero`. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .app-header__title {
   margin: 0;
+  font-family: var(--font-family-display);
   font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.01em;
+}
+
+/* ---------- Le titre d'ecran, dans la page ----------
+ *
+ * Surtitre discret puis titre en grand : la forme du mockup, qui ouvre
+ * chaque ecran en disant d'abord de quoi il retourne, puis comment ca
+ * s'appelle. Le surtitre n'est pas decoratif — il porte ce que le titre seul
+ * ne peut pas dire (« 23 produits suivis », « Semaine 33 »).
+ */
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-lg) 0;
+  margin: 0 auto;
+  max-width: 720px;
+}
+
+.hero__kicker {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.hero__title {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-hero);
+  font-weight: var(--font-weight-extrabold);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
 }
 
 .app-header__actions {
@@ -87,18 +151,22 @@
   max-width: 720px;
 }
 
+/* La carte n'a PLUS DE BORDURE, et c'est ce qui change son allure : elle se
+   detache du papier par sa blancheur et une ombre presque nulle, au lieu
+   d'etre cernee d'un trait. A dix cartes par ecran, les traits formaient une
+   grille que l'oeil devait traverser avant d'atteindre le contenu. */
 .card {
   padding: var(--space-lg);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-subtle);
 }
 
 .card__title {
   margin: 0 0 var(--space-sm);
+  font-family: var(--font-family-display);
   font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
 }
 
 .card__lead {
@@ -195,6 +263,19 @@
   color: var(--color-primary-text);
 }
 
+/* L'onglet actif porte aussi un POINT sous son libelle. La couleur seule
+   distinguait l'onglet courant : insuffisant a qui ne separe pas l'olive du
+   gris, et c'est le seul reperage de position de toute l'application. */
+.tabbar__item--active .tabbar__label::after {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 4px;
+  margin: 2px auto 0;
+  background: currentcolor;
+  border-radius: var(--radius-full);
+}
+
 .tabbar__icon {
   display: grid;
   place-items: center;
@@ -203,6 +284,7 @@
 
 .tabbar__label {
   font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   /* Sous 340 px, « Ingrédients » deborde sur ses voisins. */
   overflow: hidden;
   text-overflow: ellipsis;
@@ -222,9 +304,11 @@
   min-height: var(--control-height-lg);
   padding: 0 var(--space-lg);
   font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-medium);
+  /* 600 et non 500 : le mockup assume ses actions, et un libelle maigre sur
+     un aplat olive se lisait moins bien qu'il n'y parait. */
+  font-weight: var(--font-weight-semibold);
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   transition:
     background var(--duration-fast) var(--easing-standard),
     border-color var(--duration-fast) var(--easing-standard);
@@ -433,8 +517,9 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 1px var(--space-sm);
+  padding: 2px var(--space-sm);
   font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   border-radius: var(--radius-full);
   white-space: nowrap;
 }

@@ -773,14 +773,91 @@
    pour encombrer une ligne qui porte deja un nom, une quantite, une energie
    et un prix. */
 
+/* La tri-barre est passee de 3 a 6 px : a 3 px, la part la plus fine d'un
+   repas equilibre ne faisait plus qu'un pixel et se perdait. Elle porte
+   desormais la signature de l'application, il faut qu'elle se voie. */
 .macro-bar {
   display: flex;
   width: 100%;
-  height: 3px;
+  height: 6px;
   margin-top: 5px;
   overflow: hidden;
-  background: var(--color-surface-pressed);
+  background: var(--color-border);
   border-radius: var(--radius-full);
+}
+
+/* Variante pour les lignes denses — un article de courses, une ligne de
+   tableau — ou 6 px pousseraient la ligne suivante. */
+.macro-bar--fine {
+  height: 4px;
+  margin-top: 4px;
+}
+
+/* ---------- Les quatre cellules d'une fiche ----------
+ *
+ * Fond pale et texte a l'ENCRE du nutriment, jamais sa teinte : les valeurs
+ * se lisent, et la teinte de surface tombe a 2,2:1 pour le miel. Voir le
+ * commentaire du tricolore dans theme.css.
+ */
+.macro-cells {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm);
+}
+
+.macro-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  padding: var(--space-sm) var(--space-xs);
+  text-align: center;
+  border-radius: var(--radius-md);
+}
+
+.macro-cell__value {
+  font-size: var(--font-size-lg);
+  line-height: 1.1;
+}
+
+.macro-cell__unit {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  /* Sur 4 colonnes en 320 px, « kcal pour 100 g » tient sur deux lignes ;
+     c'est voulu, mais la cellule ne doit pas s'etirer pour autant. */
+  line-height: 1.2;
+}
+
+.macro-cell--energy {
+  color: var(--color-nutrient-energy-ink);
+  background: var(--color-nutrient-energy-pale);
+}
+
+.macro-cell--proteins {
+  color: var(--color-nutrient-proteins-ink);
+  background: var(--color-nutrient-proteins-pale);
+}
+
+.macro-cell--carbs {
+  color: var(--color-nutrient-carbs-ink);
+  background: var(--color-nutrient-carbs-pale);
+}
+
+.macro-cell--fats {
+  color: var(--color-nutrient-fats-ink);
+  background: var(--color-nutrient-fats-pale);
+}
+
+/* ---------- Le grand chiffre ----------
+ *
+ * Bricolage en 800, chasse tabulaire. Le tabulaire n'est pas un detail : un
+ * total qui passe de 1 580 a 1 620 pendant qu'on ajuste une quantite ne doit
+ * pas faire sauter la ligne parce que le « 5 » est plus large que le « 6 ». */
+.chiffre {
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-extrabold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 .macro-bar__part {

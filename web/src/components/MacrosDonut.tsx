@@ -163,3 +163,43 @@ export function MacroBar({ total }: { readonly total: NutritionTotal }) {
     </span>
   )
 }
+
+/**
+ * Les quatre chiffres d'un aliment, en cellules teintees.
+ *
+ * Troisieme forme de la meme information, et chacune a son emploi :
+ * l'anneau montre des PROPORTIONS, la barre donne une ALLURE en trois pixels,
+ * ces cellules livrent les VALEURS. Une fiche produit se lit en chiffres —
+ * « 10,6 g de protéines » — et un anneau ne repond pas a cette question.
+ *
+ * L'energie occupe la premiere cellule mais reste NEUTRE : elle n'est pas une
+ * quatrieme macro, elle est leur somme. Lui donner une couleur ferait quatre
+ * teintes pour trois familles, et le tricolore cesserait de vouloir dire
+ * quelque chose.
+ */
+export function MacroCells({
+  total,
+  caption = 'pour 100 g',
+}: {
+  readonly total: NutritionTotal
+  /** Ce a quoi les valeurs se rapportent : « pour 100 g », « par portion »… */
+  readonly caption?: string
+}) {
+  const cellules = [
+    { key: 'energy', valeur: String(Math.round(total.kcal)), unite: `kcal ${caption}` },
+    { key: 'proteins', valeur: formatNumber(total.proteins, 1), unite: 'Prot. (g)' },
+    { key: 'carbs', valeur: formatNumber(total.carbs, 1), unite: 'Gluc. (g)' },
+    { key: 'fats', valeur: formatNumber(total.fats, 1), unite: 'Lip. (g)' },
+  ]
+
+  return (
+    <div className="macro-cells">
+      {cellules.map((c) => (
+        <div key={c.key} className={`macro-cell macro-cell--${c.key}`}>
+          <span className="macro-cell__value chiffre">{c.valeur}</span>
+          <span className="macro-cell__unit">{c.unite}</span>
+        </div>
+      ))}
+    </div>
+  )
+}

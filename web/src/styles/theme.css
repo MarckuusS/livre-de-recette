@@ -41,24 +41,34 @@
   --color-secondary-hover: #92400e;
   --color-secondary-pressed: #7c2d12;
 
-  --color-background: #f7f6ef;
+  /* ---------- Papier, carte, encre ----------
+   *
+   * Le fond etait un beige chaud herite du bureau. Il est desormais un PAPIER
+   * legerement verdi, et le texte une ENCRE vert-noir plutot qu'un gris : les
+   * deux se tiennent avec l'olive du logo, la ou le beige tirait vers le jaune
+   * et le gris vers le bleu. La carte reste blanche — c'est ce qui la detache
+   * du papier maintenant qu'elle n'a plus de bordure.
+   */
+  --color-background: #f5f7f2;
   --color-surface: #ffffff;
-  --color-surface-hover: #f0efe3;
-  --color-surface-pressed: #e4e2d2;
+  --color-surface-hover: #eff2ee;
+  --color-surface-pressed: #e4e9e2;
 
-  --color-text: #1b1f12;
-  --color-text-secondary: #4f5540;
-  --color-text-disabled: #c2c0ad;
-  --color-text-placeholder: #868b74;
+  --color-text: #1e2a23;
+  --color-text-secondary: #5c6b62;
+  --color-text-disabled: #b6c0b9;
+  --color-text-placeholder: #7d8c83;
 
-  --color-border: #e2e0cf;
-  --color-border-hover: #c9c7b2;
+  --color-border: #e4e9e2;
+  --color-border-hover: #c9d6cd;
   --color-border-focus: #7d8c52;
 
   --color-accent: #b45309;
   --color-error: #c0342b;
   --color-error-hover: #9f2a22;
-  --color-success: #15803d;
+  /* Le vert de reussite est celui du mockup : plus franc que l'ancien, et
+     surtout plus distinct de l'olive du chrome, qu'on confondait avec lui. */
+  --color-success: #35734f;
   --color-warning: #b45309;
 
   --color-overlay: rgb(0 0 0 / 45%);
@@ -68,29 +78,87 @@
   --shadow-normal: 0 2px 8px rgb(var(--shadow-color) / 12%);
   --shadow-elevated: 0 8px 24px rgb(var(--shadow-color) / 18%);
 
-  /* ---------- Hors theme : identiques en clair et en sombre ----------
-   * Badges de source et palette nutriment. Ce sont des codes de lecture,
-   * pas des couleurs d'interface : les inverser casserait la reconnaissance.
+  /* ---------- Badges de source : identiques dans les deux themes ----------
+   * Ce sont des codes de lecture, pas des couleurs d'interface : les inverser
+   * casserait la reconnaissance. Le tricolore macro ci-dessous suit la meme
+   * regle POUR SES TEINTES — mais ses encres et ses pastilles, elles, se
+   * retournent avec le theme, faute de quoi elles seraient illisibles.
    */
   --color-source-ciqual: #15803d;
   --color-source-off: #1d4ed8;
   --color-source-manual: #c2410c;
   --color-source-lidl: #c2410c;
 
-  --color-nutrient-energy: #f1b40e;
-  --color-nutrient-fats: #fda406;
-  --color-nutrient-saturated: #da4a35;
-  --color-nutrient-carbs: #509938;
-  --color-nutrient-sugars: #07a0aa;
-  --color-nutrient-fiber: #7cc04c;
-  --color-nutrient-proteins: #0b6bbb;
+  /* ---------- Le tricolore macro : framboise, miel, canard ----------
+   *
+   * C'est LA signature de l'interface. Protéines, glucides et lipides portent
+   * les trois memes teintes partout — anneau du jour, tri-barre d'un repas,
+   * bilan d'une journee, cellules d'une fiche — pour qu'un coup d'oeil suffise
+   * sans relire les libelles.
+   *
+   * DEUX FAMILLES, ET C'EST LE POINT DELICAT. Ces teintes sont calibrees pour
+   * des SURFACES : une barre, un arc, un fond de pastille. Ecrites, elles ne
+   * tiennent pas — le miel plafonne a 2,2:1 sur blanc, soit un texte
+   * pratiquement invisible. Chaque teinte a donc son encre, assombrie a teinte
+   * CONSTANTE jusqu'a 4,5:1 sur blanc, sur le papier et sur sa propre pastille.
+   *
+   * C'est exactement la distinction que le projet fait deja entre
+   * `--color-primary` et `--color-primary-text`, appliquee aux nutriments.
+   * La regle tient en une phrase : un aplat prend la teinte, un mot ou un
+   * chiffre prend l'encre.
+   *
+   * Les nutriments de detail derivent de leur famille au lieu de vivre leur vie
+   * — les sucres sont des glucides, les satures des lipides — pour que la
+   * lecture reste la meme a l'echelle du tableau nutritionnel.
+   */
+  --color-nutrient-proteins: #d6456e;
+  --color-nutrient-proteins-ink: #c92c58;
+  --color-nutrient-proteins-pale: #fbe9ef;
+
+  --color-nutrient-carbs: #e8a33d;
+  --color-nutrient-carbs-ink: #996212;
+  --color-nutrient-carbs-pale: #fbf1df;
+
+  --color-nutrient-fats: #2f94a8;
+  --color-nutrient-fats-ink: #267686;
+  --color-nutrient-fats-pale: #e3f2f5;
+
+  /* L'energie n'est pas une macro : elle reste neutre, sinon quatre couleurs
+     se disputent trois familles et le tricolore ne signifie plus rien. */
+  --color-nutrient-energy: #5c6b62;
+  --color-nutrient-energy-ink: #46534b;
+  --color-nutrient-energy-pale: #eff2ee;
+
+  --color-nutrient-sugars: #c98a2e;
+  --color-nutrient-sugars-ink: #8c5a10;
+  --color-nutrient-fiber: #4e9c5e;
+  --color-nutrient-fiber-ink: #35734f;
+  --color-nutrient-saturated: #1f6d7d;
+  --color-nutrient-saturated-ink: #1a5f6d;
   --color-nutrient-salt: #7145a7;
+  --color-nutrient-salt-ink: #6a3ba0;
 
   --color-toast-bg: #242b18;
 
-  /* ---------- Typographie ---------- */
-  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica, Arial,
-    sans-serif;
+  /* ---------- Typographie ----------
+   *
+   * DEUX POLICES, et la distinction est editoriale, pas decorative :
+   *
+   *   - Instrument Sans porte tout ce qui se LIT — libelles, phrases, champs.
+   *   - Bricolage Grotesque porte tout ce qui s'ANNONCE — titres d'ecran,
+   *     titres de section, et surtout les grands chiffres. C'est une grotesque
+   *     a chasse serree dont les 800 tiennent le poids d'un titre sans devenir
+   *     une masse noire ; elle donne son caractere a l'interface, et l'employer
+   *     dans un paragraphe le lui ferait perdre.
+   *
+   * Les deux sont servies depuis l'application (voir main.tsx), jamais depuis
+   * un hote distant. Le repli systeme suit derriere, pour la fraction de
+   * seconde du premier affichage.
+   */
+  --font-family: 'Instrument Sans Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter,
+    Roboto, Helvetica, Arial, sans-serif;
+  --font-family-display: 'Bricolage Grotesque Variable', 'Instrument Sans Variable', -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
 
   --font-size-xs: 0.625rem;
   --font-size-sm: 0.6875rem;
@@ -98,11 +166,15 @@
   --font-size-lg: 0.9375rem;
   --font-size-xl: 1.125rem;
   --font-size-title: 1.375rem;
+  /* Le titre d'ecran du mockup, celui qui accueille en haut de page. */
+  --font-size-hero: 1.625rem;
 
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  /* Reserve aux titres d'ecran et aux grands chiffres, en Bricolage. */
+  --font-weight-extrabold: 800;
 
   /* ---------- Espacements — multiples de 4, comme Theme.qml ---------- */
   --space-xs: 4px;
@@ -112,11 +184,19 @@
   --space-xl: 24px;
   --space-xxl: 32px;
 
-  /* ---------- Rayons ---------- */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
+  /* ---------- Rayons ----------
+   *
+   * Toute l'echelle a grossi d'environ 4 px. Le mockup arrondit franchement —
+   * cartes a 18, cellules et puces a 12 — et c'est ce qui donne le calme de la
+   * page : les angles vifs, a cette densite d'information, hachent la lecture.
+   * Elargir l'echelle plutot que reecrire 80 declarations garde la hierarchie
+   * intacte partout ou elle etait juste.
+   */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-xxl: 24px;
   --radius-full: 9999px;
 
   /* ---------- Animations ---------- */
@@ -225,6 +305,27 @@
     --color-success: #7dd68f;
     --color-warning: #f2c14e;
 
+    /* Le tricolore garde ses teintes de SURFACE : une barre framboise reste
+       framboise de nuit. Ce sont les ENCRES qui s'inversent — on eclaircit au
+       lieu d'assombrir — et les pastilles, qui deviennent des fonds profonds :
+       le pastel du mockup, sur une surface sombre, eblouit.
+       Mesures sur --color-surface : 5,3:1 / 7,6:1 / 6,7:1. */
+    --color-nutrient-proteins-ink: #df6d8d;
+    --color-nutrient-proteins-pale: #3b1621;
+    --color-nutrient-carbs-ink: #e8a33d;
+    --color-nutrient-carbs-pale: #3b2c16;
+    --color-nutrient-fats-ink: #4bb2c7;
+    --color-nutrient-fats-pale: #16353b;
+
+    --color-nutrient-energy: #a7ae91;
+    --color-nutrient-energy-ink: #a7ae91;
+    --color-nutrient-energy-pale: #272d1b;
+
+    --color-nutrient-sugars-ink: #d9a24a;
+    --color-nutrient-fiber-ink: #7dd68f;
+    --color-nutrient-saturated-ink: #58b3c6;
+    --color-nutrient-salt-ink: #b48ede;
+
     --shadow-color: 0 0 0;
     --shadow-subtle: 0 1px 2px rgb(var(--shadow-color) / 35%);
     --shadow-normal: 0 2px 8px rgb(var(--shadow-color) / 50%);
@@ -265,6 +366,27 @@
   --color-error-hover: #f7b0a8;
   --color-success: #7dd68f;
   --color-warning: #f2c14e;
+
+  /* Le tricolore garde ses teintes de SURFACE : une barre framboise reste
+     framboise de nuit. Ce sont les ENCRES qui s'inversent — on eclaircit au
+     lieu d'assombrir — et les pastilles, qui deviennent des fonds profonds :
+     le pastel du mockup, sur une surface sombre, eblouit.
+     Mesures sur --color-surface : 5,3:1 / 7,6:1 / 6,7:1. */
+  --color-nutrient-proteins-ink: #df6d8d;
+  --color-nutrient-proteins-pale: #3b1621;
+  --color-nutrient-carbs-ink: #e8a33d;
+  --color-nutrient-carbs-pale: #3b2c16;
+  --color-nutrient-fats-ink: #4bb2c7;
+  --color-nutrient-fats-pale: #16353b;
+
+  --color-nutrient-energy: #a7ae91;
+  --color-nutrient-energy-ink: #a7ae91;
+  --color-nutrient-energy-pale: #272d1b;
+
+  --color-nutrient-sugars-ink: #d9a24a;
+  --color-nutrient-fiber-ink: #7dd68f;
+  --color-nutrient-saturated-ink: #58b3c6;
+  --color-nutrient-salt-ink: #b48ede;
 
   --shadow-color: 0 0 0;
   --shadow-subtle: 0 1px 2px rgb(var(--shadow-color) / 35%);

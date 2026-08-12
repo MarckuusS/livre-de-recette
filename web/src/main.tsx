@@ -7,6 +7,12 @@ import { AuthGate } from './AuthGate.js'
 import { ApiError } from './lib/api.js'
 import { keepAppUpToDate } from './lib/appUpdate.js'
 import { preventBrowserZoom } from './lib/gestures.js'
+// Les deux polices, SERVIES PAR NOUS et non par Google : l'application doit
+// s'ouvrir dans un magasin sans reseau, et une police distante y afficherait
+// un texte nu le temps d'un delai d'attente. Le sous-ensemble latin en
+// fichier variable coute 71 Ko a deux, contre 6 fichiers statiques autrement.
+import '@fontsource-variable/bricolage-grotesque/wght.css'
+import '@fontsource-variable/instrument-sans/wght.css'
 import './styles/theme.css'
 import './styles/app.css'
 import './styles/icons.css'

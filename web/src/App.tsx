@@ -19,13 +19,25 @@ import { WeekScreen } from './screens/WeekScreen.js'
  * Les 5 onglets reprennent ceux du desktop, dans le meme ordre. « Calendrier »
  * devient « Semaine » : sur un ecran de telephone on affiche un jour a la fois,
  * et le mot decrit mieux ce qu'on y trouve.
+ *
+ * `kicker` est le surtitre affiche au-dessus du grand titre de l'ecran. Il ne
+ * paraphrase pas le titre — il dit ce que le titre ne peut pas dire, a savoir
+ * ce qu'on vient chercher la. « Ingrédients » nomme, « Ce que je cuisine »
+ * situe.
  */
-export const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string }> = [
-  { to: '/ingredients', icon: 'ui-basket', label: 'Ingrédients' },
-  { to: '/recettes', icon: 'ui-utensils', label: 'Recettes' },
-  { to: '/semaine', icon: 'ui-calendar', label: 'Semaine' },
-  { to: '/courses', icon: 'ui-cart', label: 'Courses' },
-  { to: '/frigo', icon: 'ui-fridge', label: 'Frigo' },
+export const TABS: ReadonlyArray<{
+  to: string
+  icon: IconName
+  label: string
+  kicker: string
+}> = [
+  { to: '/ingredients', icon: 'ui-basket', label: 'Ingrédients', kicker: 'Ce que je cuisine' },
+  { to: '/recettes', icon: 'ui-utensils', label: 'Recettes', kicker: 'Mon répertoire' },
+  // Le libelle d'onglet reste court — il dispose d'un cinquieme de la largeur.
+  // Le grand titre de l'ecran, lui, vient de TITLES et peut respirer.
+  { to: '/semaine', icon: 'ui-calendar', label: 'Semaine', kicker: 'Ce qui est prévu' },
+  { to: '/courses', icon: 'ui-cart', label: 'Courses', kicker: 'Ce qu’il me faut' },
+  { to: '/frigo', icon: 'ui-fridge', label: 'Frigo', kicker: 'Ce que j’ai déjà' },
 ]
 
 /**
@@ -65,6 +77,9 @@ export function App() {
 
   const title = TITLES.find(([re]) => re.test(pathname))?.[1] ?? 'Prandia'
   const isStacked = STACKED.test(pathname)
+  // Le surtitre n'existe que pour les cinq onglets. Une vue empilee garde son
+  // titre dans la barre, a cote du bouton retour qui a besoin d'un ancrage.
+  const kicker = TABS.find((tab) => tab.to === pathname)?.kicker
 
   return (
     // Le fournisseur enveloppe TOUT l'arbre : sans lui, `useToast()` retombe
@@ -72,7 +87,7 @@ export function App() {
     // suppression disparait sans que rien ne le signale.
     <ToastProvider>
       <div className="app">
-        <header className="app-header">
+        <header className={`app-header${kicker ? ' app-header--effacee' : ''}`}>
           {isStacked ? (
             <button
               type="button"
@@ -104,6 +119,18 @@ export function App() {
         </header>
 
         <main className="app-main">
+          {/* Le titre de l'ecran, rendu UNE FOIS ici plutot que dans chacun
+              des cinq ecrans : les cinq l'auraient recopie, et le sixieme
+              l'aurait oublie. `aria-hidden` parce que le <h1> reste dans la
+              barre — deux titres annonces pour une seule page tromperaient un
+              lecteur d'ecran. */}
+          {kicker && (
+            <div className="hero" aria-hidden="true">
+              <span className="hero__kicker">{kicker}</span>
+              <span className="hero__title">{title}</span>
+            </div>
+          )}
+
           <Routes>
             {/* `/` REDIRIGE, il ne rend pas.
                 Rendre ShoppingScreen ici donnait le bon ecran mais aucun onglet
