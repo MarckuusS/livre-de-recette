@@ -356,9 +356,14 @@ function CiqualTab({
       {results.isSuccess && items.length > 0 && (
         <>
           <ul className="ing-results">
-            {items.map((candidate) => (
+            {/* Le rang entre dans la cle. `catalogKey` retombe sur le NOM quand
+                le produit n'a pas de code-barres — et OpenFoodFacts en rend
+                beaucoup : deux homonymes partageaient alors la meme cle, et
+                React ne gardait qu'une ligne sur les deux, en silence. Une
+                liste qui ne fait que s'allonger rend le rang stable. */}
+            {items.map((candidate, rang) => (
               <CandidateRow
-                key={catalogKey(candidate)}
+                key={`${catalogKey(candidate)}#${rang}`}
                 candidate={candidate}
                 known={isKnown(candidate, library)}
                 checked={selected.has(catalogKey(candidate))}
@@ -379,6 +384,9 @@ function CiqualTab({
     </>
   )
 }
+
+/** Au-dela, OpenFoodFacts cesse de compter et rend ce nombre rond. */
+const PLAFOND_OFF = 10000
 
 /**
  * « Voir plus » — et le decompte qui dit ou l'on en est.
@@ -404,7 +412,12 @@ function PageSuivante({
   return (
     <div className="ing-pagination">
       <p className="list-count">
-        {charges} sur {total} résultat{total > 1 ? 's' : ''}
+        {/* 10 000 pile n'est pas un total mais le PLAFOND d'OpenFoodFacts :
+            au-dela il cesse de compter. L'annoncer comme un total exact fait
+            croire qu'un filtre n'a rien change — je m'y suis laisse prendre en
+            comparant « 10000 » avant et apres une borne. */}
+        {charges} sur {total >= PLAFOND_OFF ? `plus de ${PLAFOND_OFF.toLocaleString('fr-FR')}` : total}{' '}
+        résultat{total > 1 ? 's' : ''}
       </p>
       {encore && (
         <button
@@ -502,6 +515,13 @@ function OffTab({
         des clients anonymes. Le scan, lui, interroge directement le code lu.
       </p>
 
+      <CriteriaFields
+        criteria={criteria}
+        onChange={setCriteria}
+        fields={CATALOG_CRITERION_FIELDS}
+        hint="Les bornes partent avec la requête : c’est OpenFoodFacts qui filtre, sur ses millions de produits, pas nous sur les dix reçus."
+      />
+
       <BarcodeScanner
         open={scanning}
         onClose={() => setScanning(false)}
@@ -553,9 +573,9 @@ function OffTab({
           {results.isSuccess && items.length > 0 && (
             <>
             <ul className="ing-results">
-              {items.map((candidate) => (
+              {items.map((candidate, rang) => (
                 <CandidateRow
-                  key={catalogKey(candidate)}
+                  key={`${catalogKey(candidate)}#${rang}`}
                   candidate={candidate}
                   known={isKnown(candidate, library)}
                   checked={selected.has(catalogKey(candidate))}
