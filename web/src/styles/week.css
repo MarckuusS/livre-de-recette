@@ -1,130 +1,145 @@
-/*
- * Habillage de l'ecran « Ma semaine ».
+/* ---------- Les sept jours de la semaine ----------
  *
- * Charge par WeekScreen et ses feuilles, jamais par main.tsx : un ecran qu'on
- * ne visite pas n'a pas a peser sur le premier rendu.
+ * Une bande de sept boutons de 44 px les resumait a une initiale, un
+ * quantieme et un point : on parcourait sa semaine sans pouvoir dire ce qu'il
+ * y avait dedans. Chaque jour est desormais une carte, et le jour choisi
+ * deplie ses creneaux juste dessous — l'edition par creneau, que le mockup ne
+ * connait pas, ne perd rien.
  *
- * La bande des jours (.day-strip) et le tableau nutritionnel
- * (.table-scroll / .nutrition-table) vivent deja dans app.css : on ne les
- * redefinit pas, on ne fait qu'y ajouter le marqueur du jour courant.
- *
- * Deux regles tenues partout ici, comme dans components.css : aucune valeur
- * brute — tout vient de theme.css — et toute cible tactile fait au moins
- * 44 px de haut.
+ * La carte reste un ONGLET (`role="tab"`). Ses puces sont donc des `span` et
+ * non des boutons : un bouton ne peut pas en contenir un autre, et un
+ * `tablist` n'admet pas d'element interactif de plus. On garde la navigation
+ * au clavier et l'annonce « onglet 3 sur 7 » ; on renonce a taper directement
+ * une puce, ce que le panneau du jour offre deja juste dessous.
  */
 
-/* ---------- Bande des jours ---------- */
-
-/*
- * Aujourd'hui reste reperable meme quand un autre jour est selectionne. Le
- * desktop ne marquait pas le jour courant du tout : sur un ecran ou l'on ne
- * voit qu'un jour sur sept, c'est une lacune qu'on ne peut pas garder.
- *
- * Le selecteur porte le bloc parent pour peser plus lourd que la regle
- * `.day-strip__day` d'app.css : ce fichier-ci est charge par un ecran, donc
- * potentiellement AVANT app.css, et une specificite egale perdrait.
- */
-.day-strip .day-strip__day--today {
-  border-color: var(--color-primary);
-}
-
-.day-strip .day-strip__day--today.day-strip__day--active {
-  border-color: var(--color-primary-pressed);
-}
-
-.day-strip__day {
-  /* 44 px minimum, meme quand la pastille de contenu est absente. */
-  min-height: var(--control-height-lg);
-}
-
-/* ---------- Outils de la semaine ---------- */
-
-.week-tools {
+.jours {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
 }
 
-.week-tools .week-tools__trigger {
-  flex: 1;
-  /* Neutralise le `margin-top` que .button--secondary porte dans app.css pour
-     son usage empile : ici l'espacement vient du `gap` de .screen. Selecteur
-     double pour la meme raison que .day-strip__day--today ci-dessus. */
-  margin-top: 0;
-}
-
-.tool-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.tool-list > li + li {
-  border-top: 1px solid var(--color-border);
-}
-
-.tool-list__item {
+/* Le panneau du jour se colle SOUS sa carte, en retrait, pour qu'on voie a
+   quoi il appartient. Sans ce rapprochement, les creneaux flottaient entre
+   deux jours et l'on ne savait plus lequel on editait. */
+.jours .day-panel {
   display: flex;
-  gap: var(--space-md);
-  align-items: center;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: calc(-1 * var(--space-xs)) 0 var(--space-sm) var(--space-md);
+}
+
+.jour {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
   width: 100%;
-  min-height: 56px;
-  padding: var(--space-sm) var(--space-xs);
+  padding: var(--space-md) var(--space-lg);
   text-align: left;
-  background: transparent;
+  background: var(--color-surface);
   border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
 }
 
-.tool-list__item:active {
-  background: var(--color-surface-pressed);
+/* Un CONTOUR et non un aplat : la carte garde son contenu lisible, la ou un
+   fond plein imposait d'inverser tout ce qu'elle porte. */
+.jour--actif {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 
-.tool-list__item:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
-.tool-list__icon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 20px;
-  color: var(--color-text-secondary);
-}
-
-.tool-list__body {
+.jour__haut {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  gap: var(--space-sm);
+  align-items: baseline;
 }
 
-.tool-list__label {
-  font-weight: var(--font-weight-medium);
+.jour__nom {
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
 }
 
-.tool-list__hint {
-  font-size: var(--font-size-md);
+.jour__date {
   color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
-/* ---------- Le jour affiche ---------- */
-
-.day-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
+.jour--aujourdhui .jour__nom {
+  color: var(--color-primary-text);
 }
 
-.day-panel__title {
-  margin: 0;
-  font-size: var(--font-size-xl);
+/* Pousse a droite, et suffixe en CSS : « kcal » repete sept fois noierait les
+   sept nombres qu'on vient comparer. */
+.jour__kcal {
+  margin-left: auto;
   font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
 }
 
-/* ---------- Un creneau ---------- */
+.jour__kcal::after {
+  content: ' kcal';
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Badge d'etat du jour ---------- */
+
+.badge-jour {
+  padding: 2px var(--space-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  border-radius: var(--radius-full);
+}
+
+.badge-jour--ok {
+  color: var(--color-success);
+  background: var(--color-nutrient-fiber-pale, #e4f0e8);
+}
+
+.badge-jour--libre {
+  color: var(--color-nutrient-carbs-ink);
+  background: var(--color-nutrient-carbs-pale);
+}
+
+.badge-jour--encours {
+  color: var(--color-primary-text);
+  background: var(--color-surface-hover);
+}
+
+/* ---------- Puces de repas ---------- */
+
+.chips-repas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.chip-repas {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px var(--space-sm);
+  font-size: var(--font-size-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+/* Ce qui MANQUE, en pointilles : sur un ecran de planification, c'est
+   l'information la plus utile de la carte. */
+.chip-repas--vide {
+  /* Le gris de suggestion tombait a 3,5:1 sur la carte. « + Soir » n'est pas
+     un texte d'attente : c'est ce que l'ecran a de plus utile a dire. */
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px dashed var(--color-border-hover);
+}
 
 .slot {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-subtle);
   overflow: hidden;
@@ -219,8 +234,41 @@
   min-width: 0;
 }
 
+.meal__ligne {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
 .meal__name {
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le chiffre que l'oeil parcourt en lisant une journee. Tabulaire pour qu'il
+   s'aligne d'une ligne a l'autre, et suffixe par son unite en CSS : dans la
+   colonne, « 460 kcal » repete cinq fois noie le nombre. */
+.meal__kcal {
+  flex: none;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.meal__kcal::after {
+  content: ' kcal';
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+/* Une seule ligne, coupee au besoin : deux lignes de composition repousseraient
+   la tri-barre hors du champ de lecture. */
+.meal__composition {
+  overflow: hidden;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

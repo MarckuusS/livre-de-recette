@@ -20,7 +20,14 @@ import { MacroBar } from '../../components/MacrosDonut.js'
 import { Icon, RayonIcon } from '../../icons/index.js'
 import { useRayonStyle } from '../../lib/useRayonStyle.js'
 import type { CalendarResponse } from '../../lib/queries.js'
-import { entryAmountLabel, entryName, entryNutrition, targetOf, type SavedEntry } from './totals.js'
+import {
+  entryAmountLabel,
+  entryComposition,
+  entryName,
+  entryNutrition,
+  targetOf,
+  type SavedEntry,
+} from './totals.js'
 
 export function MealRow({
   entry,
@@ -32,6 +39,7 @@ export function MealRow({
   onEdit: (entry: SavedEntry) => void
 }) {
   const name = entryName(entry, data)
+  const composition = entryComposition(entry, data)
   const nutrition = entryNutrition(entry, data)
   const kcal = nutrition.kcal
 
@@ -64,10 +72,22 @@ export function MealRow({
           )}
         </span>
         <span className="meal__body">
-          <span className="meal__name">{name}</span>
+          {/* Le nom et l'energie sur LA MEME LIGNE, l'energie poussee a droite.
+              Elle vivait au milieu de la ligne de detail, entre la quantite et
+              le prix : on la cherchait. C'est pourtant le chiffre qu'on parcourt
+              quand on lit une journee, et il doit s'aligner d'une ligne a
+              l'autre — d'ou la chasse tabulaire. */}
+          <span className="meal__ligne">
+            <span className="meal__name">{name}</span>
+            {kcal > 0 && (
+              <span className="meal__kcal">{Math.round(kcal).toLocaleString('fr-FR')}</span>
+            )}
+          </span>
+          {/* Ce qu'il y a dedans, quand le nom ne le dit pas. Un ingredient
+              seul n'en a pas : son nom EST sa composition. */}
+          {composition !== null && <span className="meal__composition">{composition}</span>}
           <span className="meal__meta">
             <span>{entryAmountLabel(entry)}</span>
-            {kcal > 0 && <span>{Math.round(kcal).toLocaleString('fr-FR')} kcal</span>}
             {/* Un prix inconnu ne s'affiche pas en « 0,00 € » : le panneau de
                 cout compte deja ces lignes et le dit en toutes lettres. */}
             {cost !== null && <span className="meal__cost">{formatEuros(cost.toFixed(4))}</span>}

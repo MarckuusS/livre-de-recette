@@ -1,5 +1,6 @@
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 
+import { useCurrentUser } from './AuthGate.js'
 import { ToastProvider } from './components/Toast.js'
 import { Icon, type IconName } from './icons/index.js'
 import { useTheme } from './lib/theme.js'
@@ -102,6 +103,7 @@ function RedirigeVersPlanning() {
 
 export function App() {
   const { isDark, toggle } = useTheme()
+  const me = useCurrentUser()
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
@@ -146,6 +148,14 @@ export function App() {
             >
               <Icon name={isDark ? 'ui-sun' : 'ui-moon'} size={20} strokeWidth={1.7} />
             </button>
+
+            {/* L'avatar du mockup. Il ne double pas l'onglet Profil : il dit
+                QUI est connecte, ce qui compte dans un foyer ou le poids, la
+                taille et les objectifs sont personnels — on n'ouvre pas les
+                siens en croyant ouvrir ceux de l'autre. */}
+            <NavLink to="/profil" className="avatar" aria-label={`Mon espace — ${me.displayName}`}>
+              {me.displayName.slice(0, 1).toUpperCase()}
+            </NavLink>
           </div>
         </header>
 

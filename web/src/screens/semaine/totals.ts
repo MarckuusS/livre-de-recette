@@ -75,6 +75,33 @@ export function entryName(entry: MealPlanEntry, data: CalendarResponse): string 
 }
 
 /**
+ * Ce qu'il y a DANS le repas, en une ligne : « Riz complet, brocoli, poulet ».
+ *
+ * Une recette ne dit que son nom, et « Curry de lentilles » ne repond pas a la
+ * question qu'on se pose en parcourant sa semaine — ce que je vais manger. La
+ * composition la repond, et elle ne coute rien : chaque ligne de recette porte
+ * son ingredient COMPLET, pas une reference a resoudre.
+ *
+ * Rend `null` pour un ingredient seul : son nom EST sa composition, la repeter
+ * ferait une ligne pour rien. Et `null` aussi pour une recette sans lignes,
+ * plutot qu'une chaine vide qui reserverait sa hauteur.
+ *
+ * Trois noms au plus, puis « … » : au-dela, la ligne se coupe et l'on perd
+ * l'information au lieu de la donner.
+ */
+export function entryComposition(entry: MealPlanEntry, data: CalendarResponse): string | null {
+  if (entry.recipeId === null) return null
+  const recipe = data.recipes[String(entry.recipeId)]
+  if (recipe === undefined || recipe.lines.length === 0) return null
+
+  const noms = recipe.lines.map((line) => line.ingredient.name).filter((nom) => nom !== '')
+  if (noms.length === 0) return null
+
+  const tete = noms.slice(0, 3).join(', ')
+  return noms.length > 3 ? `${tete}…` : tete
+}
+
+/**
  * Quantite lisible. La regle XOR se voit ici : des PORTIONS pour une recette,
  * des GRAMMES pour un ingredient, jamais les deux.
  */

@@ -19,90 +19,105 @@
  * fait abandonner un outil.
  */
 
-import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Fragment, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import {
   DAY_LABELS,
   MEAL_SLOTS,
   MEAL_SLOT_LABELS,
+  perEater,
   datesOfIsoWeek,
   formatEuros,
   type MealSlot,
   type NutritionTotal,
-} from '@livre/shared'
+} from "@livre/shared";
 
-import { MacrosDonut } from '../components/MacrosDonut.js'
-import { NutrientLabel } from '../components/NutrientLabel.js'
-import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
-import { useToast } from '../components/Toast.js'
-import { WeekPicker } from '../components/WeekPicker.js'
+import { MacroBar, MacrosDonut } from "../components/MacrosDonut.js";
+import { NutrientLabel } from "../components/NutrientLabel.js";
+import { EmptyState, ErrorState, LoadingRows } from "../components/States.js";
+import { useToast } from "../components/Toast.js";
+import { WeekPicker } from "../components/WeekPicker.js";
 import {
   useAddEntry,
   useCalendar,
   useDeleteEntry,
   type CalendarResponse,
   type EntryDraft,
-} from '../lib/queries.js'
-import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
-import { GoalCard } from './semaine/GoalCard.js'
-import { MealRow } from './semaine/MealRow.js'
-import { AddEntrySheet } from './semaine/AddEntrySheet.js'
-import { EntrySheet } from './semaine/EntrySheet.js'
-import { WeekTools, type WeekTool } from './semaine/WeekTools.js'
+} from "../lib/queries.js";
+import { useDailyTargets } from "../lib/useDailyTargets.js";
+import { useIsoWeekParam } from "../lib/useIsoWeekParam.js";
+import { GoalCard } from "./semaine/GoalCard.js";
+import { MealRow } from "./semaine/MealRow.js";
+import { AddEntrySheet } from "./semaine/AddEntrySheet.js";
+import { EntrySheet } from "./semaine/EntrySheet.js";
+import { WeekTools, type WeekTool } from "./semaine/WeekTools.js";
 import {
   NUTRIENT_ROWS,
   entriesCost,
   entriesOfDay,
   entriesOfSlot,
+  entryName,
   entryAmountLabel,
   formatNutrient,
   sumNutrition,
   type SavedEntry,
-} from './semaine/totals.js'
-import { Icon } from '../icons/index.js'
-import '../styles/week.css'
+} from "./semaine/totals.js";
+import { Icon } from "../icons/index.js";
+import "../styles/week.css";
 
-const DAY_PANEL_ID = 'jour-panneau'
+const DAY_PANEL_ID = "jour-panneau";
+
+/**
+ * Les creneaux dont l'absence se remarque.
+ *
+ * Les collations n'y sont pas : ne pas gouter n'est pas un trou a combler, et
+ * cinq puces « + » sur chaque jour libre rendraient la semaine illisible.
+ */
+const PRINCIPAUX = ["morning", "noon", "evening"] as const;
 
 export function WeekScreen() {
-  const week = useIsoWeekParam()
-  const query = useCalendar(week.isoWeek)
+  const week = useIsoWeekParam();
+  const query = useCalendar(week.isoWeek);
 
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams();
   // 0 = lundi, comme en base. `getDay()` rend 0 pour dimanche.
-  const todayIndex = (new Date().getDay() + 6) % 7
-  const requested = searchParams.get('jour')
-  const parsed = requested === null ? Number.NaN : Number(requested)
+  const todayIndex = (new Date().getDay() + 6) % 7;
+  const requested = searchParams.get("jour");
+  const parsed = requested === null ? Number.NaN : Number(requested);
   const dayIndex =
     Number.isInteger(parsed) && parsed >= 0 && parsed <= 6
       ? parsed
       : week.isCurrent
         ? todayIndex
-        : 0
+        : 0;
 
   const setDay = (index: number) => {
-    const next = new URLSearchParams(searchParams)
-    next.set('jour', String(index))
-    setSearchParams(next, { replace: true })
-  }
+    const next = new URLSearchParams(searchParams);
+    next.set("jour", String(index));
+    setSearchParams(next, { replace: true });
+  };
 
   // Semaine et jour changent ENSEMBLE : deux appels successifs a
   // `setSearchParams` partiraient du meme instantane et le second effacerait
   // le premier.
   const goToday = () => {
-    const next = new URLSearchParams(searchParams)
-    next.delete('semaine')
-    next.set('jour', String(todayIndex))
-    setSearchParams(next, { replace: true })
-  }
+    const next = new URLSearchParams(searchParams);
+    next.delete("semaine");
+    next.set("jour", String(todayIndex));
+    setSearchParams(next, { replace: true });
+  };
 
-  const [addTarget, setAddTarget] = useState<{ dayOfWeek: number; slot: MealSlot } | null>(null)
-  const [editing, setEditing] = useState<SavedEntry | null>(null)
-  const [tool, setTool] = useState<WeekTool | null>(null)
+  const cible = useDailyTargets();
+  const [addTarget, setAddTarget] = useState<{
+    dayOfWeek: number;
+    slot: MealSlot;
+  } | null>(null);
+  const [editing, setEditing] = useState<SavedEntry | null>(null);
+  const [tool, setTool] = useState<WeekTool | null>(null);
 
-  const toast = useToast()
-  const remove = useDeleteEntry(week.isoWeek)
-  const add = useAddEntry(week.isoWeek)
+  const toast = useToast();
+  const remove = useDeleteEntry(week.isoWeek);
+  const add = useAddEntry(week.isoWeek);
 
   /**
    * Suppression immediate, rattrapable pendant six secondes.
@@ -120,26 +135,29 @@ export function WeekScreen() {
       ingredientId: entry.ingredientId,
       quantityG: entry.quantityG,
       portions: entry.portions,
-    }
-    setEditing(null)
+    };
+    setEditing(null);
     remove.mutate(entry.id, {
-      onSuccess: () => toast.showUndo(`${label} retiré`, () => add.mutate(draft)),
-    })
-  }
+      onSuccess: () =>
+        toast.showUndo(`${label} retiré`, () => add.mutate(draft)),
+    });
+  };
 
-  const dates = useMemo(() => datesOfIsoWeek(week.isoWeek), [week.isoWeek])
-  const data = query.data
+  const dates = useMemo(() => datesOfIsoWeek(week.isoWeek), [week.isoWeek]);
+  const data = query.data;
   // Memorises pour que les totaux, en aval, ne se recalculent pas a chaque
   // ouverture de feuille : huit agregations sur toute la semaine.
-  const weekEntries = useMemo(() => data?.entries ?? [], [data])
-  const dayEntries = useMemo(() => (data ? entriesOfDay(data, dayIndex) : []), [data, dayIndex])
+  const weekEntries = useMemo(() => data?.entries ?? [], [data]);
+  const dayEntries = useMemo(
+    () => (data ? entriesOfDay(data, dayIndex) : []),
+    [data, dayIndex],
+  );
 
   return (
     <section className="screen screen--week">
-      {/* Selecteur de semaine et bande des jours dans un MEME bloc collant.
-          Les rendre collants separement demanderait de coder en dur la hauteur
-          du premier pour caler le second — un nombre qui se desynchroniserait
-          au premier changement de rembourrage. */}
+      {/* Seul le SELECTEUR DE SEMAINE reste collant. La bande des jours y
+          vivait aussi, du temps ou elle tenait en 44 px de haut ; les sept
+          cartes qui l'ont remplacee y prendraient la moitie de l'ecran. */}
       <div className="week-head">
         <WeekPicker
           isoWeek={week.isoWeek}
@@ -147,82 +165,93 @@ export function WeekScreen() {
           onChange={week.onChange}
           onToday={goToday}
         />
+      </div>
 
-        {/* Fleches gauche / droite entre les jours : c'est ce qu'un lecteur
-            d'ecran attend d'un `tablist`, et le seul equivalent au clavier du
-            balayage horizontal. Le jour actif est le seul arret de tabulation,
-            sinon la barre en compte sept avant d'atteindre le contenu. */}
-        <div
-          className="day-strip"
-          role="tablist"
-          aria-label="Jour de la semaine"
-          onKeyDown={(event) => {
-            const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-            if (step === 0) return
-            event.preventDefault()
-            const next = (dayIndex + step + 7) % 7
-            setDay(next)
-            document.getElementById(`jour-onglet-${next}`)?.focus()
-          }}
-        >
-          {dates.map((date, index) => (
-            <DayTab
-              key={index}
+      {/* UN ACCORDEON, ET NON PLUS UN JEU D'ONGLETS.
+            Les creneaux du jour choisi se deplient sous SA carte, la ou le
+            doigt vient de taper. Le panneau vivait sous les sept cartes, ce
+            qui imposait de derouler 770 px — et l'ordre de derouler etait
+            annule par la restauration de position que le navigateur applique
+            au changement d'adresse, le jour vivant dans l'URL.
+            Le role `tablist` est tombe avec : il interdit tout enfant qui ne
+            soit pas un onglet, or le panneau est maintenant dans la liste.
+            Sept boutons a deplier, c'est le motif standard, et les sept
+            deviennent atteignables au clavier au lieu d'un seul. */}
+      <div className="jours">
+        {/* Taper un jour amene SA CARTE en haut, ses creneaux venant juste
+              dessous. Derouler jusqu'au panneau ferait disparaitre la carte
+              qu'on vient de choisir ; la laisser en place ne montrerait rien,
+              les creneaux etant sous sept cartes.
+
+              Defilement INSTANTANE : anime, il se fait annuler par le rendu
+              qui suit le changement de jour. */}
+        {dates.map((date, index) => (
+          <Fragment key={index}>
+            <DayCard
               index={index}
               date={date}
               active={index === dayIndex}
               today={week.isCurrent && index === todayIndex}
-              filled={weekEntries.some((entry) => entry.dayOfWeek === index)}
+              entries={data ? entriesOfDay(data, index) : []}
+              data={data}
+              kcalTarget={cible.kcalTarget}
+              eaters={cible.eaters}
               onSelect={setDay}
             />
-          ))}
-        </div>
+
+            {index === dayIndex && data && (
+              <div
+                className="day-panel"
+                id={DAY_PANEL_ID}
+                role="region"
+                aria-labelledby={`jour-onglet-${index}`}
+              >
+                {MEAL_SLOTS.map((slot) => (
+                  <SlotCard
+                    key={slot}
+                    slot={slot}
+                    dayIndex={dayIndex}
+                    entries={entriesOfSlot(dayEntries, slot)}
+                    data={data}
+                    onAdd={() => setAddTarget({ dayOfWeek: dayIndex, slot })}
+                    onEdit={setEditing}
+                  />
+                ))}
+              </div>
+            )}
+          </Fragment>
+        ))}
       </div>
 
       <div className="week-tools">
         <button
           type="button"
           className="button button--secondary week-tools__trigger"
-          onClick={() => setTool('menu')}
+          onClick={() => setTool("menu")}
         >
           <span aria-hidden="true">⋯</span> Outils de la semaine
         </button>
       </div>
 
       {query.isPending && <LoadingRows />}
-      {query.isError && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
+      {query.isError && (
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+      )}
 
       {query.isSuccess && data && (
         <>
           {weekEntries.length === 0 && (
             <EmptyState title="Semaine vide">
-              Ajoute un repas à un créneau ci-dessous, ou reprends une semaine passée depuis
-              « Outils de la semaine ».
+              Ajoute un repas à un créneau ci-dessous, ou reprends une semaine
+              passée depuis « Outils de la semaine ».
             </EmptyState>
           )}
 
-          <div
-            className="day-panel"
-            id={DAY_PANEL_ID}
-            role="tabpanel"
-            aria-labelledby={`jour-onglet-${dayIndex}`}
-          >
-            <h2 className="day-panel__title">{longDayLabel(dates[dayIndex], dayIndex)}</h2>
-
-            {MEAL_SLOTS.map((slot) => (
-              <SlotCard
-                key={slot}
-                slot={slot}
-                dayIndex={dayIndex}
-                entries={entriesOfSlot(dayEntries, slot)}
-                data={data}
-                onAdd={() => setAddTarget({ dayOfWeek: dayIndex, slot })}
-                onEdit={setEditing}
-              />
-            ))}
-          </div>
-
-          <DayTotals data={data} dayEntries={dayEntries} weekEntries={weekEntries} />
+          <DayTotals
+            data={data}
+            dayEntries={dayEntries}
+            weekEntries={weekEntries}
+          />
         </>
       )}
 
@@ -254,70 +283,130 @@ export function WeekScreen() {
         onTool={setTool}
       />
     </section>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Bande des jours
 // ---------------------------------------------------------------------------
 
-function DayTab({
+/**
+ * Une journee de la semaine, en carte.
+ *
+ * Elle a remplace un bouton de 44 px qui ne portait qu'une lettre, un chiffre
+ * et un point : la semaine se parcourait sans qu'on puisse dire ce qu'il y
+ * avait dedans. La carte repond aux trois questions qu'on se pose en
+ * planifiant — qu'est-ce qui est prevu, combien ca pese, qu'est-ce qui manque.
+ *
+ * Elle reste un ONGLET (`role="tab"`), et la journee choisie se deplie
+ * dessous : l'edition par creneau, que le mockup ignore, ne perd rien.
+ *
+ * LE TOTAL AFFICHE EST CELUI DE LA CUISINE, pas une part individuelle — c'est
+ * ce qui est prevu ce jour-la. Le badge, lui, compare la part d'UNE personne a
+ * son objectif, comme partout ailleurs. Ecrire « 1 580 / 2 400 » melangerait
+ * les deux sur une meme ligne, un total de foyer face a une cible personnelle :
+ * la comparaison chiffree reste la ou elle est expliquee, sur l'Accueil.
+ */
+function DayCard({
   index,
   date,
   active,
   today,
-  filled,
+  entries,
+  data,
+  kcalTarget,
+  eaters,
   onSelect,
 }: {
-  index: number
-  date: Date | undefined
-  active: boolean
-  today: boolean
-  filled: boolean
-  onSelect: (index: number) => void
+  index: number;
+  date: Date | undefined;
+  active: boolean;
+  today: boolean;
+  entries: readonly SavedEntry[];
+  /** Absente tant que la semaine charge : la carte se limite alors a sa date. */
+  data: CalendarResponse | undefined;
+  kcalTarget: number | null;
+  eaters: number;
+  onSelect: (index: number) => void;
 }) {
-  const label = DAY_LABELS[index] ?? ''
+  const label = DAY_LABELS[index] ?? "";
+  const total = data === undefined ? null : sumNutrition(entries, data);
+  const kcal = Math.round(total?.kcal ?? 0);
+
+  // Les creneaux principaux qui n'ont rien : c'est le « + Dîner » du mockup,
+  // et c'est l'information la plus utile d'un ecran de planification.
+  const manquants = PRINCIPAUX.filter(
+    (slot) => !entries.some((e) => e.slot === slot),
+  );
+
+  const badge =
+    total === null
+      ? null
+      : entries.length === 0
+        ? { texte: "Jour libre", ton: "libre" as const }
+        : today
+          ? { texte: "En cours", ton: "encours" as const }
+          : kcalTarget !== null &&
+              Math.abs(perEater(total.kcal, eaters) - kcalTarget) <=
+                kcalTarget * 0.1
+            ? { texte: "Objectif tenu", ton: "ok" as const }
+            : null;
+
   return (
     <button
       type="button"
       id={`jour-onglet-${index}`}
-      role="tab"
-      aria-selected={active}
+      aria-expanded={active}
       aria-controls={DAY_PANEL_ID}
-      tabIndex={active ? 0 : -1}
-      // Le lecteur d'ecran annoncerait « L 28 » : la date complete est dans
-      // le libelle accessible, l'abrege reste a l'ecran.
-      aria-label={`${label}${today ? ' (aujourd’hui)' : ''}${filled ? ', repas prévus' : ''}`}
-      className={[
-        'day-strip__day',
-        active ? 'day-strip__day--active' : '',
-        today ? 'day-strip__day--today' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+      className={`jour${active ? " jour--actif" : ""}${today ? " jour--aujourdhui" : ""}`}
       onClick={() => onSelect(index)}
     >
-      <span className="day-strip__name" aria-hidden="true">
-        {label.slice(0, 1)}
+      <span className="jour__haut">
+        <span className="jour__nom">{label}</span>
+        {date && (
+          <span className="jour__date" aria-hidden="true">
+            {date.getUTCDate()}
+          </span>
+        )}
+        {badge && (
+          <span className={`badge-jour badge-jour--${badge.ton}`}>
+            {badge.texte}
+          </span>
+        )}
+        {kcal > 0 && (
+          <span className="jour__kcal">{kcal.toLocaleString("fr-FR")}</span>
+        )}
       </span>
-      <span className="day-strip__date" aria-hidden="true">
-        {date?.getUTCDate() ?? ''}
+
+      <span className="chips-repas">
+        {data !== undefined &&
+          entries.map((entry) => (
+            <span key={entry.id} className="chip-repas">
+              {entryName(entry, data)}
+            </span>
+          ))}
+        {manquants.map((slot) => (
+          <span key={slot} className="chip-repas chip-repas--vide">
+            + {MEAL_SLOT_LABELS[slot]}
+          </span>
+        ))}
       </span>
-      <span className={`day-strip__dot${filled ? ' day-strip__dot--on' : ''}`} aria-hidden="true" />
+
+      {total !== null && <MacroBar total={total} />}
     </button>
-  )
+  );
 }
 
 /** « Lundi 28 avril ». Les dates de la semaine sont a midi UTC (voir isoweek.ts). */
 function longDayLabel(date: Date | undefined, index: number): string {
-  if (!date) return DAY_LABELS[index] ?? ''
-  const formatted = date.toLocaleDateString('fr-FR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'UTC',
-  })
-  return formatted.charAt(0).toUpperCase() + formatted.slice(1)
+  if (!date) return DAY_LABELS[index] ?? "";
+  const formatted = date.toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  });
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -332,16 +421,16 @@ function SlotCard({
   onAdd,
   onEdit,
 }: {
-  slot: MealSlot
-  dayIndex: number
-  entries: readonly SavedEntry[]
-  data: CalendarResponse
-  onAdd: () => void
-  onEdit: (entry: SavedEntry) => void
+  slot: MealSlot;
+  dayIndex: number;
+  entries: readonly SavedEntry[];
+  data: CalendarResponse;
+  onAdd: () => void;
+  onEdit: (entry: SavedEntry) => void;
 }) {
-  const kcal = sumNutrition(entries, data).kcal
-  const slotLabel = MEAL_SLOT_LABELS[slot]
-  const dayLabel = DAY_LABELS[dayIndex] ?? ''
+  const kcal = sumNutrition(entries, data).kcal;
+  const slotLabel = MEAL_SLOT_LABELS[slot];
+  const dayLabel = DAY_LABELS[dayIndex] ?? "";
 
   return (
     <section className="slot">
@@ -349,7 +438,11 @@ function SlotCard({
         {/* Les cinq creneaux restent affiches meme vides : c'est ce qui rend
             l'ajout a un en-cas atteignable en un seul geste. */}
         <h3 className="slot__title">{slotLabel}</h3>
-        {kcal > 0 && <span className="slot__kcal">{Math.round(kcal).toLocaleString('fr-FR')} kcal</span>}
+        {kcal > 0 && (
+          <span className="slot__kcal">
+            {Math.round(kcal).toLocaleString("fr-FR")} kcal
+          </span>
+        )}
       </header>
 
       {entries.length > 0 && (
@@ -369,27 +462,38 @@ function SlotCard({
         <span aria-hidden="true">＋</span> Ajouter
       </button>
     </section>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Totaux
 // ---------------------------------------------------------------------------
 
-
 function DayTotals({
   data,
   dayEntries,
   weekEntries,
 }: {
-  data: CalendarResponse
-  dayEntries: readonly SavedEntry[]
-  weekEntries: CalendarResponse['entries']
+  data: CalendarResponse;
+  dayEntries: readonly SavedEntry[];
+  weekEntries: CalendarResponse["entries"];
 }) {
-  const dayTotal = useMemo(() => sumNutrition(dayEntries, data), [dayEntries, data])
-  const weekTotal = useMemo(() => sumNutrition(weekEntries, data), [weekEntries, data])
-  const dayCost = useMemo(() => entriesCost(dayEntries, data), [dayEntries, data])
-  const weekCost = useMemo(() => entriesCost(weekEntries, data), [weekEntries, data])
+  const dayTotal = useMemo(
+    () => sumNutrition(dayEntries, data),
+    [dayEntries, data],
+  );
+  const weekTotal = useMemo(
+    () => sumNutrition(weekEntries, data),
+    [weekEntries, data],
+  );
+  const dayCost = useMemo(
+    () => entriesCost(dayEntries, data),
+    [dayEntries, data],
+  );
+  const weekCost = useMemo(
+    () => entriesCost(weekEntries, data),
+    [weekEntries, data],
+  );
 
   return (
     <>
@@ -407,11 +511,23 @@ function DayTotals({
             <tbody>
               {NUTRIENT_ROWS.map((row) => (
                 <tr key={row.key}>
-                  <th scope="row" className={row.sub ? 'unit' : undefined}>
-                    <NutrientLabel nutrient={row.key} label={row.label} sub={row.sub ?? false} />
+                  <th scope="row" className={row.sub ? "unit" : undefined}>
+                    <NutrientLabel
+                      nutrient={row.key}
+                      label={row.label}
+                      sub={row.sub ?? false}
+                    />
                   </th>
-                  <td>{formatNutrient(dayEntries.length, dayTotal[row.key], row)}</td>
-                  <td>{formatNutrient(weekEntries.length, weekTotal[row.key], row)}</td>
+                  <td>
+                    {formatNutrient(dayEntries.length, dayTotal[row.key], row)}
+                  </td>
+                  <td>
+                    {formatNutrient(
+                      weekEntries.length,
+                      weekTotal[row.key],
+                      row,
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -436,8 +552,8 @@ function DayTotals({
         centerCaption="kcal ce jour"
         emptyMessage={
           dayEntries.length === 0
-            ? 'Rien de prévu ce jour.'
-            : 'Aucune donnée : les repas de ce jour n’ont pas de macros renseignées.'
+            ? "Rien de prévu ce jour."
+            : "Aucune donnée : les repas de ce jour n’ont pas de macros renseignées."
         }
       />
 
@@ -455,25 +571,26 @@ function DayTotals({
         </dl>
         {weekCost.missingLines > 0 && (
           <p className="note">
-            <Icon name="ui-alert" size={14} className="icon--inline" />{' '}
+            <Icon name="ui-alert" size={14} className="icon--inline" />{" "}
             {weekCost.missingLines === 1
-              ? 'Un ingrédient de la semaine n’a pas de prix'
-              : `${weekCost.missingLines} ingrédients de la semaine n’ont pas de prix`}{' '}
+              ? "Un ingrédient de la semaine n’a pas de prix"
+              : `${weekCost.missingLines} ingrédients de la semaine n’ont pas de prix`}{" "}
             : le total ci-dessus est <strong>sous-estimé</strong>.
           </p>
         )}
         {weekCost.orphanCount > 0 && (
           <p className="note">
-            <Icon name="ui-alert" size={14} className="icon--inline" />{' '}
+            <Icon name="ui-alert" size={14} className="icon--inline" />{" "}
             {weekCost.orphanCount === 1
-              ? 'Un repas pointe vers une recette ou un ingrédient supprimé'
-              : `${weekCost.orphanCount} repas pointent vers une recette ou un ingrédient supprimé`}{' '}
-            : rien n’a pu être chiffré pour {weekCost.orphanCount === 1 ? 'lui' : 'eux'}.
+              ? "Un repas pointe vers une recette ou un ingrédient supprimé"
+              : `${weekCost.orphanCount} repas pointent vers une recette ou un ingrédient supprimé`}{" "}
+            : rien n’a pu être chiffré pour{" "}
+            {weekCost.orphanCount === 1 ? "lui" : "eux"}.
           </p>
         )}
       </div>
     </>
-  )
+  );
 }
 
 /**

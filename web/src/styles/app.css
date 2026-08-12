@@ -133,6 +133,40 @@
   background: var(--color-surface-pressed);
 }
 
+/* ---------- Avatar ----------
+ *
+ * Le degrade miel vers framboise du mockup : deux des trois couleurs de la
+ * signature, dans une pastille assez petite pour ne pas rivaliser avec le
+ * titre. Il porte l'initiale, pas une photo — l'application ne collecte pas
+ * d'image de profil et n'a aucune raison de commencer.
+ *
+ * LES ENCRES ET NON LES TEINTES, contrairement au mockup : l'initiale est
+ * blanche, et sur le miel de surface elle tombe a 2,2:1 — le mockup s'en
+ * accommode, une lettre qu'on doit lire pour savoir qui est connecte non.
+ * Assombri, le degrade tient 5,1:1 a une extremite, 5,3:1 a l'autre et 5,5:1
+ * en son milieu.
+ */
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  margin-left: var(--space-xs);
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(
+    135deg,
+    var(--color-nutrient-carbs-ink),
+    var(--color-nutrient-proteins-ink)
+  );
+  border-radius: var(--radius-full);
+}
+
 /* ---------- Contenu ---------- */
 
 .app-main {
