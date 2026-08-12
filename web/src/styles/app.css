@@ -872,10 +872,22 @@
   max-width: 360px;
 }
 
+/* Le logo porte deja son propre fond arrondi : pas de cadre autour, il en
+   ferait un second. Aligne a gauche comme le titre qu'il annonce. */
+.login__logo {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin-bottom: calc(-1 * var(--space-xs));
+}
+
 .login__title {
   margin: 0;
   font-size: var(--font-size-title);
   font-weight: var(--font-weight-semibold);
+  /* Un nom propre, pas une phrase : un peu d'approche en moins le tient
+     ensemble a cette taille. */
+  letter-spacing: -0.01em;
 }
 
 .login__field {

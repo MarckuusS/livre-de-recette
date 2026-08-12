@@ -26,18 +26,19 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
-        name: 'Livre de recettes',
+        name: 'Prandia',
         // Sous l'icone d'un ecran d'accueil, on ne lit qu'une douzaine de
-        // caracteres avant la troncature.
-        short_name: 'Recettes',
-        description: 'Recettes, ingrédients, planning de la semaine et frigo.',
+        // caracteres avant la troncature. « Prandia » en fait sept : le nom
+        // complet tient, il n'y a pas de version courte a inventer.
+        short_name: 'Prandia',
+        description: 'Recettes, courses, semaine, frigo et objectifs nutritionnels.',
         lang: 'fr',
         start_url: '/',
         scope: '/',
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#f8fafc',
-        theme_color: '#2563eb',
+        theme_color: '#454f2b',
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },

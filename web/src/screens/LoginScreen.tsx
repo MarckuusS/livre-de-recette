@@ -35,7 +35,10 @@ export function LoginScreen({ onSuccess }: { onSuccess: (user: SessionUser) => v
   return (
     <div className="login">
       <form className="card login__card" onSubmit={(e) => void submit(e)}>
-        <h1 className="login__title">Livre de recettes</h1>
+        {/* Le logo AVANT le nom : c'est le seul ecran ou la marque se
+            presente, et l'icone est ce que l'on reconnait sur le telephone. */}
+        <img className="login__logo" src="/icons/favicon.svg" width="72" height="72" alt="" />
+        <h1 className="login__title">Prandia</h1>
         <p className="card__lead">Cette application est privée.</p>
 
         <input

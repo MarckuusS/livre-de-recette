@@ -34,7 +34,7 @@ export const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string }> 
  * `/ingredients/nouveau` ne serait jamais reconnu comme une creation.
  *
  * Le segment est `[^/]+` et non `\d+` : les identifiants ne sont pas les seules
- * valeurs possibles, et un motif trop strict laissait « Livre de recettes »
+ * valeurs possibles, et un motif trop strict laissait « Prandia »
  * s'afficher au-dessus d'un formulaire de creation.
  */
 const TITLES: Array<[RegExp, string]> = [
@@ -63,7 +63,7 @@ export function App() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
-  const title = TITLES.find(([re]) => re.test(pathname))?.[1] ?? 'Livre de recettes'
+  const title = TITLES.find(([re]) => re.test(pathname))?.[1] ?? 'Prandia'
   const isStacked = STACKED.test(pathname)
 
   return (

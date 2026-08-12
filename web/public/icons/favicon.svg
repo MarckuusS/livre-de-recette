@@ -1,6 +1,118 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#2563eb"/>
-  <path d="M31 16 L14 19 L14 47 L31 44 Z" fill="#ffffff"/>
-  <path d="M33 16 L50 19 L50 47 L33 44 Z" fill="#e2e8f0"/>
-  <rect x="30.5" y="16" width="3" height="28" fill="#1e40af"/>
+<!--
+  Prandia — la marque.
+
+  CE FICHIER EST LA SOURCE UNIQUE. Les quatre PNG de web/public/icons/ en sont
+  des rendus : `python scripts/make-icons.py`. Ne jamais redessiner un PNG.
+
+  Une tranche d'agrume sur une assiette de faience, sur un fond olive. De
+  l'exterieur vers l'interieur : le socle, l'assiette et son marli, le ZESTE,
+  l'albedo, les huit quartiers.
+
+  Le zeste n'est pas un ornement. Sans lui, l'albedo creme et la faience creme
+  se confondaient et le fruit se dissolvait dans l'assiette : une frontiere de
+  couleur separe mieux que n'importe quel lisere. La faience est legerement
+  refroidie pour la meme raison, et l'ombre de contact appuyee pour que le
+  fruit repose SUR elle plutot que d'y flotter.
+
+  La brillance a trois etages, et il faut les trois : le degrade propre a
+  chaque quartier (du bord vers le coeur), le reflet general en haut a gauche,
+  l'arete vive du bord — plus un point speculaire.
+
+  DEUX PIEGES, verifies plutot que supposes :
+
+  - Aucun nombre a rallonge. Un flottant a 17 chiffres (`14.649999999999999`)
+    FAIT ECHOUER l'export d'Inkscape 1.4 ; sur un meme fichier, arrondir ce
+    seul nombre suffit a le faire passer. Les navigateurs l'acceptent : le
+    defaut serait reste invisible jusqu'au jour ou l'on veut un second moteur.
+  - Ni `feDropShadow` ni modes de fusion : QtSvg les ignore, Inkscape supprime
+    carrement l'element porteur. Toutes les ombres sont faites a la main, en
+    copie sombre decalee et floutee.
+
+  Le generateur qui a produit ce trace (palettes, echelle, variantes de fond)
+  est decrit dans le message de commit.
+
+  Verifie a 40 px — la taille reelle sur un ecran d'accueil — et rendu a
+  l'identique par QtSvg 6.10 et Inkscape 1.4.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="terre" cx="0.3" cy="0.2" r="1">
+      <stop offset="0" stop-color="#7d8c52"/>
+      <stop offset="1" stop-color="#454f2b"/>
+    </radialGradient>
+    <linearGradient id="email" x1="0.25" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#fbf7f0"/>
+      <stop offset="1" stop-color="#e3d6c4"/>
+    </linearGradient>
+    <linearGradient id="q0" gradientUnits="userSpaceOnUse" x1="38.06" y1="17.37" x2="33.03" y2="29.51"><stop offset="0" stop-color="#f6ca1e"/><stop offset="0.55" stop-color="#f7d13b"/><stop offset="1" stop-color="#fae48d"/></linearGradient>
+    <linearGradient id="q1" gradientUnits="userSpaceOnUse" x1="46.63" y1="25.94" x2="34.49" y2="30.97"><stop offset="0" stop-color="#f6ad1e"/><stop offset="0.55" stop-color="#f7b83b"/><stop offset="1" stop-color="#fad68d"/></linearGradient>
+    <linearGradient id="q2" gradientUnits="userSpaceOnUse" x1="46.63" y1="38.06" x2="34.49" y2="33.03"><stop offset="0" stop-color="#f6911e"/><stop offset="0.55" stop-color="#f79f3b"/><stop offset="1" stop-color="#fac78d"/></linearGradient>
+    <linearGradient id="q3" gradientUnits="userSpaceOnUse" x1="38.06" y1="46.63" x2="33.03" y2="34.49"><stop offset="0" stop-color="#f6741e"/><stop offset="0.55" stop-color="#f7863b"/><stop offset="1" stop-color="#fab98d"/></linearGradient>
+    <linearGradient id="q4" gradientUnits="userSpaceOnUse" x1="25.94" y1="46.63" x2="30.97" y2="34.49"><stop offset="0" stop-color="#f6571e"/><stop offset="0.55" stop-color="#f76d3b"/><stop offset="1" stop-color="#faaa8d"/></linearGradient>
+    <linearGradient id="q5" gradientUnits="userSpaceOnUse" x1="17.37" y1="38.06" x2="29.51" y2="33.03"><stop offset="0" stop-color="#f63a1e"/><stop offset="0.55" stop-color="#f7543b"/><stop offset="1" stop-color="#fa9c8d"/></linearGradient>
+    <linearGradient id="q6" gradientUnits="userSpaceOnUse" x1="17.37" y1="25.94" x2="29.51" y2="30.97"><stop offset="0" stop-color="#f61e38"/><stop offset="0.55" stop-color="#f73b52"/><stop offset="1" stop-color="#fa8d9b"/></linearGradient>
+    <linearGradient id="q7" gradientUnits="userSpaceOnUse" x1="25.94" y1="17.37" x2="30.97" y2="29.51"><stop offset="0" stop-color="#f61e64"/><stop offset="0.55" stop-color="#f73b78"/><stop offset="1" stop-color="#fa8db1"/></linearGradient>
+    <linearGradient id="reflet" x1="0.15" y1="0" x2="0.7" y2="0.9">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="eclat">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="arete" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="ombreLarge" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2"/>
+    </filter>
+    <filter id="ombreCourte" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.85"/>
+    </filter>
+    <pattern id="grain" width="3" height="3" patternUnits="userSpaceOnUse">
+      <circle cx="0.7" cy="0.7" r="0.42" fill="#ffffff" fill-opacity="0.08"/>
+      <circle cx="2.2" cy="2.1" r="0.32" fill="#3f2412" fill-opacity="0.10"/>
+    </pattern>
+    <mask id="fruit"><circle cx="32.0" cy="32.0" r="18.24" fill="#fff"/></mask>
+    <mask id="tuile"><rect width="64" height="64" rx="14" fill="#fff"/></mask>
+  </defs>
+
+  <g mask="url(#tuile)">
+    <rect id="socle" width="64" height="64" fill="url(#terre)"/>
+    <g id="marque">
+
+    <circle cx="32.0" cy="34.80" r="24.60" fill="#242b12" opacity="0.42" filter="url(#ombreLarge)"/>
+    <circle cx="32.0" cy="32.0" r="24.60" fill="url(#email)"/>
+    <circle cx="32.0" cy="32.0" r="19.68" fill="none" stroke="#b08968" stroke-opacity="0.26" stroke-width="0.9"/>
+
+    <g filter="url(#ombreCourte)" opacity="0.38">
+      <circle cx="32.6" cy="33.6" r="18.24" fill="#242b12"/>
+    </g>
+    <circle cx="32.0" cy="32.0" r="18.24" fill="#ef8f3a"/>
+    <circle cx="32.0" cy="32.0" r="16.14" fill="#fff3e2"/>
+
+    <path d="M32.19 29.31 L33.10 16.20 A15.84 15.84 0 0 1 42.39 20.05 L33.77 29.97 Z" fill="url(#q0)"/>
+    <path d="M34.03 30.23 L43.95 21.61 A15.84 15.84 0 0 1 47.80 30.90 L34.69 31.81 Z" fill="url(#q1)"/>
+    <path d="M34.69 32.19 L47.80 33.10 A15.84 15.84 0 0 1 43.95 42.39 L34.03 33.77 Z" fill="url(#q2)"/>
+    <path d="M33.77 34.03 L42.39 43.95 A15.84 15.84 0 0 1 33.10 47.80 L32.19 34.69 Z" fill="url(#q3)"/>
+    <path d="M31.81 34.69 L30.90 47.80 A15.84 15.84 0 0 1 21.61 43.95 L30.23 34.03 Z" fill="url(#q4)"/>
+    <path d="M29.97 33.77 L20.05 42.39 A15.84 15.84 0 0 1 16.20 33.10 L29.31 32.19 Z" fill="url(#q5)"/>
+    <path d="M29.31 31.81 L16.20 30.90 A15.84 15.84 0 0 1 20.05 21.61 L29.97 30.23 Z" fill="url(#q6)"/>
+    <path d="M30.23 29.97 L21.61 20.05 A15.84 15.84 0 0 1 30.90 16.20 L31.81 29.31 Z" fill="url(#q7)"/>
+
+    <g mask="url(#fruit)">
+      <ellipse cx="25.28" cy="24.32"
+               rx="15.12" ry="8.88" fill="url(#reflet)"
+               transform="rotate(-34 25.28 24.32)"/>
+    </g>
+    <circle cx="32.0" cy="32.0" r="17.69" fill="none"
+            stroke="url(#arete)" stroke-width="1.1"/>
+    <g mask="url(#fruit)">
+      <ellipse cx="24.56" cy="22.88" rx="5.52" ry="3.48" fill="url(#eclat)" transform="rotate(-34 24.56 22.88)"/>
+    </g>
+
+    </g>
+    <rect width="64" height="64" fill="url(#grain)"/>
+  </g>
 </svg>

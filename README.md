@@ -2,6 +2,10 @@
 
 Application desktop personnelle de gestion culinaire (Windows / PySide6).
 
+> **L'application web s'appelle Prandia** (du latin *prandium*, le repas) depuis le 2026-08-12.
+> Le nom vit dans `web/` : titre, manifeste, ecran de connexion. Le depot, la base et les paquets
+> npm gardent leurs noms d'origine — les renommer casserait le deploiement pour zero gain visible.
+
 ## Fonctionnalites
 
 - **Bibliotheque d'ingredients** : reference avec valeurs nutritionnelles (CIQUAL 2025 ANSES + OpenFoodFacts) et cout d'achat.
