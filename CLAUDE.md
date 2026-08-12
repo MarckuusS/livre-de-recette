@@ -138,6 +138,20 @@ la forme du mockup. Ce qui ne se devine pas :
   utilise des paramètres **numérotés** (`?3` relu dans la branche UPDATE) — avec `excluded.ml` on
   relirait la valeur déjà bornée à zéro et un retrait serait perdu.
 
+## Quantites et unites (web)
+
+- **La masse est stockee EN GRAMMES**, partout, toujours. C'est ce qui permet d'additionner un
+  yaourt compte en pieces et du riz pese en grammes sans convertir a chaque agregation.
+- **L'unite de saisie est stockee A COTE**, en colonne `unit`, sur `recipe_ingredient` depuis la
+  0001 et sur `meal_plan_entry` depuis la **0011**. Sans elle, "40 g" d'un produit vendu par pieces
+  de 100 g rouvrait en "0,4 piece" : la masse etait juste, la lecture ne l'etait plus.
+- `NULL` veut dire "aucun choix enregistre" : l'ecran retombe sur son heuristique, la piece quand
+  l'ingredient en a une, le gramme sinon. Les entrees anterieures gardent donc leur comportement.
+- **Changer d'unite compte comme une modification a enregistrer**, meme quand le nombre de grammes
+  ne bouge pas : c'est une decision de lecture, et la feuille rouvrirait sinon sur l'ancienne.
+- `QuantityField` accepte deja `unit` et `onUnitChange` : toute nouvelle surface de saisie doit
+  brancher les deux, sinon le choix se perd en silence.
+
 ## Profil et objectifs (web) — `shared/src/profile.ts`
 
 Cible journalière en kcal et macros, par Mifflin-St Jeor. Le calcul est un module **pur**, testé

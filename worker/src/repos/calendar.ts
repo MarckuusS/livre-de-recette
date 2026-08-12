@@ -11,7 +11,8 @@ import type { MealPlanEntry } from '@livre/shared'
 import { toMealPlanEntry, type MealPlanEntryRow } from '../rows.js'
 import { NOW_SQL } from './sql.js'
 
-const ENTRY_COLUMNS = 'id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal'
+const ENTRY_COLUMNS =
+  'id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, unit, ordinal'
 
 export interface EntryWrite {
   readonly isoWeek: string
@@ -20,6 +21,7 @@ export interface EntryWrite {
   readonly recipeId: number | null
   readonly ingredientId: number | null
   readonly quantityG: number | null
+  readonly unit: string | null
   readonly portions: number | null
 }
 
@@ -69,8 +71,8 @@ export class CalendarRepo {
         // la numerotation, et revelerait au passage combien de repas le voisin
         // a prevus mardi midi.
         `INSERT INTO meal_plan_entry
-           (household_id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+           (household_id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, unit, ordinal)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
            (SELECT COALESCE(MAX(ordinal), -1) + 1 FROM meal_plan_entry
              WHERE household_id = ? AND iso_week = ? AND day_of_week = ? AND slot = ?))
          RETURNING id`,
@@ -84,6 +86,7 @@ export class CalendarRepo {
         entry.ingredientId,
         entry.quantityG,
         entry.portions,
+        entry.unit,
         this.householdId,
         entry.isoWeek,
         entry.dayOfWeek,
@@ -96,10 +99,17 @@ export class CalendarRepo {
   }
 
   /** Change la quantite ou le nombre de portions d'une entree existante. */
-  async updateAmount(id: number, quantityG: number | null, portions: number | null): Promise<boolean> {
+  async updateAmount(
+    id: number,
+    quantityG: number | null,
+    portions: number | null,
+    unit: string | null,
+  ): Promise<boolean> {
     const result = await this.db
-      .prepare('UPDATE meal_plan_entry SET quantity_g = ?, portions = ? WHERE id = ? AND household_id = ?')
-      .bind(quantityG, portions, id, this.householdId)
+      .prepare(
+        'UPDATE meal_plan_entry SET quantity_g = ?, portions = ?, unit = ? WHERE id = ? AND household_id = ?',
+      )
+      .bind(quantityG, portions, unit, id, this.householdId)
       .run()
     return (result.meta.changes ?? 0) > 0
   }
@@ -169,8 +179,8 @@ export class CalendarRepo {
         this.db
           .prepare(
             `INSERT INTO meal_plan_entry
-               (household_id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               (household_id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, unit, ordinal)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .bind(
             this.householdId,
@@ -181,6 +191,7 @@ export class CalendarRepo {
             e.ingredientId,
             e.quantityG,
             e.portions,
+            e.unit,
             e.ordinal,
           ),
       )
@@ -271,8 +282,8 @@ export class CalendarRepo {
         this.db
           .prepare(
             `INSERT INTO meal_plan_entry
-               (household_id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, ordinal)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               (household_id, iso_week, day_of_week, slot, recipe_id, ingredient_id, quantity_g, portions, unit, ordinal)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .bind(
             this.householdId,
@@ -283,6 +294,7 @@ export class CalendarRepo {
             e['ingredientId'] ?? null,
             e['quantityG'] ?? null,
             e['portions'] ?? null,
+            typeof e['unit'] === 'string' ? e['unit'] : null,
             e['ordinal'] ?? 0,
           ),
       )

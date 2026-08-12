@@ -60,13 +60,20 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
   const [slot, setSlot] = useState<MealSlot>(entry.slot)
   const [portions, setPortions] = useState<number | null>(entry.portions)
   const [quantityG, setQuantityG] = useState<number | null>(entry.quantityG)
+  /** Unite d'affichage, relue de l'entree et renvoyee avec la quantite. */
+  const [unit, setUnit] = useState<string | null>(entry.unit)
 
   const move = useMoveEntry(isoWeek)
   const amount = useUpdateEntryAmount(isoWeek)
   const busy = move.isPending || amount.isPending
 
   const moved = dayOfWeek !== entry.dayOfWeek || slot !== entry.slot
-  const amountChanged = isRecipe ? portions !== entry.portions : quantityG !== entry.quantityG
+  // L'unite compte comme un changement : basculer de piece en grammes sans
+  // toucher au nombre laisse la masse identique, mais c'est bien une decision
+  // a enregistrer, sans quoi la fiche rouvrirait sur l'ancienne unite.
+  const amountChanged = isRecipe
+    ? portions !== entry.portions
+    : quantityG !== entry.quantityG || unit !== entry.unit
   const amountValid = isRecipe ? portions !== null && portions > 0 : quantityG !== null && quantityG > 0
 
   const save = async () => {
@@ -78,6 +85,7 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
         id: entry.id,
         quantityG: isRecipe ? null : quantityG,
         portions: isRecipe ? portions : null,
+        unit: isRecipe ? null : unit,
       })
     }
     onClose()
@@ -135,6 +143,8 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
             value={quantityG}
             onChange={setQuantityG}
             pieceWeightG={pieceWeightG}
+            unit={unit}
+            onUnitChange={setUnit}
           />
         )}
 
@@ -172,7 +182,7 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
         {target !== null && (
           <Link
             to={target.kind === 'ingredient' ? `/ingredients/${target.ingredient.id}` : `/recettes/${target.recipe.id}`}
-            className="button button--secondary button--block"
+            className="button button--success button--block"
           >
             <Icon name="ui-edit" size={16} className="icon--inline" />{' '}
             {target.kind === 'ingredient' ? 'Ouvrir la fiche ingrédient' : 'Ouvrir la recette'}
@@ -198,6 +208,9 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
         title="Répartition de ce repas"
         centerCaption="kcal"
         emptyMessage="Les macros de ce repas ne sont pas renseignées."
+        // Le tableau des apports suit juste dessous, avec les memes nutriments
+        // et les memes valeurs : la legende les disait deux fois.
+        showLegend={false}
       />
 
       <div className="card">

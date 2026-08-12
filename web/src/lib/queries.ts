@@ -861,6 +861,8 @@ export interface EntryDraft {
   readonly ingredientId: number | null
   readonly quantityG: number | null
   readonly portions: number | null
+  /** Unite d'affichage choisie a la saisie. Voir la migration 0011. */
+  readonly unit?: string | null
 }
 
 export const useAddEntry = (isoWeek: string) =>
@@ -869,10 +871,13 @@ export const useAddEntry = (isoWeek: string) =>
   )
 
 export const useUpdateEntryAmount = (isoWeek: string) =>
-  useCalendarMutation<{ id: number; quantityG: number | null; portions: number | null }>(
-    isoWeek,
-    ({ id, ...body }) => patch<CalendarResponse>(`/api/calendar/entries/${id}`, body),
-  )
+  useCalendarMutation<{
+    id: number
+    quantityG: number | null
+    portions: number | null
+    /** L'unite voyage avec la quantite : les deux se decident ensemble. */
+    unit: string | null
+  }>(isoWeek, ({ id, ...body }) => patch<CalendarResponse>(`/api/calendar/entries/${id}`, body))
 
 export const useMoveEntry = (isoWeek: string) =>
   useCalendarMutation<{ id: number; dayOfWeek: number; slot: string }>(isoWeek, ({ id, ...body }) =>

@@ -77,6 +77,7 @@ route('POST', '/api/calendar/:week/entries', async ({ repos, params, request, en
     ingredientId: entry.ingredientId,
     quantityG: entry.quantityG,
     portions: entry.portions,
+    unit: entry.unit,
   })
 
   await logActivity(env.DB, user, {
@@ -107,7 +108,7 @@ route('PATCH', '/api/calendar/entries/:id', async ({ repos, params, request, env
     throw new HttpError(422, 'validation', 'Une entrée ingrédient se règle en grammes.')
   }
 
-  await repos.calendar.updateAmount(id, amount.quantityG, amount.portions)
+  await repos.calendar.updateAmount(id, amount.quantityG, amount.portions, amount.unit)
   await logActivity(env.DB, user, {
     action: 'update',
     entity: 'meal_plan_entry',

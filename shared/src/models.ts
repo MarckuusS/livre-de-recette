@@ -361,6 +361,12 @@ const mealPlanEntryFields = {
   ingredientId: z.number().int().positive().nullable().default(null),
   quantityG: z.number().positive('quantity_g et portions doivent être strictement positifs.').nullable().default(null),
   portions: z.number().positive('quantity_g et portions doivent être strictement positifs.').nullable().default(null),
+  /**
+   * Unite d'affichage choisie a la saisie. Cosmetique : la quantite reste en
+   * grammes. Sans elle, "40 g" d'un produit vendu par pieces de 100 g rouvrait
+   * en "0,4 piece". Meme role que `recipe_ingredient.unit`.
+   */
+  unit: z.string().nullable().default(null),
   ordinal: z.number().int().min(0).default(0),
 }
 
@@ -475,6 +481,8 @@ export const mealPlanMoveSchema = z.object({
 export const mealPlanAmountSchema = z.object({
   quantityG: z.number().positive('La quantité doit être strictement positive.').nullable().default(null),
   portions: z.number().positive('Le nombre de portions doit être strictement positif.').nullable().default(null),
+  /** L'unite suit la quantite : les deux se decident au meme endroit. */
+  unit: z.string().nullable().default(null),
 })
 
 /** Ajout ou modification d'un lot au frigo. */

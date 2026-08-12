@@ -117,6 +117,8 @@ export interface MealPlanEntryRow {
   ingredient_id: number | null
   quantity_g: number | null
   portions: number | null
+  /** Unite d'affichage choisie a la saisie. Voir la migration 0011. */
+  unit: string | null
   ordinal: number
 }
 
@@ -129,6 +131,7 @@ export const toMealPlanEntry = (r: MealPlanEntryRow): MealPlanEntry => ({
   ingredientId: r.ingredient_id,
   quantityG: r.quantity_g,
   portions: r.portions,
+  unit: r.unit,
   ordinal: r.ordinal,
 })
 

@@ -1,0 +1,22 @@
+-- =============================================================================
+-- L'unite de saisie d'une entree du calendrier.
+--
+-- La quantite est stockee EN GRAMMES, et elle le reste : c'est ce qui permet
+-- d'additionner un yaourt en pieces et du riz en grammes sans convertir a
+-- chaque agregation. Mais l'unite CHOISIE n'etait conservee nulle part.
+--
+-- Consequence, la seule qui compte : on saisissait "40 g" pour un produit dont
+-- une piece pese 100 g, on enregistrait, et la fiche rouvrait sur "0,4 piece".
+-- La masse etait juste, la lecture ne l'etait plus, et il fallait rebasculer
+-- l'unite a chaque ouverture.
+--
+-- `recipe_ingredient.unit` existe depuis la 0001 et resout exactement le meme
+-- probleme pour les lignes de recette. On copie cette colonne plutot que
+-- d'inventer un mecanisme : meme nom, meme role, meme valeur nulle par defaut.
+--
+-- NULL signifie "aucun choix enregistre" : l'ecran retombe alors sur son
+-- heuristique, la piece quand l'ingredient en a une, le gramme sinon. Les
+-- entrees deja en base gardent donc le comportement qu'elles avaient.
+-- =============================================================================
+
+ALTER TABLE meal_plan_entry ADD COLUMN unit TEXT;

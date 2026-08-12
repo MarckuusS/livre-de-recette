@@ -41,9 +41,25 @@ export interface MacrosDonutProps {
   readonly centerCaption: string
   /** Phrase affichee quand rien n'est chiffrable. */
   readonly emptyMessage: string
+  /**
+   * Legende sous l'anneau. VRAI seulement quand l'anneau est SEUL.
+   *
+   * Partout ou le tableau reglementaire le suit, elle repetait ses lignes a
+   * quelques centimetres d'ecart : meme nutriments, memes valeurs, deux fois.
+   * L'anneau garde alors ses arcs, dont les couleurs sont celles des
+   * pastilles du tableau, et la repartition chiffree passe dans son libelle
+   * accessible pour ne pas disparaitre des lecteurs d'ecran.
+   */
+  readonly showLegend?: boolean | undefined
 }
 
-export function MacrosDonut({ total, title, centerCaption, emptyMessage }: MacrosDonutProps) {
+export function MacrosDonut({
+  total,
+  title,
+  centerCaption,
+  emptyMessage,
+  showLegend = true,
+}: MacrosDonutProps) {
   const breakdown = energyBreakdown(total)
 
   const segments = SEGMENTS.map((segment) => ({
@@ -70,11 +86,22 @@ export function MacrosDonut({ total, title, centerCaption, emptyMessage }: Macro
     return arc
   })
 
+  const resume = arcs
+    .filter((arc) => arc.share > 0)
+    .map((arc) => `${arc.label} ${formatNumber(arc.share * 100, 0)} %`)
+    .join(', ')
+
   return (
-    <div className="card">
+    <div className={`card macros-card${showLegend ? '' : ' macros-card--seul'}`}>
       <h3 className="card__title">{title}</h3>
       <div className="macros">
-        <svg className="macros__chart" viewBox="0 0 120 120" aria-hidden="true">
+        <svg
+          className="macros__chart"
+          viewBox="0 0 120 120"
+          {...(showLegend
+            ? { 'aria-hidden': true as const }
+            : { role: 'img', 'aria-label': `Répartition : ${resume}` })}
+        >
           <circle
             className="macros__track"
             cx="60"
@@ -106,6 +133,7 @@ export function MacrosDonut({ total, title, centerCaption, emptyMessage }: Macro
           </text>
         </svg>
 
+        {showLegend && (
         <ul className="macros__legend">
           {arcs.map((arc) => (
             <li key={arc.key} className="macros__item">
@@ -126,6 +154,7 @@ export function MacrosDonut({ total, title, centerCaption, emptyMessage }: Macro
             </li>
           ))}
         </ul>
+        )}
       </div>
     </div>
   )

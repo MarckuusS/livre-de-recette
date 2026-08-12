@@ -555,6 +555,9 @@ function DayTotals({
             ? "Rien de prévu ce jour."
             : "Aucune donnée : les repas de ce jour n’ont pas de macros renseignées."
         }
+        // Le tableau des apports du jour est rendu juste au-dessus : la
+        // legende reprenait quatre de ses huit lignes.
+        showLegend={false}
       />
 
       <div className="card">

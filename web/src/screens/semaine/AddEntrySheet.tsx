@@ -61,6 +61,8 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
   const [portions, setPortions] = useState<number | null>(1)
   const [ingredient, setIngredient] = useState<Ingredient | null>(null)
   const [quantityG, setQuantityG] = useState<number | null>(DEFAULT_QUANTITY_G)
+  /** Unite d'affichage retenue, enregistree avec l'entree. Voir migration 0011. */
+  const [unit, setUnit] = useState<string | null>(null)
 
   const add = useAddEntry(isoWeek)
 
@@ -81,6 +83,7 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
             ingredientId: ingredient?.id ?? null,
             quantityG,
             portions: null,
+            unit,
           }
     add.mutate(draft, { onSuccess: onClose })
   }
@@ -145,6 +148,9 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
               onPick={(picked) => {
                 setIngredient(picked)
                 setQuantityG(picked.pieceWeightG ?? DEFAULT_QUANTITY_G)
+                // La piece d'un oeuf n'a aucun sens pour un litre de lait :
+                // on repart de l'heuristique du champ.
+                setUnit(null)
               }}
             />
           ) : (
@@ -168,6 +174,8 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
                 value={quantityG}
                 onChange={setQuantityG}
                 pieceWeightG={ingredient.pieceWeightG}
+                unit={unit}
+                onUnitChange={setUnit}
                 required
               />
               {ingredient.id !== null && (

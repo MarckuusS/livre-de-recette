@@ -532,6 +532,21 @@
   background: var(--color-error-hover);
 }
 
+/* Meme gabarit plein que `--danger`, couleur inverse.
+   Il fallait un bouton d'action AFFIRME mais rassurant a cote de "Retirer de
+   la semaine" : en variante discrete, "Ouvrir la fiche" avait l'air d'une note
+   de bas de page a cote d'un aplat rouge. Le vert de reussite plutot que
+   l'olive de la marque, deja portee par "Enregistrer" dans le pied de la meme
+   feuille : deux aplats olive se seraient disputes l'action principale. */
+.button--success {
+  color: var(--color-on-primary);
+  background: var(--color-success);
+}
+
+.button--success:active {
+  filter: brightness(0.92);
+}
+
 .button--ghost {
   color: var(--color-primary-text);
   background: transparent;
@@ -967,3 +982,10 @@
 .macro-bar__part--carbs { background: var(--color-nutrient-carbs); }
 .macro-bar__part--fiber { background: var(--color-nutrient-fiber); }
 .macro-bar__part--proteins { background: var(--color-nutrient-proteins); }
+
+/* Anneau SANS legende : il occupe seul sa carte, donc il se centre. La grille
+   a deux colonnes le laissait colle a gauche, avec un vide a droite ou la
+   legende se trouvait. */
+.macros-card--seul .macros {
+  justify-content: center;
+}
