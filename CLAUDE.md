@@ -241,7 +241,7 @@ L'écran `/objectifs` est un **tableau de bord**, pas un formulaire : six blocs,
 - **Le rythme est une régression des moindres carrés sur la série lissée**, jamais l'écart entre
   deux pesées brutes : une seule journée salée en fin de période ferait basculer la pente.
   `null` sous 7 jours d'étendue.
-- **`etaDay` est `null` quand le rythme ne va pas VERS la cible** — même règle que `weeksToTarget`.
+- **`etaDay` est `null` quand le rythme ne va pas VERS la cible**, même règle que `weeksToTarget`.
   Et l'arrondi du nombre de jours retranche `1e-9` : `3,65 / 0,35 × 7` vaut `73,00000000000001` en
   virgule flottante, ce qui faisait sauter la date d'un jour selon les chiffres saisis.
 - **La régularité porte sur la SEMAINE en cours**, pas sur 30 jours comme le mockup : le calendrier
