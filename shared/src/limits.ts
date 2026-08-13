@@ -56,10 +56,17 @@ const KCAL_PAR_G_LIPIDE = 9
 /**
  * Sel : moins de 5 g par jour chez l'adulte.
  *
- * OMS 2012 (recommandation forte, moins de 2 g de sodium), EFSA 2019 (2 g de
- * sodium comme apport sur et adequat, sans limite superieure toleree), ANSES
- * et Sante publique France alignes. L'AHA est plus stricte (1,5 g de sodium
- * ideal), ce que l'ecran mentionne plutot que de trancher en silence.
+ * OMS 2012 (recommandation forte, moins de 2 g de sodium) et reperes du PNNS
+ * 2019, portes par Sante publique France. L'EFSA 2019 pose la meme valeur
+ * mais la qualifie autrement : « apport sur et adequat », faute d'avoir pu
+ * fixer une limite superieure toleree. Ce n'est pas la meme chose qu'un
+ * plafond, et c'est pourquoi elle n'est pas citee comme telle.
+ *
+ * L'ANSES N'EST PAS CITEE ICI, et c'est deliberé : sa page sur le sel affiche
+ * encore les objectifs du PNNS 3, differencies par sexe (8 g chez l'homme,
+ * 6,5 g chez la femme). Le repere unique de 5 g pour tous les adultes ne vient
+ * pas d'elle. Lui attribuer un chiffre qu'elle ne publie pas serait le genre
+ * d'imprecision que ce module existe pour eviter.
  *
  * L'application stocke des grammes de SEL et non de sodium : la comparaison
  * est directe, sans le facteur 2,5 qui separe les deux.
@@ -82,7 +89,20 @@ export const SUGARS_WHO_FREE_PERCENT = 10
 /** Acides gras satures : au plus 10 % de l'energie du jour. OMS 2023. */
 export const SATURATED_MAX_PERCENT = 10
 
-/** Le meme plafond selon l'ANSES 2011, qui retient 12 %. Les deux divergent. */
+/**
+ * Le meme plafond selon l'Afssa, devenue l'ANSES, qui retient 12 %.
+ *
+ * Avis du 1er mars 2010 sur l'actualisation des apports nutritionnels
+ * conseilles en acides gras. Deux precisions qui comptent :
+ *
+ *   - la valeur porte sur l'apport energetique SANS ALCOOL. L'application ne
+ *     suit pas l'alcool, donc les deux denominateurs coincident ici ; le jour
+ *     ou elle le suivrait, ce repere devrait le retrancher alors que celui de
+ *     l'OMS le garde ;
+ *   - le meme avis pose une seconde borne, 8 % pour la somme des acides
+ *     laurique, myristique et palmitique. Elle n'est pas calculable : ni
+ *     CIQUAL ni OpenFoodFacts ne detaillent les satures ligne a ligne.
+ */
 export const SATURATED_ANSES_PERCENT = 12
 
 /** Fibres : apport satisfaisant de l'ANSES 2016. Un PLANCHER, pas un plafond. */
@@ -125,7 +145,7 @@ export interface DailyLimits {
 export function dailyLimits(kcalTarget: number | null): DailyLimits {
   const kcal = kcalTarget ?? 2000
   return {
-    salt: { grams: SALT_MAX_G, source: 'OMS 2012, ANSES', sens: 'plafond' },
+    salt: { grams: SALT_MAX_G, source: 'OMS 2012, PNNS 2019', sens: 'plafond' },
     sugars: { grams: SUGARS_MAX_G, source: 'ANSES 2016', sens: 'plafond' },
     saturatedFats: {
       grams: Math.round((kcal * (SATURATED_MAX_PERCENT / 100)) / KCAL_PAR_G_LIPIDE),
@@ -137,7 +157,7 @@ export function dailyLimits(kcalTarget: number | null): DailyLimits {
 }
 
 /**
- * Le plafond de satures selon l'ANSES, pour dire la divergence.
+ * Le plafond de satures selon l'Afssa, pour dire la divergence.
  *
  * 10 % contre 12 % de l'energie, soit 22 g contre 27 g pour 2 000 kcal. Deux
  * agences serieuses ne s'accordent pas ; afficher un seul chiffre en silence

@@ -1,13 +1,13 @@
 /**
  * Les valeurs attendues sont celles PUBLIEES par les agences, pas des
  * relevés sur une execution. Un test qui recopie ce que le code produit ne
- * verifie rien ; ici il verifie que les chiffres affiches sont bien ceux de
- * l'OMS et de l'ANSES.
+ * verifie rien ; ici il verifie que les chiffres affiches sont bien ceux que
+ * les agences publient, et attribues a la bonne agence.
  *
  * Reference employee par les agences elles-memes pour illustrer leurs
  * pourcentages : 2 000 kcal.
  *   satures OMS   = 2000 x 10 % / 9 = 22,2 -> 22 g
- *   satures ANSES = 2000 x 12 % / 9 = 26,7 -> 27 g
+ *   satures Afssa = 2000 x 12 % / 9 = 26,7 -> 27 g
  */
 
 import { describe, expect, it } from 'vitest'
@@ -29,7 +29,7 @@ describe('les reperes publies', () => {
     expect(SALT_MAX_G).toBe(5) // OMS 2012, moins de 2 g de sodium
     expect(SUGARS_MAX_G).toBe(100) // ANSES 2016, sucres totaux hors lactose
     expect(SATURATED_MAX_PERCENT).toBe(10) // OMS 2023
-    expect(SATURATED_ANSES_PERCENT).toBe(12) // ANSES 2011
+    expect(SATURATED_ANSES_PERCENT).toBe(12) // Afssa 2010, sur l'energie sans alcool
     expect(FIBER_TARGET_G).toBe(30) // ANSES 2016
     expect(FIBER_MIN_G).toBe(25) // EFSA 2010 et OMS 2023
   })
@@ -53,6 +53,16 @@ describe('les reperes publies', () => {
 
   it('retombe sur 2 000 kcal quand aucune cible n’est connue', () => {
     expect(dailyLimits(null).saturatedFats.grams).toBe(dailyLimits(2000).saturatedFats.grams)
+  })
+
+  it('attribue chaque repere a qui le publie vraiment', () => {
+    // L'ANSES n'a PAS de reference individuelle pour le sel : sa page affiche
+    // encore les objectifs du PNNS 3, differencies par sexe. Le repere unique
+    // de 5 g vient de l'OMS et du PNNS 2019.
+    expect(dailyLimits(2000).salt.source).not.toContain('ANSES')
+    expect(dailyLimits(2000).salt.source).toContain('OMS')
+    expect(dailyLimits(2000).sugars.source).toContain('ANSES')
+    expect(dailyLimits(2000).saturatedFats.source).toContain('OMS')
   })
 
   it('distingue les plafonds du plancher', () => {

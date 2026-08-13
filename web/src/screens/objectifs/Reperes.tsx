@@ -22,7 +22,6 @@ import {
   SATURATED_MAX_PERCENT,
   SUGARS_WHO_FREE_PERCENT,
   dailyLimits,
-  readLimit,
   saturatedAnsesG,
   type DailyLimit,
 } from '@livre/shared'
@@ -80,7 +79,7 @@ export function Reperes({ kcalTarget }: { readonly kcalTarget: number | null }) 
         <dt>Acides gras saturés</dt>
         <dd>
           {SATURATED_MAX_PERCENT} % de l’énergie du jour selon l’OMS (2023),{' '}
-          {SATURATED_ANSES_PERCENT} % selon l’ANSES (2011), soit{' '}
+          {SATURATED_ANSES_PERCENT} % selon l’Afssa, devenue l’ANSES (avis de 2010), soit{' '}
           {g(saturatedAnsesG(kcalTarget))} g avec ta cible. Les deux agences divergent ; le repère
           affiché retient la plus stricte.
           {kcalTarget === null && ' Faute de cible, il est calculé sur 2 000 kcal, la valeur que les agences emploient pour illustrer leurs pourcentages.'}

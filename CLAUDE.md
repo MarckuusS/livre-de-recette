@@ -310,6 +310,11 @@ acides gras saturés) et un plancher (fibres). Ce qui ne se devine pas :
 - **Chaque nombre porte son agence et son année**, dans le code comme à l'écran. C'est la règle
   du module : ne jamais afficher un chiffre de santé que ses sources ne soutiennent pas. Un seuil
   inventé serait cru, et c'est ce qui le rend pire que pas de seuil.
+- **L'ANSES n'est PAS citée pour le sel**, et un test le garde : sa page affiche encore les
+  objectifs du PNNS 3, différenciés par sexe (8 g homme, 6,5 g femme). Le repère unique de 5 g
+  vient de l'OMS et des repères PNNS 2019. Le 12 % des saturés vient de l'**Afssa (avis de
+  2010)** et porte sur l'apport énergétique **sans alcool** : identique ici, puisque
+  l'application ne suit pas l'alcool, mais ce ne le serait plus si elle le suivait.
 - **Seuls les saturés suivent la cible énergétique** (10 % de l'apport, OMS 2023). Les trois
   autres sont des nombres absolus. L'ANSES retient 12 % pour les saturés : la divergence est
   affichée, pas tranchée en silence.
