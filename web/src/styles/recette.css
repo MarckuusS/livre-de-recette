@@ -1,0 +1,358 @@
+/*
+ * La fiche d'une recette, en lecture.
+ *
+ * SELECTEUR DOUBLE pour la reserve du pied (`.screen.screen--recette`) :
+ * `.screen` pose son padding dans app.css, evalue APRES cette feuille, donc a
+ * specificite egale c'est app.css qui gagnerait. Le piege s'est referme cinq
+ * fois sur ce projet.
+ */
+
+.screen.screen--recette {
+  /* Le pied compte deux etages : la phrase d'etat et la rangee de boutons.
+     Mesure a 116 px, plus la part commune (--reserve-pied). Sans cette
+     reserve, la derniere carte finit SOUS le pied. */
+  padding-bottom: calc(var(--reserve-pied) + 132px);
+}
+
+/* ---------- Le bandeau ---------- */
+
+/*
+ * PAS DE PHOTO : la colonne `imageKey` existe mais aucune route ne televerse
+ * encore. Le bandeau dit donc l'ABSENCE plutot que la masquer, d'ou le
+ * filigrane a faible opacite. Un degrade qui imiterait une photo ferait croire
+ * a une image qui n'a pas charge.
+ *
+ * PAS DE COULEURS DE MACRO non plus, contrairement au mockup : un fond
+ * framboise et miel identique sur toutes les recettes apprendrait au lecteur
+ * que ces teintes ne veulent rien dire, juste au-dessus d'une tri-barre ou
+ * elles veulent dire quelque chose.
+ *
+ * ET IL NE SE RETOURNE PAS AVEC LE THEME, ce qui est le point delicat.
+ *
+ * Bati sur `--color-primary`, il devenait un olive clair en theme sombre, sous
+ * une encre `--color-on-primary` qui s'inverse elle aussi : le contraste du
+ * texte dependait alors de deux jetons qui bougent ensemble, et le voile
+ * sombre des deux etiquettes rendait la combinaison impossible a garantir.
+ *
+ * Il porte donc un vert profond FIXE, comme les teintes de nutriment, qui ne
+ * basculent pas non plus. Le texte qui s'y pose prend un blanc fixe : mesure
+ * a 12,6:1 dans les deux themes, parce qu'aucun des deux ne bouge.
+ */
+.fiche-hero {
+  --hero-encre: #f5f7f2;
+
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  height: 132px;
+  padding: var(--space-md);
+  overflow: hidden;
+  background: linear-gradient(140deg, #2b4a3a, #16281f);
+  border-radius: var(--radius-xl);
+}
+
+.fiche-hero__filigrane {
+  position: absolute;
+  right: var(--space-lg);
+  bottom: -8px;
+  color: var(--hero-encre);
+  opacity: 0.22;
+}
+
+.fiche-hero__action {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  display: grid;
+  place-items: center;
+  /* 44 px de cible tactile, pas 36 : le rond dessine reste plus petit grace au
+     fond en `background-clip`, mais la zone tapable fait la taille minimale. */
+  width: 44px;
+  height: 44px;
+  color: var(--hero-encre);
+  background: rgb(255 255 255 / 16%);
+  background-clip: content-box;
+  border: 4px solid transparent;
+  border-radius: var(--radius-full);
+}
+
+.fiche-hero__origine {
+  position: relative;
+  padding: 4px var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--hero-encre);
+  background: rgb(0 0 0 / 42%);
+  border-radius: var(--radius-full);
+}
+
+/* ---------- Titre ---------- */
+
+.fiche-titre h2 {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-extrabold);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.fiche-titre__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.fiche-titre__plan {
+  padding: 1px var(--space-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-nutrient-fats-ink);
+  background: var(--color-nutrient-fats-pale);
+  border-radius: var(--radius-full);
+}
+
+/* ---------- Portions ---------- */
+
+.card.fiche-portions {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fiche-portions__label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.fiche-portions__label small {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+.stepper {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  padding: 0 var(--space-xs);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-full);
+}
+
+/*
+ * 44 px TAPABLES, 32 px dessines.
+ *
+ * Le rond etait de 32 px et la cible avec lui : sous le minimum, et c'est le
+ * bouton qu'on vise en cuisine avec un doigt gras. La bordure transparente
+ * agrandit la boite sans agrandir le dessin, et `background-clip: content-box`
+ * garde le fond a l'interieur.
+ */
+.stepper__bouton {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--color-text);
+  cursor: pointer;
+  background: var(--color-surface);
+  background-clip: content-box;
+  border: 6px solid transparent;
+  border-radius: var(--radius-full);
+  box-shadow: none;
+}
+
+.stepper__bouton:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.stepper__valeur {
+  min-width: 2ch;
+  font-size: var(--font-size-lg);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Nutrition ---------- */
+
+.fiche-micros {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-sm) var(--space-md);
+  padding: 0;
+  margin: var(--space-md) 0 0;
+  list-style: none;
+}
+
+.fiche-micros li {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-md);
+}
+
+.fiche-micros li span:last-child {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.fiche-plus {
+  margin-top: var(--space-md);
+}
+
+.fiche-detail {
+  margin-top: var(--space-sm);
+}
+
+/* ---------- Ingredients ---------- */
+
+.fiche-ingredients {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: var(--space-sm) 0 0;
+  list-style: none;
+}
+
+.fiche-ingredient {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fiche-ingredient:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.fiche-ingredient__corps {
+  flex: 1;
+  min-width: 0;
+}
+
+.fiche-ingredient__nom {
+  display: block;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.fiche-ingredient__quantite {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.fiche-ingredient__kcal {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge-manque {
+  padding: 1px var(--space-sm);
+  margin-left: var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-warning-strong);
+  background: var(--color-nutrient-carbs-pale);
+  border-radius: var(--radius-full);
+}
+
+/* ---------- Etapes ---------- */
+
+.fiche-etapes {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: var(--space-sm) 0 0;
+  list-style: none;
+}
+
+.fiche-etape {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding: var(--space-sm) 0;
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fiche-etape:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+/* Un intertitre se lit comme un titre, pas comme un geste : il ne porte pas
+   de numero et ne decale pas les etapes suivantes. */
+.fiche-etape--titre {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  border-bottom: 0;
+}
+
+.fiche-etape__numero {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+  font-size: var(--font-size-md);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-full);
+}
+
+/* ---------- Le pied ---------- */
+
+.pied-recette {
+  position: fixed;
+  right: 0;
+  bottom: var(--above-tabbar);
+  left: 0;
+  z-index: 15;
+  padding: var(--space-md) var(--space-lg);
+  /* Le bouton de scan central deborde de 20 px en z-index 20 : sans cette
+     reserve, il prend le tap au milieu du pied. */
+  padding-bottom: calc(var(--space-md) + var(--scan-overlap));
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-normal);
+}
+
+@media (min-width: 720px) {
+  .pied-recette {
+    right: auto;
+    left: 50%;
+    width: 720px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    transform: translateX(-50%);
+  }
+}
+
+.pied-recette__etat {
+  min-height: 1.2em;
+  margin-bottom: var(--space-sm);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.pied-recette__actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.pied-recette__actions .button {
+  flex: 1;
+}

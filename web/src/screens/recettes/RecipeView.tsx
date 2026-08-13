@@ -1,0 +1,382 @@
+/**
+ * La fiche d'une recette, EN LECTURE.
+ *
+ * L'ecran n'existait pas : `/recettes/:id` ouvrait l'editeur. On cuisinait donc
+ * devant un formulaire, ou la quantite d'un ingredient ne se lisait que dans un
+ * champ de saisie, et ou effleurer un champ armait « modifications non
+ * enregistrees » sur une recette qu'on n'avait pas voulu toucher.
+ *
+ * DEUX ECRANS, ET CE N'EST PAS POUR RETIRER DES BOUTONS. La mise a l'echelle et
+ * la saisie ne cohabitent plus, ce qui supprime une regle entiere : l'editeur
+ * devait expliquer, dans un bandeau, qu'une quantite tapee pendant qu'on
+ * affichait six portions serait enregistree ramenee a deux. En lecture rien ne
+ * se tape, en edition le ratio vaut toujours un. On ne retire pas le bandeau,
+ * on retire ce qu'il fallait expliquer.
+ *
+ * `/recettes/:id` reste la LECTURE, et l'editeur passe sous `/modifier` : tous
+ * les liens du projet pointent deja vers l'adresse courte, et les inverser
+ * ferait ouvrir un formulaire depuis le planning, l'accueil et la liste.
+ *
+ * TROIS ECARTS AU MOCKUP, tous pour la meme raison :
+ *
+ *   - le mockup affiche « Fer 6,1 mg ». Aucun micronutriment n'est modelise :
+ *     la base connait huit nutriments, et le fer n'en fait pas partie. La ligne
+ *     porte donc les quatre qui ont un repere journalier source dans
+ *     `limits.ts`, ce qui vaut mieux qu'un nombre nu ;
+ *   - le mockup pose une duree a cote de chaque etape. Le nombre serait souvent
+ *     extractible, sa NATURE serait inventee. Voir `shared/src/steps.ts` ;
+ *   - le mockup a deux boutons en pied, « Ajouter aux courses » et
+ *     « Planifier ». La liste de courses ne stocke rien : elle se recalcule du
+ *     planning a chaque appel. Le premier bouton n'a donc pas de destination
+ *     qui ne soit pas le second. Ils sont fusionnes, et la phrase des
+ *     manquants reste informative.
+ */
+
+import { useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router'
+import {
+  SEASONING_MAX_G,
+  currentIsoWeek,
+  feasibility,
+  formatEuros,
+  formatGrams,
+  pantryTotals,
+  parseSteps,
+  type NutritionTotal,
+  type Recipe,
+} from '@livre/shared'
+
+import { MacroBar, MacroCells } from '../../components/MacrosDonut.js'
+import { NutrientLabel } from '../../components/NutrientLabel.js'
+import { ErrorState, LoadingRows } from '../../components/States.js'
+import { Icon } from '../../icons/index.js'
+import { RayonIcon } from '../../icons/RayonIcon.js'
+import { useRayonStyle } from '../../lib/useRayonStyle.js'
+import {
+  useAddCooking,
+  useCalendar,
+  useCookingLog,
+  usePantry,
+  useRecipe,
+} from '../../lib/queries.js'
+import { toDraft } from './draft.js'
+import { useDerived } from './RecipeDerived.js'
+import '../../styles/recette.css'
+
+/** Les trois echelles de lecture de la nutrition. */
+const PORTEES = [
+  { cle: 'portion', label: 'Par portion' },
+  { cle: 'recette', label: 'Recette entière' },
+  { cle: 'cent', label: 'Aux 100 g crus' },
+] as const
+
+type Portee = (typeof PORTEES)[number]['cle']
+
+const nombre = (v: number, d = 1) =>
+  v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: d })
+
+export function RecipeView() {
+  const params = useParams()
+  const raw = params['id']
+  const id = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : null
+  const query = useRecipe(id)
+
+  if (id === null) {
+    return (
+      <section className="screen">
+        <ErrorState error={new Error('Cette adresse ne correspond à aucune recette.')} />
+      </section>
+    )
+  }
+  if (query.isPending) {
+    return (
+      <section className="screen">
+        <LoadingRows rows={6} />
+      </section>
+    )
+  }
+  if (query.isError) {
+    return (
+      <section className="screen">
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+      </section>
+    )
+  }
+
+  return <Fiche key={query.data.id ?? 0} recipe={query.data} />
+}
+
+function Fiche({ recipe }: { readonly recipe: Recipe }) {
+  const navigate = useNavigate()
+  const styleOf = useRayonStyle()
+
+  /*
+   * Le nombre de portions AFFICHE, jamais enregistre. C'est toute la
+   * difference avec l'editeur : le stepper recalcule les quantites, les
+   * macros, le cout et les manquants, et ne touche a rien en base.
+   */
+  const [portions, setPortions] = useState(recipe.defaultPortions)
+  const [portee, setPortee] = useState<Portee>('portion')
+  const [detail, setDetail] = useState(false)
+
+  const draft = useMemo(() => toDraft(recipe), [recipe])
+  const derived = useDerived(draft, portions)
+
+  const journal = useCookingLog(recipe.id)
+  const cuissons = journal.data?.items.length ?? 0
+  const noter = useAddCooking(recipe.id ?? 0)
+
+  // Le frigo et la semaine partagent leur cache avec le Frigo et le Planning :
+  // venant de l'un de ces ecrans, ces deux lectures ne coutent rien.
+  const frigo = usePantry()
+  const semaine = useCalendar(currentIsoWeek())
+
+  const manque = useMemo(() => {
+    if (frigo.data === undefined) return null
+    return feasibility(recipe, pantryTotals(frigo.data.items), portions)
+  }, [recipe, frigo.data, portions])
+
+  const auPlanning = useMemo(() => {
+    if (semaine.data === undefined || recipe.id === null) return null
+    const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
+    const trouvee = semaine.data.entries.find((e) => e.recipeId === recipe.id)
+    return trouvee === undefined ? null : (JOURS[trouvee.dayOfWeek] ?? null)
+  }, [semaine.data, recipe.id])
+
+  const total: NutritionTotal =
+    portee === 'portion' ? derived.perPortion : portee === 'recette' ? derived.total : derived.per100g
+
+  const etapes = useMemo(() => parseSteps(recipe.instructions), [recipe.instructions])
+  const ratio = portions / Math.max(recipe.defaultPortions, 1)
+
+  return (
+    <section className="screen screen--recette">
+      {/* ---------- Le bandeau ---------- */}
+      <div className="fiche-hero">
+        {/* Un seul bouton retour : la barre empilee en pose deja un, et le
+            mockup en dessinait un second a douze pixels du premier. */}
+        <Link
+          to={`/recettes/${recipe.id}/modifier`}
+          className="fiche-hero__action"
+          aria-label="Modifier la recette"
+        >
+          <Icon name="ui-edit" size={18} />
+        </Link>
+        <Icon name="ui-utensils" size={72} className="fiche-hero__filigrane" />
+        <span className="fiche-hero__origine">
+          {recipe.sourceUrl === null ? 'Ma recette' : 'Importée'}
+          {recipe.updatedAt !== null && ` · modifiée le ${jourCourt(recipe.updatedAt)}`}
+        </span>
+      </div>
+
+      <div className="fiche-titre">
+        <h2>{recipe.name}</h2>
+        <p className="fiche-titre__meta">
+          {recipe.prepTimeMin !== null && <span>{recipe.prepTimeMin} min</span>}
+          <span>
+            {cuissons === 0
+              ? 'Jamais cuisinée'
+              : `Cuisinée ${cuissons} fois`}
+          </span>
+          {auPlanning !== null && <span className="fiche-titre__plan">Au planning {auPlanning}</span>}
+        </p>
+      </div>
+
+      {/* ---------- Portions ---------- */}
+      <div className="card fiche-portions">
+        <span className="fiche-portions__label">
+          Portions
+          <small>Ingrédients et macros recalculés</small>
+        </span>
+        <div className="stepper">
+          <button
+            type="button"
+            className="stepper__bouton"
+            onClick={() => setPortions((p) => Math.max(1, p - 1))}
+            disabled={portions <= 1}
+            aria-label="Une portion de moins"
+          >
+            <Icon name="ui-minus" size={16} />
+          </button>
+          <span className="chiffre stepper__valeur" aria-live="polite">
+            {portions}
+          </span>
+          <button
+            type="button"
+            className="stepper__bouton"
+            onClick={() => setPortions((p) => Math.min(50, p + 1))}
+            disabled={portions >= 50}
+            aria-label="Une portion de plus"
+          >
+            <Icon name="ui-plus" size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* ---------- Valeurs nutritionnelles ---------- */}
+      <div className="card">
+        <h3 className="card__title">Valeurs nutritionnelles</h3>
+
+        <div className="segmented" role="group" aria-label="Échelle des valeurs">
+          {PORTEES.map((p) => (
+            <button
+              key={p.cle}
+              type="button"
+              className={`segmented__tab${portee === p.cle ? ' segmented__tab--active' : ''}`}
+              aria-pressed={portee === p.cle}
+              onClick={() => setPortee(p.cle)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        <MacroCells total={total} caption={PORTEES.find((p) => p.cle === portee)?.label ?? ''} />
+        <MacroBar total={total} />
+
+        <ul className="fiche-micros">
+          {(
+            [
+              ['fiber', 'Fibres', total.fiber],
+              ['sugars', 'Sucres', total.sugars],
+              ['saturatedFats', 'Saturés', total.saturatedFats],
+              ['salt', 'Sel', total.salt],
+            ] as const
+          ).map(([cle, label, valeur]) => (
+            <li key={cle}>
+              <NutrientLabel nutrient={cle} label={label} />
+              <span>{nombre(valeur, valeur < 10 ? 1 : 0)} g</span>
+            </li>
+          ))}
+        </ul>
+
+        {/* Le mockup renvoie vers un « Détail complet » qui n'aurait rien de
+            plus a montrer : les huit nutriments sont deja la. Le lien deplie
+            donc ce qui manque vraiment, le detail du calcul. */}
+        <button
+          type="button"
+          className="button button--ghost fiche-plus"
+          aria-expanded={detail}
+          onClick={() => setDetail((d) => !d)}
+        >
+          {detail ? 'Masquer le détail' : 'Détail du calcul'}
+        </button>
+
+        {detail && (
+          <dl className="kv fiche-detail">
+            <dt>Masse crue</dt>
+            <dd>{formatGrams(derived.totalWeightG)}</dd>
+            {derived.hasCookingRatio && (
+              <>
+                <dt>Masse après cuisson</dt>
+                <dd>{formatGrams(derived.cookedWeightTotalG)}</dd>
+              </>
+            )}
+            <dt>Coût par portion</dt>
+            <dd>{formatEuros(derived.cost.perPortion)}</dd>
+            {derived.unknownMacroLines > 0 && (
+              <>
+                <dt>Lignes sans macros</dt>
+                <dd>{derived.unknownMacroLines}</dd>
+              </>
+            )}
+          </dl>
+        )}
+
+        <p className="field__hint">
+          « Aux 100 g » se lit sur la masse <strong>crue</strong> : une recette perd de l’eau à la
+          cuisson, et 100 g de plat servi ne sont pas 100 g d’ingrédients pesés.
+        </p>
+      </div>
+
+      {/* ---------- Ingrédients ---------- */}
+      <div className="card">
+        <h3 className="card__title">
+          Ingrédients · pour {portions} {portions > 1 ? 'portions' : 'portion'}
+        </h3>
+
+        <ul className="fiche-ingredients">
+          {recipe.lines.map((line, i) => {
+            const style = styleOf(line.ingredient.categoryL1)
+            const quantite = line.quantityG * ratio
+            const absent = manque?.missing.some((m) => m.ingredientId === line.ingredient.id) === true
+            return (
+              <li key={line.ingredient.id ?? i} className="fiche-ingredient">
+                <span className="icon-chip icon-chip--sm" {...style.tint}>
+                  <RayonIcon glyph={style.glyph} size={18} strokeWidth={1.8} />
+                </span>
+                <span className="fiche-ingredient__corps">
+                  <span className="fiche-ingredient__nom">
+                    {line.ingredient.name}
+                    {absent && <span className="badge-manque">Manquant</span>}
+                  </span>
+                  <span className="fiche-ingredient__quantite">
+                    {formatGrams(quantite)}
+                    {line.notes !== null && line.notes !== '' && ` · ${line.notes}`}
+                  </span>
+                </span>
+                <span className="fiche-ingredient__kcal chiffre">
+                  {Math.round((line.ingredient.kcal ?? 0) * (quantite / 100))} kcal
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+
+      {/* ---------- Instructions ---------- */}
+      {etapes.length > 0 && (
+        <div className="card">
+          <h3 className="card__title">Instructions</h3>
+          <ol className="fiche-etapes">
+            {etapes.map((e, i) =>
+              e.heading ? (
+                <li key={i} className="fiche-etape fiche-etape--titre">
+                  {e.text}
+                </li>
+              ) : (
+                <li key={i} className="fiche-etape">
+                  <span className="fiche-etape__numero chiffre">{e.index}</span>
+                  <p>{e.text}</p>
+                </li>
+              ),
+            )}
+          </ol>
+        </div>
+      )}
+
+      {/* ---------- Le pied ---------- */}
+      <div className="pied-recette">
+        <p className="pied-recette__etat" aria-live="polite">
+          {manque === null
+            ? ''
+            : manque.feasible
+              ? `Faisable avec ton frigo. Les lignes de moins de ${SEASONING_MAX_G} g sont supposées présentes.`
+              : `${manque.missing.length} ${manque.missing.length > 1 ? 'ingrédients manquants' : 'ingrédient manquant'} d’après ton frigo`}
+        </p>
+        <div className="pied-recette__actions">
+          <button
+            type="button"
+            className="button button--secondary"
+            disabled={noter.isPending || recipe.id === null}
+            onClick={() =>
+              noter.mutate({ cookedAt: new Date().toISOString().slice(0, 10), rating: null, notes: null })
+            }
+          >
+            <Icon name="ui-check" size={16} className="icon--inline" /> J’ai cuisiné ça
+          </button>
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => void navigate(`/planning?recette=${recipe.id}&portions=${portions}`)}
+          >
+            Planifier
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const jourCourt = (iso: string) =>
+  new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })

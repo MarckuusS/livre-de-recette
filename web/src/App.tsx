@@ -13,6 +13,7 @@ import { RayonsScreen } from './screens/RayonsScreen.js'
 import { IngredientDetailScreen, IngredientsScreen } from './screens/IngredientsScreen.js'
 import { PantryScreen } from './screens/PantryScreen.js'
 import { RecipeDetailScreen, RecipesScreen } from './screens/RecipesScreen.js'
+import { RecipeView } from './screens/recettes/RecipeView.js'
 import { ActivityScreen } from './screens/ActivityScreen.js'
 import { ObjectifsScreen } from './screens/ObjectifsScreen.js'
 import { SettingsScreen } from './screens/SettingsScreen.js'
@@ -78,6 +79,7 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/ingredients\/nouveau$/, 'Nouvel ingrédient'],
   [/^\/ingredients\/[^/]+$/, 'Ingrédient'],
   [/^\/ingredients$/, 'Ingrédients'],
+  [/^\/recettes\/[^/]+\/modifier$/, 'Modifier la recette'],
   [/^\/recettes\/[^/]+$/, 'Recette'],
   [/^\/recettes$/, 'Recettes'],
   [/^\/courses$/, 'Liste de courses'],
@@ -97,7 +99,7 @@ const TITLES: Array<[RegExp, string]> = [
  * geste systeme du navigateur, absent d'une PWA installee en plein ecran.
  */
 const STACKED =
-  /^\/(ingredients|recettes|courses|frigo|scan|activite)$|^\/(ingredients|recettes)\/[^/]+$|^\/planning\/[0-6]$|^\/objectifs\/reglages$|^\/parametres(\/(icones|rayons|mes-icones))?$/
+  /^\/(ingredients|recettes|courses|frigo|scan|activite)$|^\/(ingredients|recettes)\/[^/]+(\/modifier)?$|^\/planning\/[0-6]$|^\/objectifs\/reglages$|^\/parametres(\/(icones|rayons|mes-icones))?$/
 
 /** L'alias `/semaine`, qui emporte sa chaine de requete vers `/planning`. */
 function RedirigeVersPlanning() {
@@ -203,7 +205,11 @@ export function App() {
                 « nouveau » et repondait « Ingrédient introuvable ». */}
             <Route path="/ingredients/:id" element={<IngredientDetailScreen />} />
             <Route path="/recettes" element={<RecipesScreen />} />
-            <Route path="/recettes/:id" element={<RecipeDetailScreen />} />
+            {/* La LECTURE a l'adresse courte, l'editeur dessous : tous les
+                liens du projet pointent deja ici, et les inverser ferait
+                ouvrir un formulaire depuis le planning et l'accueil. */}
+            <Route path="/recettes/:id" element={<RecipeView />} />
+            <Route path="/recettes/:id/modifier" element={<RecipeDetailScreen />} />
             <Route path="/courses" element={<ShoppingScreen />} />
             <Route path="/frigo" element={<PantryScreen />} />
 
