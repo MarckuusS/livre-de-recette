@@ -224,6 +224,37 @@ Ce qui ne se devine pas :
   évolution de `goal`, `split` ou `pace` demandera la même manœuvre — copie, bascule, vérification
   du nombre de lignes AVANT le `DROP`.
 
+## Tendance de poids (web) — `shared/src/weight.ts`
+
+L'écran `/objectifs` est un **tableau de bord**, pas un formulaire : six blocs, du plus stratégique
+(le cap) au plus opérationnel (les mesures). Le formulaire de réglage n'a pas disparu, il vit sous
+`/objectifs/reglages`, vue empilée avec bouton retour. Ce qui ne se devine pas :
+
+- **`weight_log` est la troisième table cloisonnée par PERSONNE**, après `user_profile` et
+  `hydration_day`, pour la même raison. **Une mesure par jour**, d'où la clé primaire : se peser
+  deux fois le même matin est courant, et garder les deux ferait pencher la moyenne selon l'heure.
+- **`user_profile.weight_kg` reste**, et ce n'est pas un doublon : c'est la valeur de référence du
+  calcul de cible, celle qu'édite l'écran de réglage. Enregistrer une pesée la met à jour, sinon la
+  cible se calculerait sur un poids d'il y a trois mois. On peut régler un profil sans se peser.
+- **La fenêtre de la moyenne mobile est en JOURS, pas en mesures.** "Les 7 dernières pesées"
+  couvriraient une semaine pour qui se pèse chaque matin et six pour qui se pèse le dimanche.
+- **Le rythme est une régression des moindres carrés sur la série lissée**, jamais l'écart entre
+  deux pesées brutes : une seule journée salée en fin de période ferait basculer la pente.
+  `null` sous 7 jours d'étendue.
+- **`etaDay` est `null` quand le rythme ne va pas VERS la cible** — même règle que `weeksToTarget`.
+  Et l'arrondi du nombre de jours retranche `1e-9` : `3,65 / 0,35 × 7` vaut `73,00000000000001` en
+  virgule flottante, ce qui faisait sauter la date d'un jour selon les chiffres saisis.
+- **La régularité porte sur la SEMAINE en cours**, pas sur 30 jours comme le mockup : le calendrier
+  se charge par semaine, et couvrir un mois coûterait cinq requêtes dont quatre pour une seule
+  statistique. Le libellé dit sur quoi il porte plutôt que d'annoncer une fenêtre qu'il n'a pas.
+- **Un jour raté est un cercle ouvert, pas un aplat rouge**, et l'écart de poids hebdomadaire ne
+  prend aucune couleur de jugement : monter n'est pas une faute quand on vise une prise de masse.
+- **Le tour de taille n'entre dans aucun calcul.** Il se lit seul, à côté de l'IMC, parce que la
+  balance ne dit pas où sont partis les kilos. Une valeur, pas un historique.
+- Contraste : dans cette palette, **seul `--color-text-placeholder` tient 3:1 sur une carte dans
+  les deux thèmes** (3,53 clair / 4,57 sombre). `--color-border-hover` tombe à 1,5 et
+  `--color-text-disabled` à 1,87 : un trait de courbe ou une pastille qui les porte disparaît.
+
 ## Common commands
 
 ```bash
