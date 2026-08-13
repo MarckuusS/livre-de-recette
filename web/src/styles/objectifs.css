@@ -4,10 +4,13 @@
  * Six blocs, du plus strategique au plus operationnel : le cap, le poids, le
  * bilan energetique, les cibles, la regularite, les mesures.
  *
- * SELECTEURS DOUBLES (`.screen.screen--objectifs`) : `.screen` est declare
- * dans app.css, importe AVANT ce fichier. A specificite egale, le dernier
- * declare gagne, et une regle simple `.screen--objectifs` serait donc perdue.
- * Le piege s'est deja referme quatre fois sur ce projet.
+ * SELECTEURS DOUBLES (`.screen.screen--objectifs`) : `.screen` pose son
+ * padding dans app.css, et app.css est evalue APRES cette feuille. Les
+ * feuilles d'ecran sont importees par les ecrans, donc plus tot dans le
+ * graphe de modules que les trois imports de `main.tsx`. A specificite egale
+ * c'est donc app.css qui gagne, et une regle simple `.screen--objectifs`
+ * serait perdue. Le doublage la porte a 0,2,0 et rend le resultat
+ * independant de l'ordre. Le piege s'est deja referme quatre fois ici.
  */
 
 .screen.screen--objectifs {

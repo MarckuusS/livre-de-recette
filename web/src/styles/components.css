@@ -1001,3 +1001,89 @@
 .macros-card--seul .macros {
   justify-content: center;
 }
+
+/* ---------- Groupe de boutons radio ----------
+   Un choix parmi plusieurs, chacun avec sa description. Vit ici et non dans
+   une feuille d'ecran, pour la meme raison que le controle segmente : un
+   composant partage dont le style n'arrive qu'avec un ecran se retrouve nu
+   partout ailleurs. */
+
+.radios {
+  /* Un <fieldset> arrive avec une bordure, un padding et une marge que le
+     navigateur impose. On repart de zero. */
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.radios__legend {
+  padding: 0;
+  margin-bottom: var(--space-xs);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+/* Lu par les technologies d'assistance, invisible a l'oeil : le titre de
+   carte dit deja de quoi il s'agit, mais un groupe de radios sans intitule
+   annoncerait "Sedentaire, bouton radio" sans jamais dire de quel choix. */
+.radios__legend--muet {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.radio {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  /* Toute la ligne est tapable, pas seulement le rond de 21 px. */
+  min-height: var(--control-height-lg);
+  padding: var(--space-sm) 0;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.radio:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.radio__puce {
+  flex: none;
+  width: 21px;
+  height: 21px;
+  margin: 2px 0 0;
+  accent-color: var(--color-primary);
+}
+
+.radio__corps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.radio__label {
+  color: var(--color-text);
+}
+
+/* Le choix retenu s'epaissit : la puce coloree se voit mal sous un pouce, et
+   pas du tout en vision monochrome. Deux marques, jamais une seule. */
+.radio--on .radio__label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.radio__hint {
+  font-size: var(--font-size-md);
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
+.radios--invalid .radio__puce {
+  accent-color: var(--color-error);
+}

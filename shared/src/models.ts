@@ -208,6 +208,14 @@ export const profileWriteSchema = z.object({
   /** Tour de taille en cm. La derniere valeur connue, pas un historique. */
   waistCm: z.number().min(30).max(250).nullable().default(null),
   /**
+   * Reconnaissance des limites du calcul.
+   *
+   * Le client dit OUI ou NON en envoyant une valeur ou `null` ; il ne choisit
+   * pas la date. Le serveur ignore le contenu de la chaine et pose la sienne,
+   * sans quoi n'importe quel appelant pourrait antidater une reconnaissance.
+   */
+  limitsAckAt: z.string().nullable().default(null),
+  /**
    * Nombre de personnes qui mangent ce qui est planifie. Propriete du FOYER et
    * non de la personne : c'est par lui qu'on divise le total d'une journee.
    */

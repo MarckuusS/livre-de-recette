@@ -19,12 +19,16 @@ import {
   HYDRATION_BOUNDS,
   hydrationTarget,
   ENERGY_GOALS,
+  GOAL_DIRECTIONS,
   KCAL_PER_KG,
   MACRO_SPLITS,
   MAX_ADJUST,
+  MIN_PROTEINS_PER_KG,
   MIN_SAFE_KCAL,
   ageFrom,
   basalMetabolicRate,
+  directionOf,
+  goalForDirection,
   ajusterSplit,
   effetsSecondaires,
   estimateTargets,
@@ -478,5 +482,137 @@ describe('hydrationTarget', () => {
     for (const absent of [null, 0, -5, Number.NaN]) {
       expect(hydrationTarget(absent), String(absent)).toEqual({ ml: 2000, estimated: false })
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Les trois directions
+// ---------------------------------------------------------------------------
+
+describe('GOAL_DIRECTIONS', () => {
+  it('couvre les six objectifs, sans doublon ni oubli', () => {
+    const groupes = GOAL_DIRECTIONS.flatMap((d) => d.goals as readonly string[])
+    const codes = ENERGY_GOALS.map((g) => g.code)
+    // Une tuile qui oublierait un objectif le rendrait inatteignable, et un
+    // profil deja enregistre dessus n'aurait plus aucune tuile active.
+    expect([...groupes].sort()).toEqual([...codes].sort())
+    expect(new Set(groupes).size).toBe(groupes.length)
+  })
+
+  it('range chaque direction du plus doux au plus marque', () => {
+    for (const direction of GOAL_DIRECTIONS) {
+      const ecarts = direction.goals.map(
+        (code) => ENERGY_GOALS.find((g) => g.code === code)?.adjust ?? 0,
+      )
+      const parAmpleur = [...ecarts].sort((a, b) => Math.abs(a) - Math.abs(b))
+      expect(ecarts).toEqual(parAmpleur)
+    }
+  })
+
+  it('met les objectifs dans le bon sens', () => {
+    for (const direction of GOAL_DIRECTIONS) {
+      for (const code of direction.goals) {
+        const ecart = ENERGY_GOALS.find((g) => g.code === code)?.adjust ?? 0
+        if (direction.code === 'perdre') expect(ecart).toBeLessThan(0)
+        if (direction.code === 'maintenir') expect(ecart).toBe(0)
+        if (direction.code === 'prendre') expect(ecart).toBeGreaterThan(0)
+      }
+    }
+  })
+})
+
+describe('directionOf', () => {
+  it('retrouve la direction de chaque objectif', () => {
+    expect(directionOf('seche')).toBe('perdre')
+    expect(directionOf('perte')).toBe('perdre')
+    expect(directionOf('perte_douce')).toBe('perdre')
+    expect(directionOf('maintien')).toBe('maintenir')
+    expect(directionOf('prise_seche')).toBe('prendre')
+    expect(directionOf('prise')).toBe('prendre')
+  })
+
+  it('rend null quand aucun objectif n’est choisi', () => {
+    expect(directionOf(null)).toBeNull()
+    expect(directionOf(undefined)).toBeNull()
+  })
+})
+
+describe('goalForDirection', () => {
+  it('garde l’objectif en cours s’il appartient deja a la direction', () => {
+    // Taper sur la tuile deja active ne doit rien changer : quelqu'un qui a
+    // choisi « Sèche » et retape sur « Perdre » ne veut pas retomber sur
+    // « Perte progressive ».
+    expect(goalForDirection('perdre', 'seche')).toBe('seche')
+    expect(goalForDirection('perdre', 'perte')).toBe('perte')
+    expect(goalForDirection('prendre', 'prise')).toBe('prise')
+  })
+
+  it('prend le plus doux en changeant de direction', () => {
+    expect(goalForDirection('perdre', 'prise')).toBe('perte_douce')
+    expect(goalForDirection('prendre', 'seche')).toBe('prise_seche')
+    expect(goalForDirection('maintenir', 'seche')).toBe('maintien')
+  })
+
+  it('prend le plus doux quand rien n’est choisi', () => {
+    expect(goalForDirection('perdre', null)).toBe('perte_douce')
+    expect(goalForDirection('prendre', undefined)).toBe('prise_seche')
+  })
+
+  it('ne rend jamais un ecart de plus de 10 % par defaut', () => {
+    for (const direction of GOAL_DIRECTIONS) {
+      const defaut = goalForDirection(direction.code, null)
+      const ecart = ENERGY_GOALS.find((g) => g.code === defaut)?.adjust ?? 0
+      expect(Math.abs(ecart)).toBeLessThanOrEqual(0.1)
+    }
+  })
+})
+
+describe('lowProteins se juge sur l’ecart APPLIQUE', () => {
+  /*
+   * Le drapeau se lisait sur le signe de l'OBJECTIF, pas sur celui du calcul.
+   * Or une allure vers un poids vise l'emporte sur l'objectif : viser 135 kg
+   * quand on en pese 130, avec un objectif « seche », produit un SURPLUS.
+   * L'avertissement « en deficit, la masse musculaire paie » s'affichait alors
+   * sur un calcul qui AJOUTE de l'energie.
+   *
+   * Reference calculee a la main. Homme, 130 kg, 180 cm, 30 ans, sedentaire :
+   *   BMR  = 1300 + 1125 - 150 + 5 = 2280
+   *   TDEE = 2280 x 1,2            = 2736
+   * Repartition « endurance », 20 % de proteines, choisie pour que le seuil de
+   * 1,2 g/kg soit franchi dans les deux sens.
+   */
+  const LOURD: Profile = {
+    sex: 'm',
+    birthYear: 1996,
+    heightCm: 180,
+    weightKg: 130,
+    activity: 'sedentaire',
+    goal: 'seche',
+    split: 'endurance',
+  }
+
+  it('ne s’allume pas quand le poids vise renverse le calcul en surplus', () => {
+    // Allure lente vers un poids PLUS LOURD :
+    //   ecart journalier = 0,25 x 7700 / 7 = 275 kcal, en PLUS
+    //   ratio  = +275 / 2736            = +10,05 %  (sous le plafond de 25 %)
+    //   cible  = 2736 x 1,1005          = 3011 kcal
+    //   prot.  = 3011 x 20 % / 4        = 151 g, soit 1,16 g/kg
+    const cibles = estimateTargets({ ...LOURD, targetWeightKg: 135, pace: 'lent' }, NOW)
+    expect(cibles).not.toBeNull()
+    expect(cibles!.kcal).toBe(3011)
+    expect(cibles!.kcal).toBeGreaterThan(cibles!.tdee)
+    expect(cibles!.proteinsPerKg).toBeLessThan(MIN_PROTEINS_PER_KG)
+    expect(cibles!.lowProteins).toBe(false)
+  })
+
+  it('s’allume toujours sur un vrai deficit', () => {
+    //   cible = 2736 x 0,8       = 2189 kcal
+    //   prot. = 2189 x 20 % / 4  = 110 g, soit 0,85 g/kg
+    const cibles = estimateTargets(LOURD, NOW)
+    expect(cibles).not.toBeNull()
+    expect(cibles!.kcal).toBe(2189)
+    expect(cibles!.kcal).toBeLessThan(cibles!.tdee)
+    expect(cibles!.proteinsPerKg).toBeLessThan(MIN_PROTEINS_PER_KG)
+    expect(cibles!.lowProteins).toBe(true)
   })
 })

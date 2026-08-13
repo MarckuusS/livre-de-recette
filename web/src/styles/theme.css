@@ -71,6 +71,39 @@
   --color-success: #35734f;
   --color-warning: #b45309;
 
+  /*
+   * L'ambre du bloc "Limites et precautions", et le vert pale de reussite.
+   *
+   * `--color-warning-pale` ne fait que 1,02:1 sur une carte : la BORDURE n'est
+   * pas decorative, c'est elle qui delimite le bloc. La retirer laisserait un
+   * rectangle invisible. Meme chose de nuit, a 1,09:1.
+   *
+   * L'encre du mockup pour ce bloc (#5C5340) tient 7,59:1 sur son fond ; son
+   * dore de puce (#C9A44E), lui, tombe a 2,32:1 et echoue meme le seuil
+   * non textuel de 3:1. Les puces prennent donc `-strong`, mesure a 4,94:1,
+   * et ce qu'elles signalent est de toute facon ecrit a cote.
+   */
+  --color-warning-pale: #fffdf6;
+  --color-warning-border: #ead9ae;
+  --color-warning-ink: #5c5340;
+  --color-warning-strong: #8a6a2b;
+
+  /* `--color-success` dessus : 4,82:1. */
+  --color-success-pale: #e4f0e8;
+
+  /*
+   * Les trois zones de la jauge de rythme.
+   *
+   * Ce sont des SURFACES, comme les teintes de nutriment : rien ne s'ecrit
+   * dessus. Et elles ne se distinguent que de 1,21:1 entre elles en clair :
+   * c'est le trait qui les separe qui les rend lisibles, pas leur couleur.
+   * L'information qu'elles portent est doublee par une etiquette en toutes
+   * lettres, jamais laissee a la couleur seule.
+   */
+  --color-zone-safe: #8fc7a6;
+  --color-zone-caution: #efc876;
+  --color-zone-risk: #e79ab0;
+
   --color-overlay: rgb(0 0 0 / 45%);
 
   --shadow-color: 22 26 13;
@@ -319,6 +352,19 @@
     --color-success: #7dd68f;
     --color-warning: #f2c14e;
 
+    /* Voir :root pour le detail. Les valeurs sombres portent 10,42:1 pour
+       l'encre et 9,02:1 pour l'accent, sur le fond ambre profond. */
+    --color-warning-pale: #2a2617;
+    --color-warning-border: #4d452a;
+    --color-warning-ink: #ded6bd;
+    --color-warning-strong: #f2c14e;
+
+    --color-success-pale: #1b3621;
+
+    --color-zone-safe: #3f6b52;
+    --color-zone-caution: #6e5a2c;
+    --color-zone-risk: #6d3b4c;
+
     /* Les teintes de SURFACE ne bougent pas : une barre framboise reste framboise
        de nuit. Les encres s'inversent, et les pastilles deviennent des fonds
        profonds : le pastel du theme clair, sur une surface sombre, eblouit.
@@ -382,6 +428,19 @@
   --color-error-hover: #f7b0a8;
   --color-success: #7dd68f;
   --color-warning: #f2c14e;
+
+  /* Voir :root pour le detail. Les valeurs sombres portent 10,42:1 pour
+     l'encre et 9,02:1 pour l'accent, sur le fond ambre profond. */
+  --color-warning-pale: #2a2617;
+  --color-warning-border: #4d452a;
+  --color-warning-ink: #ded6bd;
+  --color-warning-strong: #f2c14e;
+
+  --color-success-pale: #1b3621;
+
+  --color-zone-safe: #3f6b52;
+  --color-zone-caution: #6e5a2c;
+  --color-zone-risk: #6d3b4c;
 
   /* Les teintes de SURFACE ne bougent pas : une barre framboise reste framboise
      de nuit. Les encres s'inversent, et les pastilles deviennent des fonds

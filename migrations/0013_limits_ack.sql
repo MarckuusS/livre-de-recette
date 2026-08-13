@@ -1,0 +1,27 @@
+-- =============================================================================
+-- La reconnaissance des limites.
+--
+-- L'ecran de reglage dit en langage clair ce que le calcul sait faire, ce
+-- qu'il ne sait pas, et ce qu'il refuse. Une case le fait reconnaitre avant
+-- d'enregistrer une cible.
+--
+-- POURQUOI EN BASE, ET PAS DANS LE NAVIGATEUR. Cette application se veut
+-- installee sur un telephone ET ouverte sur un ordinateur. Un drapeau dans
+-- localStorage vaudrait pour un appareil : la meme personne recocherait la
+-- case sur chaque nouvel appareil, et surtout, rien ne prouverait plus tard
+-- qu'elle a lu quoi que ce soit. Une colonne suit la personne.
+--
+-- CLOISONNE PAR PERSONNE, puisqu'elle vit sur `user_profile` : une
+-- reconnaissance est un acte individuel, et l'autre membre du foyer n'a pas
+-- lu ce texte a sa place.
+--
+-- On stocke la DATE et non un booleen. Le jour ou le texte des limites
+-- change, savoir quand la personne a reconnu l'ancienne version est la seule
+-- facon de decider s'il faut le lui redemander.
+--
+-- Un simple ADD COLUMN suffit : la colonne est nullable et ne porte aucun
+-- CHECK. La manoeuvre de reconstruction de la 0009 ne concernait que la
+-- modification d'une contrainte existante, ce que SQLite ne sait pas faire.
+-- =============================================================================
+
+ALTER TABLE user_profile ADD COLUMN limits_ack_at TEXT;

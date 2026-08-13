@@ -189,6 +189,53 @@ export const ENERGY_GOALS = [
 
 export type GoalCode = (typeof ENERGY_GOALS)[number]['code']
 
+/**
+ * Les trois DIRECTIONS, et les objectifs fins qu'elles regroupent.
+ *
+ * Un ecran ne peut pas demander de choisir entre six pourcentages avant meme
+ * d'avoir demande de quel cote on va. Les trois directions sont la question
+ * qu'on se pose en premier ; les six objectifs restent la reponse fine, et
+ * aucun ne disparait.
+ *
+ * L'ordre a l'interieur d'une direction va du PLUS DOUX au plus marque, et
+ * `defaut` est toujours le premier. Un ecart de 20 % ne doit jamais s'obtenir
+ * par defaut : il se choisit.
+ */
+export const GOAL_DIRECTIONS = [
+  { code: 'perdre', label: 'Perdre', goals: ['perte_douce', 'perte', 'seche'] },
+  { code: 'maintenir', label: 'Maintenir', goals: ['maintien'] },
+  { code: 'prendre', label: 'Prendre', goals: ['prise_seche', 'prise'] },
+] as const satisfies readonly {
+  code: string
+  label: string
+  goals: readonly GoalCode[]
+}[]
+
+export type DirectionCode = (typeof GOAL_DIRECTIONS)[number]['code']
+
+/** La direction d'un objectif. `null` quand aucun objectif n'est choisi. */
+export function directionOf(goal: GoalCode | null | undefined): DirectionCode | null {
+  if (goal == null) return null
+  return GOAL_DIRECTIONS.find((d) => (d.goals as readonly string[]).includes(goal))?.code ?? null
+}
+
+/**
+ * L'objectif a retenir quand on passe a une direction.
+ *
+ * Garde l'objectif en cours s'il appartient DEJA a cette direction : taper sur
+ * la tuile deja active ne doit rien changer, et revenir d'un aller-retour non
+ * plus. Sinon, prend le plus doux de la direction.
+ */
+export function goalForDirection(
+  direction: DirectionCode,
+  current: GoalCode | null | undefined,
+): GoalCode {
+  const entree = GOAL_DIRECTIONS.find((d) => d.code === direction)
+  if (entree === undefined) throw new Error(`Direction inconnue : ${direction}`)
+  if (current != null && (entree.goals as readonly string[]).includes(current)) return current
+  return entree.goals[0] as GoalCode
+}
+
 export type Sex = 'f' | 'm'
 
 // ---------------------------------------------------------------------------
@@ -377,7 +424,6 @@ export function estimateTargets(profile: Profile, now: Date = new Date()): Targe
   // L'allure l'emporte quand elle est exploitable : « atteindre 68 kg à 0,5 kg
   // par semaine » est une intention plus precise que « perdre du poids », et
   // c'est elle qui doit decider du deficit.
-  const goalDirection = Math.sign(target.adjust)
   const kgToTarget =
     profile.targetWeightKg != null ? Math.abs(profile.targetWeightKg - weightKg) : null
 
@@ -454,8 +500,16 @@ export function estimateTargets(profile: Profile, now: Date = new Date()): Targe
     proteinsPerKg,
     floored: kcal > wanted,
     capped,
-    // L'avertissement ne vaut qu'en deficit : c'est la que le muscle part.
-    lowProteins: goalDirection < 0 && proteinsPerKg < MIN_PROTEINS_PER_KG,
+    /*
+     * L'avertissement ne vaut qu'en deficit : c'est la que le muscle part.
+     *
+     * Sur l'ecart REELLEMENT applique, et non sur le signe de l'objectif. Une
+     * allure vers un poids vise l'emporte sur l'objectif : viser plus lourd
+     * avec un objectif « seche » produit un surplus, et l'avertissement
+     * « en deficit, la masse musculaire paie » s'affichait alors sur un calcul
+     * qui ajoute de l'energie.
+     */
+    lowProteins: appliedDelta > 0 && proteinsPerKg < MIN_PROTEINS_PER_KG,
     lowFats: split.fats < MIN_FAT_PERCENT,
     weeksToTarget,
     targetDate: weeksToTarget === null ? null : addWeeks(now, weeksToTarget),

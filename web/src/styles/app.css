@@ -521,12 +521,14 @@
   color: var(--color-text-secondary);
 }
 
-/* ---------- Liste de courses ---------- */
-
-.screen.screen--shopping {
-  /* Laisse passer le pied fixe (total + partage) sous le contenu. */
-  padding-bottom: calc(var(--reserve-pied) + 72px);
-}
+/* ---------- Liste de courses ----------
+   La reserve du pied fixe est declaree dans shopping.css, et NULLE PART
+   AILLEURS. Elle vivait aussi ici, a 72 px, du temps ou le pied comptait une
+   ligne. Le pied en compte trois depuis, shopping.css est passe a 104 px,
+   mais les deux regles ont la meme specificite et app.css est evalue en
+   dernier : c'est 72 px qui s'appliquait, et la fin de la liste passait sous
+   le pied. Le doublage de classe protege d'une feuille d'ecran, pas d'un
+   doublon dans app.css meme. */
 
 .shopping-section {
   background: var(--color-surface);

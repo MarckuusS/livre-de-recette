@@ -1,0 +1,500 @@
+/*
+ * Regler mes objectifs.
+ *
+ * Une feuille a part plutot qu'une rallonge de profile.css : celle-ci garde
+ * ce que la refonte n'a pas touche, dont les regles `.goal-bar*` qui servent
+ * a l'ecran Semaine et qui n'ont rien a faire ici.
+ *
+ * SELECTEUR DOUBLE pour la reserve du pied (`.screen.screen--reglages`) :
+ * `.screen` pose son padding dans app.css, evalue APRES cette feuille, donc a
+ * specificite egale c'est app.css qui gagnerait. Voir l'en-tete de
+ * objectifs.css pour le detail du mecanisme.
+ */
+
+.screen.screen--reglages {
+  /*
+   * Le pied compte trois etages : erreur, case, bouton. Mesure a 165 px sur
+   * 320 de large et 168 sur 375, SANS la ligne d'erreur ; celle-ci ajoute une
+   * ligne de texte et sa marge quand un enregistrement echoue. La reserve
+   * couvre le cas haut : sinon le bloc des limites finirait sous le pied au
+   * moment precis ou l'on a besoin de le lire.
+   */
+  padding-bottom: calc(var(--reserve-pied) + 188px);
+}
+
+/* ---------- Lignes libelle / valeur ----------
+   Le mockup pose le libelle A GAUCHE et la valeur a droite. `FieldShell`
+   empile toujours le libelle AU-DESSUS ; cette variante le remet en ligne
+   sans toucher au composant, qui garde ses identifiants lies, son aide, son
+   erreur et son bornage a la sortie du champ. */
+
+.lignes {
+  margin-top: var(--space-sm);
+}
+
+.field--ligne {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-sm) var(--space-md);
+  align-items: center;
+  padding: var(--space-sm) 0;
+}
+
+/*
+ * Le filet SEPARE, il ne souligne pas.
+ *
+ * Il n'appartient donc qu'aux lignes groupees dans `.lignes`, et pas au
+ * dernier de la pile. Les champs isoles (« Poids visé », « Nombre de
+ * mangeurs ») vivent seuls dans leur carte : un trait sous eux ne separerait
+ * rien. `:only-of-type` n'aurait pas suffi, il compte les elements de meme
+ * BALISE, et ces cartes contiennent d'autres div.
+ */
+.lignes .field--ligne:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.field--ligne .field__label {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+/*
+ * Le controle ne prend que la place qu'il lui faut, colle a droite.
+ *
+ * SUR L'ENFANT DIRECT SEULEMENT. `NumberField` rend soit l'input nu, soit un
+ * `.field__control` qui contient l'input ET la cellule d'unite. Une largeur
+ * posee sur les deux a la fois donnait un controle de 144 px contenant un
+ * input de 144 px : l'unite sortait de la carte, et la page defilait de
+ * 32 px en largeur.
+ */
+.field--ligne > .field__control,
+.field--ligne > .field__input {
+  justify-self: end;
+  width: auto;
+  /* EN PIXELS, pas en rem : theme.css ramene la base a 13 px au-dela de
+     768 px, et 9rem y valait 117 px. La cellule d'unite, elle, reste a 64 px
+     et ne retrecit pas : il restait 27 px de texte utile, ou « 102,5 » se
+     coupait. Sur grand ecran, la carte est pourtant deux fois plus large. */
+  max-width: 144px;
+}
+
+/* Un element de flex ne descend pas sous son contenu sans cela : l'input
+   refuserait de retrecir pour laisser la place a l'unite. */
+.field--ligne > .field__control > .field__input {
+  min-width: 0;
+  max-width: none;
+}
+
+.field--ligne .field__input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* L'aide passe sous les deux colonnes : coincee a droite sur 375 px, elle se
+   reduirait a un mot par ligne. */
+.field--ligne .field__hint,
+.field--ligne .field__error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+/* ---------- Les trois directions ---------- */
+
+.directions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.direction {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: center;
+  justify-content: center;
+  min-height: 76px;
+  padding: var(--space-md) var(--space-xs);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/*
+ * Deux marques et pas une : la couleur seule ne se voit pas sous un doigt, et
+ * ne se voit pas du tout en vision monochrome. Meme regle que les cellules
+ * d'icone de l'ecran Rayons.
+ */
+.direction--on {
+  color: var(--color-primary-text);
+  background: var(--color-surface-hover);
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.direction__icone {
+  color: var(--color-text-placeholder);
+}
+
+.direction--on .direction__icone {
+  color: var(--color-primary-text);
+}
+
+/* Classe DOUBLEE : `.card__lead` pose `margin: 0` dans app.css, evalue apres
+   cette feuille. A specificite egale la marge etait perdue, et l'invite
+   collait aux tuiles. */
+.card__lead.directions__invite {
+  margin-top: var(--space-md);
+}
+
+/* ---------- La contradiction entre la tuile et le poids vise ---------- */
+
+.contradiction {
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+  /* Le fond ambre ne fait que 1,02:1 sur une carte : c'est la BORDURE qui
+     dessine le bloc. La retirer laisserait un rectangle invisible. */
+  background: var(--color-warning-pale);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-lg);
+}
+
+.contradiction__constat {
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  color: var(--color-warning-ink);
+}
+
+.contradiction__constat .icon--inline {
+  color: var(--color-warning-strong);
+}
+
+.contradiction__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+/* ---------- La jauge d'allure ---------- */
+
+.allure {
+  min-width: 0;
+  padding: 0;
+  margin: var(--space-lg) 0 0;
+  border: 0;
+}
+
+.allure__lecture {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.allure__valeur {
+  font-size: var(--font-size-xl);
+}
+
+.allure__unite {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.allure__vide {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.allure__zone {
+  padding: 3px var(--space-sm);
+  margin-left: auto;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-success);
+  background: var(--color-success-pale);
+  border-radius: var(--radius-full);
+}
+
+/* La piste et les arrets se superposent : la piste est du decor, les arrets
+   sont le controle. La hauteur vient des arrets, qui doivent tenir 44 px. */
+.allure__jauge {
+  position: relative;
+  height: 64px;
+}
+
+.allure__piste {
+  position: absolute;
+  top: 18px;
+  right: 0;
+  left: 0;
+  display: flex;
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+}
+
+.allure__bande {
+  display: block;
+  height: 100%;
+}
+
+/*
+ * Un filet entre les bandes.
+ *
+ * Les trois teintes ne se separent que de 1,2:1 les unes des autres : sans
+ * trait, la barre se lit comme un seul aplat et l'on ne voit pas ou passe la
+ * frontiere. Elles restent sous 3:1 contre la carte, et c'est assume : ce
+ * qu'elles disent est ECRIT en toutes lettres sous la jauge, la couleur ne
+ * porte donc aucune information a elle seule.
+ */
+.allure__bande + .allure__bande {
+  border-left: 1px solid var(--color-surface);
+}
+
+.allure__bande--lente {
+  background: var(--color-zone-caution);
+}
+
+.allure__bande--sure {
+  background: var(--color-zone-safe);
+}
+
+/* Prend tout ce qui reste : la zone qu'on ne peut pas atteindre. */
+.allure__bande--exclue {
+  flex: 1;
+  background: var(--color-zone-risk);
+}
+
+.arret {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: center;
+  /* 44 px de cible tactile, centres sur la valeur. */
+  width: 44px;
+  padding-top: 12px;
+  margin-left: -22px;
+  cursor: pointer;
+}
+
+.arret input {
+  /* Le rond est dessine par `.arret__pastille` ; l'input reste focusable et
+     couvre toute la cible, mais ne se voit pas. */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.arret__pastille {
+  width: 22px;
+  height: 22px;
+  background: var(--color-surface);
+  border: 3px solid var(--color-text-placeholder);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-subtle);
+}
+
+.arret--on .arret__pastille {
+  border-color: var(--color-success);
+  border-width: 4px;
+}
+
+.arret input:focus-visible + .arret__pastille {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.arret__valeur {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.arret--on .arret__valeur {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+/* Lu, jamais vu : le nombre visible fait partie du nom accessible, cette
+   phrase le complete. Un `aria-label` aurait ecrase le nombre, et le
+   pilotage vocal n'aurait plus pu dire "clique sur 0,25". */
+.arret__dit {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.allure__legende {
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-md);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.allure__annuler {
+  margin-top: var(--space-sm);
+}
+
+/* ---------- Limites et precautions ---------- */
+
+/*
+ * CLASSE DOUBLEE, cinquieme occurrence du meme piege dans ce projet.
+ *
+ * `.card` pose `background: var(--color-surface)` dans app.css, evalue APRES
+ * cette feuille. A specificite egale c'est lui qui gagnait, et le bloc restait
+ * blanc. Invisible en theme clair, ou le papier ambre et le blanc ne different
+ * que de deux points ; flagrant en theme sombre, ou le fond profond ne
+ * s'affichait pas du tout. Mesure avant de le voir.
+ */
+.card.limites {
+  background: var(--color-warning-pale);
+  border: 1px solid var(--color-warning-border);
+}
+
+.limites__titre {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  color: var(--color-warning-ink);
+}
+
+.limites__titre .icon--inline {
+  color: var(--color-warning-strong);
+}
+
+.limites__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 0;
+  margin: var(--space-md) 0 0;
+  list-style: none;
+}
+
+.limites__liste li {
+  position: relative;
+  padding-left: var(--space-lg);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  color: var(--color-warning-ink);
+}
+
+.limites__liste li::before {
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  content: "";
+  background: var(--color-warning-strong);
+  border-radius: var(--radius-full);
+}
+
+.limites__source {
+  margin-top: var(--space-md);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  color: var(--color-warning-ink);
+  opacity: 0.85;
+}
+
+/* ---------- Le pied fixe ---------- */
+
+.pied-reglages {
+  position: fixed;
+  right: 0;
+  bottom: var(--above-tabbar);
+  left: 0;
+  z-index: 15;
+  padding: var(--space-md) var(--space-lg);
+  /* Le bouton de scan central deborde de 20 px en z-index 20 : sans cette
+     reserve en bas, il prend le tap sur 56 px de large, exactement au milieu
+     du bouton Enregistrer. */
+  padding-bottom: calc(var(--space-md) + var(--scan-overlap));
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-normal);
+}
+
+/* `min-width` et non la syntaxe d'intervalle : c'est la forme qu'emploient
+   les onze autres requetes du projet, et esbuild ne l'abaisse pas. */
+@media (min-width: 720px) {
+  .pied-reglages {
+    right: auto;
+    left: 50%;
+    width: 720px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    transform: translateX(-50%);
+  }
+}
+
+.pied-reglages__erreur {
+  margin-bottom: var(--space-sm);
+  font-size: var(--font-size-md);
+  color: var(--color-error);
+}
+
+.pied-reglages__case {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  min-height: var(--control-height-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.pied-reglages__case input {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.pied-reglages__case small {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+.pied-reglages__etat {
+  min-height: 1.2em;
+  margin-bottom: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* `aria-disabled` et non `disabled` : le bouton reste dans l'ordre de
+   tabulation, donc un lecteur d'ecran le rencontre et apprend pourquoi rien
+   ne part. Le style doit dire la meme chose que l'attribut. */
+.pied-reglages .button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* L'opacite s'applique a l'element ENTIER, contour compris : un bouton retenu
+   perdait la moitie de son anneau de focus, alors que c'est justement lui
+   qu'on atteint au clavier pour apprendre pourquoi rien ne part. */
+.pied-reglages .button[aria-disabled="true"]:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  filter: grayscale(60%);
+}

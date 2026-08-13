@@ -384,6 +384,15 @@ export interface NumberFieldProps extends BaseFieldProps {
   readonly suffix?: string | undefined
   readonly autoFocus?: boolean | undefined
   readonly inputRef?: Ref<HTMLInputElement> | undefined
+  /**
+   * Classe posee sur l'enveloppe.
+   *
+   * Sert a la variante `field--ligne`, ou le libelle passe A GAUCHE du
+   * controle au lieu d'etre au-dessus. C'est une affaire de mise en page, pas
+   * de comportement : le champ reste le meme, avec les memes identifiants
+   * lies et le meme bornage a la sortie.
+   */
+  readonly className?: string | undefined
 }
 
 export function NumberField({
@@ -403,6 +412,7 @@ export function NumberField({
   required,
   disabled,
   id,
+  className,
 }: NumberFieldProps) {
   const ids = useFieldIds(id, { hint, error })
   const input = useDecimalInput(value, onChange, { decimals, emptyOnZero })
@@ -443,7 +453,14 @@ export function NumberField({
   )
 
   return (
-    <FieldShell ids={ids} label={label} required={required} hint={hint} error={error}>
+    <FieldShell
+      ids={ids}
+      label={label}
+      required={required}
+      hint={hint}
+      error={error}
+      className={className}
+    >
       {suffix === undefined ? (
         field
       ) : (
@@ -619,5 +636,108 @@ export function DateField({
         aria-describedby={ids.describedBy}
       />
     </FieldShell>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// RadioGroupField
+// ---------------------------------------------------------------------------
+
+export interface RadioOption {
+  readonly value: string
+  readonly label: string
+  /** Description sous le libelle. C'est elle qui rend le choix decidable. */
+  readonly hint?: string | undefined
+  readonly disabled?: boolean | undefined
+}
+
+export interface RadioGroupFieldProps {
+  /** Intitule du groupe. Rendu dans un <legend>, donc annonce avant chaque choix. */
+  readonly legend: string
+  readonly value: string | null
+  readonly onChange: (value: string) => void
+  readonly options: readonly RadioOption[]
+  readonly hint?: string | undefined
+  readonly error?: string | null | undefined
+  readonly disabled?: boolean | undefined
+  readonly id?: string | undefined
+  /** Cache visuellement le <legend>, quand le titre de carte le repete deja. */
+  readonly legendHidden?: boolean | undefined
+}
+
+/**
+ * Un choix parmi plusieurs, chacun avec sa description.
+ *
+ * DES <input type="radio"> NATIFS, et non des boutons avec `aria-checked`.
+ * Le navigateur donne alors gratuitement ce qu'il faudrait sinon reecrire et
+ * maintenir : les fleches qui circulent dans le groupe, la tabulation qui
+ * entre sur l'element coche et ressort du groupe entier, et l'annonce
+ * "3 sur 5" par le lecteur d'ecran. Aucun de ces trois comportements n'est
+ * evident a refaire, et le troisieme est impossible sans le groupe natif.
+ *
+ * `<fieldset>` + `<legend>` parce qu'un groupe de radios sans intitule laisse
+ * entendre "Sedentaire, bouton radio" sans jamais dire de quoi il s'agit.
+ *
+ * Le <label> englobe la puce ET le texte : la zone de tap fait la largeur de
+ * la carte et non les 21 px du rond. Meme raison que CheckboxField.
+ */
+export function RadioGroupField({
+  legend,
+  value,
+  onChange,
+  options,
+  hint,
+  error,
+  disabled,
+  id,
+  legendHidden,
+}: RadioGroupFieldProps) {
+  const ids = useFieldIds(id, { hint, error })
+
+  return (
+    <fieldset
+      className={`radios${error ? ' radios--invalid' : ''}`}
+      aria-describedby={ids.describedBy}
+    >
+      <legend className={`radios__legend${legendHidden === true ? ' radios__legend--muet' : ''}`}>
+        {legend}
+      </legend>
+
+      {options.map((option) => (
+        <label
+          key={option.value}
+          className={`radio${value === option.value ? ' radio--on' : ''}`}
+          htmlFor={`${ids.controlId}-${option.value}`}
+        >
+          <input
+            id={`${ids.controlId}-${option.value}`}
+            className="radio__puce"
+            type="radio"
+            /* Le meme `name` pour tout le groupe : c'est LUI qui fait le
+               groupe aux yeux du navigateur, pas le <fieldset>. */
+            name={ids.controlId}
+            value={option.value}
+            checked={value === option.value}
+            disabled={disabled === true || option.disabled === true}
+            onChange={() => onChange(option.value)}
+          />
+          <span className="radio__corps">
+            <span className="radio__label">{option.label}</span>
+            {option.hint !== undefined && <span className="radio__hint">{option.hint}</span>}
+          </span>
+        </label>
+      ))}
+
+      {hint !== undefined && !error && (
+        <p className="field__hint" id={ids.hintId}>
+          {hint}
+        </p>
+      )}
+      {error && (
+        <p className="field__error" id={ids.errorId} role="alert">
+          {error}
+        </p>
+      )}
+    </fieldset>
   )
 }

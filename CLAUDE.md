@@ -255,6 +255,47 @@ L'écran `/objectifs` est un **tableau de bord**, pas un formulaire : six blocs,
   les deux thèmes** (3,53 clair / 4,57 sombre). `--color-border-hover` tombe à 1,5 et
   `--color-text-disabled` à 1,87 : un trait de courbe ou une pastille qui les porte disparaît.
 
+## Régler mes objectifs (web) — `web/src/screens/reglages/`
+
+`/objectifs/reglages`, vue empilée. Un mockup y pose trois tuiles et une jauge continue là où
+le modèle a six objectifs et trois allures. Ce qui ne se devine pas :
+
+- **La tuile (Perdre / Maintenir / Prendre) n'existe pas en base.** C'est une projection de
+  `goal`, recalculée à chaque rendu par `directionOf`. `GOAL_DIRECTIONS` regroupe les **six**
+  `ENERGY_GOALS`, aucun ne disparaît, et quatre tests gardent l'invariant : couverture
+  exhaustive, ordre du plus doux au plus marqué, signe cohérent, et **aucun défaut au-delà de
+  10 % d'écart**. Un déficit de 20 % ne s'obtient jamais sans un geste.
+- **Aucune tuile n'est présélectionnée quand `goal` est nul.** En présélectionner une ferait
+  passer l'écran de "il manque l'objectif" à une estimation complète sans un seul geste, et le
+  prochain enregistrement écrirait en base un objectif que personne n'a choisi.
+- **Changer de tuile garde l'objectif s'il appartient déjà à la nouvelle direction**
+  (`goalForDirection`), sinon prend le plus doux. Conséquence assumée : Sèche → Prendre → Perdre
+  rend "Perte progressive". L'alternative, une mémoire par direction, restituerait 20 % d'écart
+  sans geste.
+- **La contradiction se dit, elle ne se corrige pas toute seule.** Viser plus lourd avec la tuile
+  Perdre est possible : `estimateTargets` tranche par l'écart **réel**, jamais par le libellé.
+  Retourner la tuile en silence réécrirait aussi la répartition qu'elle propose.
+- **La jauge d'allure est un groupe de boutons radio, pas un `input[type=range]`.** Trois
+  raisons : un curseur ne sait pas être **vide** alors que `pace` vaut `null` par défaut ; les
+  bornes de l'axe (0 et 1,2) ne sont pas des valeurs offertes ; et le navigateur ne pose pas sa
+  poignée là où la CSS dessine les zones. Corollaire : un radio ne se décoche pas au clavier,
+  d'où le bouton "Revenir à l'allure de l'objectif".
+- **L'échelle 0 à 1,2 kg/semaine n'est pas décorative** : la bande jusqu'à `SAFE_PACE.min` dit
+  "trop lent pour se voir", celle jusqu'à `SAFE_PACE.max` la zone sûre, le reste ce qu'on
+  n'offre pas. Qu'aucun des trois arrêts n'y tombe **est** le message.
+- **Chaque phrase du bloc "Limites et précautions" a été vérifiée contre le code.** Le mockup
+  annonçait quatre choses fausses (refus sous le métabolisme de base, refus au-delà de 1 kg/sem.,
+  le verbe "refuser", un recalage hebdomadaire). Une promesse que le code ne tient pas fait
+  baisser la garde de qui la lit : avant d'y toucher, relire `MIN_SAFE_KCAL`, `MAX_ADJUST`,
+  `PACES` et le fait qu'une **cible saisie à la main échappe aux deux garde-fous**.
+- **`limits_ack_at` est une DATE posée par le serveur**, jamais recopiée du corps de la requête,
+  et une date existante est conservée. En base et non dans `localStorage` : le consentement doit
+  suivre la personne d'un appareil à l'autre. La case ne bloque que la **première** écriture, et
+  seulement s'il y a une cible ; le bouton porte `aria-disabled` et non `disabled`, sans quoi un
+  lecteur d'écran ne le rencontrerait jamais et n'apprendrait jamais pourquoi rien ne part.
+- **L'âge se saisit en années, l'année de naissance est stockée.** `ageFrom` n'est qu'une
+  soustraction d'années : l'aller-retour est exact.
+
 ## Common commands
 
 ```bash
