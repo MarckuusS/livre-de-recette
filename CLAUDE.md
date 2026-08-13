@@ -275,11 +275,14 @@ le modèle a six objectifs et trois allures. Ce qui ne se devine pas :
 - **La contradiction se dit, elle ne se corrige pas toute seule.** Viser plus lourd avec la tuile
   Perdre est possible : `estimateTargets` tranche par l'écart **réel**, jamais par le libellé.
   Retourner la tuile en silence réécrirait aussi la répartition qu'elle propose.
-- **La jauge d'allure est un groupe de boutons radio, pas un `input[type=range]`.** Trois
-  raisons : un curseur ne sait pas être **vide** alors que `pace` vaut `null` par défaut ; les
-  bornes de l'axe (0 et 1,2) ne sont pas des valeurs offertes ; et le navigateur ne pose pas sa
-  poignée là où la CSS dessine les zones. Corollaire : un radio ne se décoche pas au clavier,
-  d'où le bouton "Revenir à l'allure de l'objectif".
+- **L'allure est un CURSEUR CONTINU**, de 0,10 à 1 kg/semaine par pas de 0,05. Elle a d'abord
+  été trois arrêts, parce que `user_profile.pace` était une énumération sous CHECK ; la
+  migration 0014 en a fait un REEL (`pace_kg_per_week`) et converti les profils enregistrés.
+  **Le pouce natif est réduit à 1 px et le rond dessiné à part** : un `input[type=range]` place
+  le sien à "demi-pouce + valeur × (largeur - pouce)", ce qui dérive de plusieurs pixels par
+  rapport à des frontières de zone posées en pourcentages exacts. Mesuré à cinq positions :
+  zéro écart. `null` veut toujours dire "celle de l'objectif", état que le curseur ne sait pas
+  porter, d'où le rond caché et le bouton de retour.
 - **L'échelle 0 à 1,2 kg/semaine n'est pas décorative** : la bande jusqu'à `SAFE_PACE.min` dit
   "trop lent pour se voir", celle jusqu'à `SAFE_PACE.max` la zone sûre, le reste ce qu'on
   n'offre pas. Qu'aucun des trois arrêts n'y tombe **est** le message.
@@ -288,13 +291,42 @@ le modèle a six objectifs et trois allures. Ce qui ne se devine pas :
   le verbe "refuser", un recalage hebdomadaire). Une promesse que le code ne tient pas fait
   baisser la garde de qui la lit : avant d'y toucher, relire `MIN_SAFE_KCAL`, `MAX_ADJUST`,
   `PACES` et le fait qu'une **cible saisie à la main échappe aux deux garde-fous**.
-- **`limits_ack_at` est une DATE posée par le serveur**, jamais recopiée du corps de la requête,
-  et une date existante est conservée. En base et non dans `localStorage` : le consentement doit
-  suivre la personne d'un appareil à l'autre. La case ne bloque que la **première** écriture, et
-  seulement s'il y a une cible ; le bouton porte `aria-disabled` et non `disabled`, sans quoi un
-  lecteur d'écran ne le rencontrerait jamais et n'apprendrait jamais pourquoi rien ne part.
+- **Il n'y a PAS de case de consentement**, et c'est une décision : une reconnaissance qu'on
+  obtient d'un réflexe en deux passages n'en est pas une, et elle bloquait l'enregistrement de
+  réglages sans rapport avec la santé. L'encart informe, il ne fait pas signer. La colonne
+  `limits_ack_at`, ajoutée puis retirée le lendemain, est partie avec la migration 0014.
+- **Les encarts Répartition et La cuisine ont été retirés.** Conséquence à connaître : les sept
+  `MACRO_SPLITS` et `eaters` ne sont plus réglables, mais **leurs colonnes restent** et leurs
+  valeurs continuent de s'appliquer. Une répartition déjà enregistrée vaut toujours ; à défaut,
+  c'est celle que propose l'objectif.
 - **L'âge se saisit en années, l'année de naissance est stockée.** `ageFrom` n'est qu'une
   soustraction d'années : l'aller-retour est exact.
+
+## Repères nutritionnels (web) — `shared/src/limits.ts`
+
+Quatre repères journaliers affichés sous la cible en calories : trois plafonds (sel, sucres,
+acides gras saturés) et un plancher (fibres). Ce qui ne se devine pas :
+
+- **Chaque nombre porte son agence et son année**, dans le code comme à l'écran. C'est la règle
+  du module : ne jamais afficher un chiffre de santé que ses sources ne soutiennent pas. Un seuil
+  inventé serait cru, et c'est ce qui le rend pire que pas de seuil.
+- **Seuls les saturés suivent la cible énergétique** (10 % de l'apport, OMS 2023). Les trois
+  autres sont des nombres absolus. L'ANSES retient 12 % pour les saturés : la divergence est
+  affichée, pas tranchée en silence.
+- **Le piège du périmètre sur les sucres.** L'OMS vise 10 % de l'énergie en sucres **libres**,
+  qui excluent les fruits entiers et le lactose. CIQUAL et OpenFoodFacts ne donnent que les
+  sucres **totaux** : comparer notre total à la cible OMS surestimerait le dépassement. D'où le
+  repère ANSES (100 g de sucres totaux hors lactose), le seul dont le périmètre approche la
+  donnée, avec la nuance écrite à l'écran.
+- **Aucune fonction ne fait dépendre un repère d'un autre, et un test le garde.** L'idée que les
+  fibres du jour rachèteraient les sucres du jour est juste dans son mécanisme (une fibre
+  visqueuse ralentit le sucre avalé *avec elle*) et fausse à cette échelle : la simultanéité est
+  constitutive, le rapport 10:1 de l'AHA juge un **produit** en rayon, et aucune des quatre
+  agences qui ont examiné les deux dossiers ne conditionne l'un à l'autre. L'OMS retourne même
+  l'intuition : elle ne tolère pas plus de sucres, elle **retire du compte** ceux qui viennent
+  avec leur matrice. `dailyLimits` n'accepte donc que la cible énergétique, et un test vérifie
+  sa signature pour qu'une future "amélioration" casse là plutôt qu'en silence.
+- Les mots **compensé, neutralisé, rattrapé** n'ont pas leur place sur cet écran.
 
 ## Common commands
 
