@@ -559,3 +559,84 @@
     font-size: var(--font-size-xs);
   }
 }
+
+/* ---------- Les reperes du jour ---------- */
+
+.reperes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 0;
+  margin: var(--space-md) 0 0;
+  list-style: none;
+}
+
+.repere {
+  display: grid;
+  /* Nutriment extensible, valeur, source. La source passe SOUS les deux
+     autres en dessous de 360 px (voir plus bas) : « ANSES 2016 » et
+     « au plus 100 g » ne tiennent pas sur une ligne de 280 px. */
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: baseline;
+  padding-bottom: var(--space-sm);
+  font-size: var(--font-size-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.repere:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.repere__valeur {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.repere__valeur b {
+  color: var(--color-text);
+}
+
+/*  ne tient que 3,53:1 en clair : la source est du
+   TEXTE, pas un ornement, et qui la lit veut savoir d'ou vient le chiffre.
+   La hierarchie passe par la taille, pas par un contraste insuffisant. */
+.repere__source {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Les notes : c'est la qu'on dit ce que les chiffres ne disent pas. */
+.reperes__notes {
+  padding-top: var(--space-md);
+  margin: var(--space-lg) 0 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.reperes__notes dt {
+  margin-top: var(--space-md);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.reperes__notes dt:first-child {
+  margin-top: 0;
+}
+
+.reperes__notes dd {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 360px) {
+  .repere {
+    grid-template-columns: 1fr auto;
+  }
+
+  .repere__source {
+    grid-column: 1 / -1;
+  }
+}

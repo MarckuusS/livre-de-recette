@@ -38,6 +38,7 @@ import { Icon } from '../icons/index.js'
 import { todayIso, useCalendar, useSaveWeighIn, useWeightLog } from '../lib/queries.js'
 import { useDailyTargets, type DailyTargets } from '../lib/useDailyTargets.js'
 import { CourbePoids } from './objectifs/CourbePoids.js'
+import { Reperes } from './objectifs/Reperes.js'
 import { entriesOfDay, sumNutrition } from './semaine/totals.js'
 import '../styles/objectifs.css'
 
@@ -118,6 +119,10 @@ export function ObjectifsScreen() {
 
       <Bloc3Energie cible={cible} cap={cap} />
       <Bloc4Cibles cible={cible} />
+      {/* Les reperes de sel, sucres, satures et fibres viennent JUSTE APRES la
+          cible en calories : ce sont des cibles du jour, au meme titre, et
+          les separer les ferait lire comme un a-cote. */}
+      <Reperes kcalTarget={cible.kcalTarget} />
       <Bloc5Regularite cible={cible} />
       <Bloc6Mesures cible={cible} cap={cap} />
 
