@@ -60,7 +60,7 @@ export function BilanDuJour({
       <div className="card">
         <h2 className="card__title">Ma journée</h2>
         <p className="card__lead">
-          <Link to="/objectifs">Renseigne ton profil</Link> et cette journée se comparera à un
+          <Link to="/objectifs/reglages">Renseigne ton profil</Link> et cette journée se comparera à un
           objectif — il te restera un chiffre au lieu d’un total.
         </p>
       </div>
@@ -133,7 +133,7 @@ export function BilanDuJour({
       {eaters > 1 && (
         <p className="bilan__note">
           Part pour une personne : le total du jour a été divisé par {eaters} mangeurs.{' '}
-          <Link to="/objectifs">Régler</Link>
+          <Link to="/objectifs/reglages">Régler</Link>
         </p>
       )}
     </div>

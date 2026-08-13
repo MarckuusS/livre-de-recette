@@ -44,7 +44,7 @@ export function GoalCard({
       <div className="card">
         <h3 className="card__title">Mon objectif</h3>
         <p className="card__lead">
-          <Link to="/objectifs">Renseigne ton profil</Link> pour comparer cette journée à un
+          <Link to="/objectifs/reglages">Renseigne ton profil</Link> pour comparer cette journée à un
           objectif journalier.
         </p>
       </div>

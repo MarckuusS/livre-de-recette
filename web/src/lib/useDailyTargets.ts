@@ -43,6 +43,13 @@ export interface DailyTargets {
   readonly eaters: number
   /** Cible d'hydratation du jour, en millilitres, et d'ou elle vient. */
   readonly hydration: { readonly ml: number; readonly estimated: boolean }
+  /** Les mesures brutes, pour les ecrans qui lisent le corps et non l'assiette. */
+  readonly mesures: {
+    readonly weightKg: number | null
+    readonly targetWeightKg: number | null
+    readonly heightCm: number | null
+    readonly waistCm: number | null
+  }
 }
 
 export function useDailyTargets(): DailyTargets {
@@ -56,6 +63,7 @@ export function useDailyTargets(): DailyTargets {
         targets: null,
         eaters: 1,
         hydration: hydrationTarget(null),
+        mesures: { weightKg: null, targetWeightKg: null, heightCm: null, waistCm: null },
       }
     }
 
@@ -93,6 +101,12 @@ export function useDailyTargets(): DailyTargets {
       targets,
       eaters,
       hydration: hydrationTarget(profile.weightKg),
+      mesures: {
+        weightKg: profile.weightKg,
+        targetWeightKg: profile.targetWeightKg,
+        heightCm: profile.heightCm,
+        waistCm: profile.waistCm ?? null,
+      },
     }
   }, [query.isPending, query.isError, query.data])
 }

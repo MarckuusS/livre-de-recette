@@ -204,7 +204,7 @@ export function SettingsScreen() {
       <h2 className="section-header settings-group">Mon espace</h2>
       <ul className="row-list">
         <li className="row">
-          <Link to="/objectifs" className="row__link">
+          <Link to="/objectifs/reglages" className="row__link">
             {/* L'initiale plutot qu'un dessin : c'est la seule pastille de
                 l'ecran qui designe quelqu'un, et la ligne du dessous porte
                 deja une icone d'utilisateur si on en mettait une. */}

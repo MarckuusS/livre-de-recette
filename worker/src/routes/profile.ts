@@ -45,6 +45,7 @@ route('PUT', '/api/profile', async ({ env, user, request }) => {
       targetWeightKg: payload.targetWeightKg,
       pace: payload.pace,
       kcalTarget: payload.kcalTarget,
+      waistCm: payload.waistCm,
     },
     payload.eaters,
   )

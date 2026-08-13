@@ -28,6 +28,12 @@ export interface ProfileRow {
   readonly targetWeightKg: number | null
   readonly pace: string | null
   readonly kcalTarget: number | null
+  /**
+   * Tour de taille, en centimetres. UNE SEULE valeur, la derniere connue, et
+   * non un historique : c'est une mesure qu'on prend une fois par mois. En
+   * recomposition, le poids seul ment, elle complete la lecture.
+   */
+  readonly waistCm: number | null
 }
 
 /** Profil vierge : l'etat d'une personne qui n'a jamais ouvert l'ecran. */
@@ -45,6 +51,7 @@ const EMPTY: ProfileRow = {
   targetWeightKg: null,
   pace: null,
   kcalTarget: null,
+  waistCm: null,
 }
 
 export class ProfileRepo {
@@ -67,7 +74,7 @@ export class ProfileRepo {
       .prepare(
         `SELECT sex, birth_year, height_cm, weight_kg, activity, goal,
                 split, split_proteins, split_carbs, split_fats,
-                target_weight_kg, pace, kcal_target
+                target_weight_kg, pace, kcal_target, waist_cm
            FROM user_profile WHERE user_id = ?`,
       )
       .bind(this.userId)
@@ -85,6 +92,7 @@ export class ProfileRepo {
         target_weight_kg: number | null
         pace: string | null
         kcal_target: number | null
+        waist_cm: number | null
       }>()
 
     const house = await this.db
@@ -108,6 +116,7 @@ export class ProfileRepo {
             targetWeightKg: row.target_weight_kg,
             pace: row.pace,
             kcalTarget: row.kcal_target,
+            waistCm: row.waist_cm,
           }
         : EMPTY,
       eaters: house?.eaters ?? 1,
@@ -129,8 +138,8 @@ export class ProfileRepo {
           `INSERT INTO user_profile
              (user_id, sex, birth_year, height_cm, weight_kg, activity, goal,
               split, split_proteins, split_carbs, split_fats,
-              target_weight_kg, pace, kcal_target, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+              target_weight_kg, pace, kcal_target, waist_cm, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
            ON CONFLICT (user_id) DO UPDATE SET
              sex = excluded.sex,
              birth_year = excluded.birth_year,
@@ -145,6 +154,7 @@ export class ProfileRepo {
              target_weight_kg = excluded.target_weight_kg,
              pace = excluded.pace,
              kcal_target = excluded.kcal_target,
+             waist_cm = excluded.waist_cm,
              updated_at = excluded.updated_at`,
         )
         .bind(
@@ -162,6 +172,7 @@ export class ProfileRepo {
           profile.targetWeightKg,
           profile.pace,
           profile.kcalTarget,
+          profile.waistCm,
         ),
       this.db
         .prepare('UPDATE household SET eaters = ? WHERE id = ?')

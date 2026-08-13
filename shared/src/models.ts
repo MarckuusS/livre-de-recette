@@ -205,6 +205,8 @@ export const profileWriteSchema = z.object({
     .max(8000)
     .nullable()
     .default(null),
+  /** Tour de taille en cm. La derniere valeur connue, pas un historique. */
+  waistCm: z.number().min(30).max(250).nullable().default(null),
   /**
    * Nombre de personnes qui mangent ce qui est planifie. Propriete du FOYER et
    * non de la personne : c'est par lui qu'on divise le total d'une journee.

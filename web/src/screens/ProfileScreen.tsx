@@ -58,6 +58,7 @@ interface Draft {
   birthYear: number | null
   heightCm: number | null
   weightKg: number | null
+  waistCm: number | null
   activity: ActivityCode | null
   goal: GoalCode | null
   split: SplitCode | null
@@ -71,7 +72,7 @@ interface Draft {
 }
 
 const EMPTY: Draft = {
-  sex: null, birthYear: null, heightCm: null, weightKg: null,
+  sex: null, birthYear: null, heightCm: null, weightKg: null, waistCm: null,
   activity: null, goal: null,
   split: null, splitProteins: null, splitCarbs: null, splitFats: null,
   targetWeightKg: null, pace: null,
@@ -105,6 +106,7 @@ export function ProfileScreen() {
       birthYear: profile.birthYear,
       heightCm: profile.heightCm,
       weightKg: profile.weightKg,
+      waistCm: profile.waistCm,
       activity: profile.activity as ActivityCode | null,
       goal: profile.goal as GoalCode | null,
       split: profile.split as SplitCode | null,
@@ -202,6 +204,16 @@ export function ProfileScreen() {
           />
           <NumberField label="Taille" value={draft.heightCm} onChange={(v) => patch({ heightCm: v })} min={80} max={250} suffix="cm" />
           <NumberField label="Poids" value={draft.weightKg} onChange={(v) => patch({ weightKg: v })} min={20} max={400} suffix="kg" decimals={1} />
+          <NumberField
+            label="Tour de taille"
+            value={draft.waistCm}
+            onChange={(v) => patch({ waistCm: v })}
+            min={30}
+            max={250}
+            suffix="cm"
+            decimals={1}
+            hint="Facultatif, et il n’entre dans aucun calcul de cible. Il se lit à côté de l’IMC, parce que la balance seule ne dit pas où sont partis les kilos."
+          />
         </div>
       </div>
 

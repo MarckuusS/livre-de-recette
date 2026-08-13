@@ -32,7 +32,8 @@ import {
   type ShoppingList,
   formatCriteria,
   type Criterion,
-} from '@livre/shared'
+
+  type WeighIn,} from '@livre/shared'
 
 import { apiFetch } from './api.js'
 
@@ -55,6 +56,7 @@ export const keys = {
   customIcons: ['custom-icons'] as const,
   profile: ['profile'] as const,
   hydration: (day: string) => ['hydration', day] as const,
+  weight: ['weight'] as const,
   calendar: (week: string) => ['calendar', week] as const,
   templates: ['templates'] as const,
   pantry: ['pantry'] as const,
@@ -719,6 +721,12 @@ export interface ProfileResponse {
     readonly targetWeightKg: number | null
     readonly pace: string | null
     readonly kcalTarget: number | null
+    /**
+     * Tour de taille, en centimetres. Il n'entre dans aucun calcul de cible :
+     * il se lit seul, a cote de l'IMC, parce que la balance seule ne dit pas
+     * ou sont partis les kilos.
+     */
+    readonly waistCm: number | null
   }
   /** Propriete du FOYER : les deux membres lisent le meme nombre. */
   readonly eaters: number
@@ -761,6 +769,39 @@ export function useDrink(day: string) {
   return useMutation({
     mutationFn: (deltaMl: number) => post<HydrationDay>('/api/hydration', { day, deltaMl }),
     onSuccess: (data) => client.setQueryData(keys.hydration(day), data),
+  })
+}
+
+export interface WeightResponse {
+  readonly weighIns: readonly WeighIn[]
+}
+
+/**
+ * L'historique de pesees.
+ *
+ * UNE SEULE requete pour toute la serie, et non une par plage d'affichage : le
+ * selecteur "4 sem. / 8 sem. / 6 mois / Tout" ne fait que decouper ce qui est
+ * deja charge. Deux ans de pesees quotidiennes tiennent en une quinzaine de
+ * kilo-octets.
+ */
+export const useWeightLog = () =>
+  useQuery({ queryKey: keys.weight, queryFn: () => apiFetch<WeightResponse>('/api/weight') })
+
+/**
+ * Enregistre la pesee du jour.
+ *
+ * Elle met AUSSI a jour le poids du profil cote serveur, puisque c'est de lui
+ * que la cible se calcule : on invalide donc le profil, sans quoi l'ecran
+ * continuerait d'afficher un objectif fonde sur l'ancien poids.
+ */
+export function useSaveWeighIn() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (pesee: WeighIn) => put<WeightResponse>('/api/weight', pesee),
+    onSuccess: (data) => {
+      client.setQueryData(keys.weight, data)
+      void client.invalidateQueries({ queryKey: keys.profile })
+    },
   })
 }
 

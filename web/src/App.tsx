@@ -14,6 +14,7 @@ import { IngredientDetailScreen, IngredientsScreen } from './screens/Ingredients
 import { PantryScreen } from './screens/PantryScreen.js'
 import { RecipeDetailScreen, RecipesScreen } from './screens/RecipesScreen.js'
 import { ActivityScreen } from './screens/ActivityScreen.js'
+import { ObjectifsScreen } from './screens/ObjectifsScreen.js'
 import { SettingsScreen } from './screens/SettingsScreen.js'
 import { ShoppingScreen } from './screens/ShoppingScreen.js'
 import { DayScreen } from './screens/DayScreen.js'
@@ -70,6 +71,7 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/accueil$/, 'Aujourd’hui'],
   [/^\/planning$/, 'Ma semaine'],
   [/^\/planning\/[0-6]$/, 'Ma journée'],
+  [/^\/objectifs\/reglages$/, 'Régler mes objectifs'],
   [/^\/objectifs$/, 'Mes objectifs'],
   [/^\/profil$/, 'Mon espace'],
   [/^\/scan$/, 'Scanner'],
@@ -95,7 +97,7 @@ const TITLES: Array<[RegExp, string]> = [
  * geste systeme du navigateur, absent d'une PWA installee en plein ecran.
  */
 const STACKED =
-  /^\/(ingredients|recettes|courses|frigo|scan|activite)$|^\/(ingredients|recettes)\/[^/]+$|^\/planning\/[0-6]$|^\/parametres(\/(icones|rayons|mes-icones))?$/
+  /^\/(ingredients|recettes|courses|frigo|scan|activite)$|^\/(ingredients|recettes)\/[^/]+$|^\/planning\/[0-6]$|^\/objectifs\/reglages$|^\/parametres(\/(icones|rayons|mes-icones))?$/
 
 /** L'alias `/semaine`, qui emporte sa chaine de requete vers `/planning`. */
 function RedirigeVersPlanning() {
@@ -189,7 +191,8 @@ export function App() {
             {/* Le jour est un ECRAN et non un depliant : deux niveaux de
                 cartes blanches imbriquees se lisaient comme un seul. */}
             <Route path="/planning/:jour" element={<DayScreen />} />
-            <Route path="/objectifs" element={<ProfileScreen />} />
+            <Route path="/objectifs" element={<ObjectifsScreen />} />
+            <Route path="/objectifs/reglages" element={<ProfileScreen />} />
             <Route path="/profil" element={<SettingsScreen />} />
             <Route path="/scan" element={<ScanScreen />} />
             <Route path="/ingredients" element={<IngredientsScreen />} />
@@ -217,7 +220,7 @@ export function App() {
                 ouvrir cette semaine-la, pas la semaine courante. */}
             <Route path="/semaine" element={<RedirigeVersPlanning />} />
             <Route path="/parametres" element={<Navigate to="/profil" replace />} />
-            <Route path="/parametres/profil" element={<Navigate to="/objectifs" replace />} />
+            <Route path="/parametres/profil" element={<Navigate to="/objectifs/reglages" replace />} />
             {/* Galerie du jeu d'icones : verifier un dessin sur l'appareil reel
                 vaut mieux que sur un ecran de bureau, ou tout parait lisible. */}
             <Route path="/parametres/icones" element={<IconGalleryScreen />} />

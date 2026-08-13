@@ -1,0 +1,558 @@
+/*
+ * L'ecran Mes objectifs.
+ *
+ * Six blocs, du plus strategique au plus operationnel : le cap, le poids, le
+ * bilan energetique, les cibles, la regularite, les mesures.
+ *
+ * SELECTEURS DOUBLES (`.screen.screen--objectifs`) : `.screen` est declare
+ * dans app.css, importe AVANT ce fichier. A specificite egale, le dernier
+ * declare gagne, et une regle simple `.screen--objectifs` serait donc perdue.
+ * Le piege s'est deja referme quatre fois sur ce projet.
+ */
+
+.screen.screen--objectifs {
+  gap: var(--space-lg);
+}
+
+/* ---------- 1. Le cap ---------- */
+
+.cap__haut {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.cap__cible {
+  font-size: var(--font-size-hero);
+  color: var(--color-primary-text);
+}
+
+.cap__vers {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.cap__piste {
+  height: 10px;
+  margin-top: var(--space-md);
+  overflow: hidden;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+.cap__part {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: width var(--duration-normal) var(--easing-standard);
+}
+
+.cap__reperes {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.cap__actuel {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+/* Les trois chiffres du cap, et le meme gabarit sert a la regularite. */
+.cap__mesures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  margin-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.mesurette {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mesurette b {
+  font-size: var(--font-size-lg);
+  /* Le rythme, la date et le verdict n'ont pas la meme longueur : sans cela,
+     "Dans les temps" deborde sur la colonne voisine en 360 px de large. */
+  overflow-wrap: anywhere;
+}
+
+.mesurette small {
+  font-size: var(--font-size-sm);
+  line-height: 1.3;
+  color: var(--color-text-secondary);
+}
+
+.verdict--tenu {
+  color: var(--color-success);
+}
+
+.verdict--rate {
+  color: var(--color-warning);
+}
+
+/* ---------- 2. Poids ---------- */
+
+.poids__haut {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.poids__valeur {
+  font-size: var(--font-size-hero);
+}
+
+.poids__unite {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+}
+
+/*
+ * L'ecart de la semaine ne prend PAS de couleur de jugement : monter n'est pas
+ * une faute quand on vise une prise de masse, et le meme signe voudrait alors
+ * dire l'inverse. Le verdict est ailleurs, dans le bloc du cap, ou l'on
+ * connait la direction visee.
+ */
+.delta {
+  padding: 2px var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-full);
+}
+
+.courbe {
+  display: block;
+  width: 100%;
+  height: 140px;
+  margin-top: var(--space-md);
+}
+
+/* Mesure : 3,53:1 en clair, 4,57:1 en sombre. `--color-border-hover` tombait a
+   1,5:1 et la ligne de cible, qui dit ou l'on va, disparaissait. */
+.courbe__cible {
+  stroke: var(--color-text-placeholder);
+  stroke-width: 1;
+}
+
+.courbe__aujourdhui {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.courbe__pesees circle {
+  fill: var(--color-text-placeholder);
+}
+
+.courbe__tendance {
+  stroke: var(--color-success);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* Sans cela, l'etirement horizontal de la viewBox epaissirait le trait dans
+     un sens et l'affinerait dans l'autre. */
+  vector-effect: non-scaling-stroke;
+}
+
+.courbe__projection {
+  stroke: var(--color-primary);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.courbe__arrivee {
+  fill: var(--color-surface);
+  stroke: var(--color-primary);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.courbe__actuel {
+  fill: var(--color-success);
+  stroke: var(--color-surface);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.courbe__bornes {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.series {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.series__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.series__marque {
+  display: inline-block;
+  width: 14px;
+}
+
+/* La pastille de legende prend la couleur EXACTE de ce qu'elle designe : une
+   legende qui ne ressemble pas a sa serie ne sert a rien. */
+.series__marque--points {
+  height: 4px;
+  background: var(--color-text-placeholder);
+  border-radius: var(--radius-full);
+}
+
+.series__marque--trait {
+  height: 2px;
+  background: var(--color-success);
+}
+
+.series__marque--pointille {
+  height: 0;
+  border-top: 2px dashed var(--color-primary);
+}
+
+.plages {
+  display: flex;
+  gap: var(--space-xs);
+  padding: 3px;
+  margin-top: var(--space-md);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-full);
+}
+
+.plage {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: var(--radius-full);
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+
+.plage--actif {
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-subtle);
+}
+
+/* Le bouton "Me peser" de l'en-tete : il accompagne un titre, pas une action
+   principale. */
+.screen--objectifs .card-entete .button {
+  flex: 0 0 auto;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-md);
+}
+
+/* ---------- 3. Bilan energetique ---------- */
+
+.energie {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+
+.energie__haut {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.energie__valeur {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.energie__piste {
+  display: block;
+  height: 8px;
+  margin-top: var(--space-xs);
+  overflow: hidden;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+.energie__part {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+}
+
+/*
+ * La depense est NEUTRE et la cible porte la couleur : la premiere est un
+ * constat, la seconde une decision. Deux couleurs vives feraient lire une
+ * comparaison entre deux camps.
+ */
+.energie__part--depense {
+  background: var(--color-text-placeholder);
+}
+
+.energie__part--cible {
+  background: var(--color-primary);
+}
+
+.conseil {
+  padding: var(--space-md);
+  margin-top: var(--space-lg);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.conseil .icon--inline {
+  color: var(--color-success);
+}
+
+.conseil--attention .icon--inline {
+  color: var(--color-warning);
+}
+
+/* ---------- 4. Cibles quotidiennes ---------- */
+
+.cible__kcal {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.cible__valeur {
+  font-size: var(--font-size-hero);
+}
+
+.cible__unite {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.cible__barre {
+  margin-top: var(--space-md);
+  height: 8px;
+}
+
+.cibles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 0;
+  margin: var(--space-md) 0 0;
+  list-style: none;
+}
+
+.cibles__ligne {
+  display: grid;
+  /* Puce, libelle extensible, part, grammes. Les deux dernieres colonnes sont
+     separees : collees, on lisait "25 %120 g". */
+  grid-template-columns: 10px 1fr auto auto;
+  gap: var(--space-sm);
+  align-items: baseline;
+  font-size: var(--font-size-md);
+}
+
+.cibles__puce {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+}
+
+.cibles__puce--proteins {
+  background: var(--color-nutrient-proteins);
+}
+.cibles__puce--carbs {
+  background: var(--color-nutrient-carbs);
+}
+.cibles__puce--fats {
+  background: var(--color-nutrient-fats);
+}
+
+.cibles__part {
+  min-width: 3.5em;
+  text-align: right;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.cibles__grammes {
+  min-width: 5em;
+  text-align: right;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.cibles__grammes small {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+.lien-discret {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-text);
+}
+
+/* ---------- 5. Regularite ---------- */
+
+.semaine-points {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-xs);
+  padding: 0;
+  margin: var(--space-md) 0 0;
+  list-style: none;
+}
+
+.semaine-points__jour {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.pastille {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+}
+
+.pastille--tenu {
+  color: var(--color-surface);
+  background: var(--color-success);
+}
+
+/*
+ * Un jour rate est CREUX, pas rouge. Sept pastilles rouges sur une semaine
+ * ordinaire transformeraient un journal en bulletin de notes, alors que le
+ * seuil de 10 % est arbitraire et qu'une journee hors cible n'a rien d'une
+ * faute.
+ */
+.pastille--rate {
+  border: 2px solid var(--color-text-placeholder);
+}
+
+.pastille--encours {
+  background: var(--color-surface-hover);
+  border: 2px dashed var(--color-primary);
+}
+
+.pastille--avenir {
+  background: var(--color-surface-hover);
+}
+
+.regularite {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  margin-top: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.regularite__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.regularite__stat b {
+  font-size: var(--font-size-xl);
+  color: var(--color-primary-text);
+}
+
+.regularite__stat small {
+  font-size: var(--font-size-sm);
+  line-height: 1.3;
+  color: var(--color-text-secondary);
+}
+
+/* ---------- 6. Mesures ---------- */
+
+.mesures {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+}
+
+.mesure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: flex-start;
+}
+
+.mesure__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.mesure__valeur {
+  font-size: var(--font-size-title);
+}
+
+.mesure__unite {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.mesure__zone {
+  padding: 2px var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-text);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-full);
+}
+
+/* ---------- Ecrans etroits ---------- */
+
+@media (width <= 380px) {
+  /* Trois colonnes de chiffres ne tiennent plus : la date d'arrivee passe
+     sous les deux autres plutot que de se couper en deux lignes. */
+  .cap__mesures {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cap__reperes {
+    font-size: var(--font-size-xs);
+  }
+}
