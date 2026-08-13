@@ -12,7 +12,8 @@ import { ScanScreen } from './screens/ScanScreen.js'
 import { RayonsScreen } from './screens/RayonsScreen.js'
 import { IngredientDetailScreen, IngredientsScreen } from './screens/IngredientsScreen.js'
 import { PantryScreen } from './screens/PantryScreen.js'
-import { RecipeDetailScreen, RecipesScreen } from './screens/RecipesScreen.js'
+import { RecipeDetailScreen } from './screens/RecipesScreen.js'
+import { Repertoire } from './screens/recettes/Repertoire.js'
 import { RecipeView } from './screens/recettes/RecipeView.js'
 import { ActivityScreen } from './screens/ActivityScreen.js'
 import { ObjectifsScreen } from './screens/ObjectifsScreen.js'
@@ -204,7 +205,7 @@ export function App() {
                 mais elle ne fournit AUCUN parametre : l'ecran ne voyait plus
                 « nouveau » et repondait « Ingrédient introuvable ». */}
             <Route path="/ingredients/:id" element={<IngredientDetailScreen />} />
-            <Route path="/recettes" element={<RecipesScreen />} />
+            <Route path="/recettes" element={<Repertoire />} />
             {/* La LECTURE a l'adresse courte, l'editeur dessous : tous les
                 liens du projet pointent deja ici, et les inverser ferait
                 ouvrir un formulaire depuis le planning et l'accueil. */}

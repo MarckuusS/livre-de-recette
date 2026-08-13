@@ -16,7 +16,7 @@
  * household_id = ?)` plutot que par les identifiants bruts de l'appelant.
  */
 
-import type { Recipe, RecipeWrite } from '@livre/shared'
+import { ZERO_NUTRITION, aggregateRecipe, type NutritionTotal, type Recipe, type RecipeWrite } from '@livre/shared'
 
 import { toRecipeShell, toTag, type RecipeRow, type TagRow } from '../rows.js'
 import { IngredientRepo } from './ingredients.js'
@@ -35,7 +35,30 @@ export interface RecipeSummary {
   readonly prepTimeMin: number | null
   readonly tags: ReadonlyArray<{ id: number; name: string; colorHex: string }>
   readonly lastCookedAt: string | null
+  /**
+   * Cuissons des 30 derniers jours GLISSANTS.
+   *
+   * Le libelle doit dire la fenetre. Un total de vie et un compteur mensuel se
+   * ressemblent a l'ecran et ne racontent pas la meme chose : « 14 fois » se
+   * lit comme une habitude installee, « 14 fois ce mois-ci » comme une lubie.
+   */
   readonly cookCount30d: number
+  /**
+   * Nutrition de la recette ENTIERE, agregee par `aggregateRecipe`.
+   *
+   * Calculee ici et non en SQL, bien qu'un `SUM` eut suffi : la regle du
+   * projet veut qu'une seule fonction produise un total nutritionnel, sans
+   * quoi le chiffre du telephone et celui de la liste de courses finiraient
+   * par diverger d'un arrondi.
+   */
+  readonly nutrition: NutritionTotal
+  /**
+   * Les lignes, reduites a ce que le croisement avec le frigo demande.
+   *
+   * Deux nombres par ligne, pas la fiche complete de l'ingredient : la liste
+   * n'a pas besoin de ses macros, elle a besoin de savoir s'il en manque.
+   */
+  readonly lines: ReadonlyArray<{ readonly ingredientId: number; readonly quantityG: number }>
 }
 
 export class RecipeRepo {
@@ -143,8 +166,23 @@ export class RecipeRepo {
     const args: unknown[] = [this.householdId]
 
     if (query && query.trim()) {
-      where.push('LOWER(r.name) LIKE ?')
-      args.push(`%${query.trim().toLowerCase()}%`)
+      /*
+       * Le nom de la recette OU celui d'un de ses ingredients.
+       *
+       * « courgette » ne remontait que les recettes dont le titre portait le
+       * mot ; c'est pourtant en cherchant un ingredient qu'on ecoule ce qu'on
+       * a. Pas de FTS : la table `ingredient_fts` ne couvre que les
+       * ingredients, et un LIKE sur les recettes d'un foyer se compte en
+       * dizaines de lignes.
+       */
+      where.push(
+        `(LOWER(r.name) LIKE ?
+          OR EXISTS (SELECT 1 FROM recipe_ingredient ri
+                       JOIN ingredient i ON i.id = ri.ingredient_id
+                      WHERE ri.recipe_id = r.id AND LOWER(i.name) LIKE ?))`,
+      )
+      const motif = `%${query.trim().toLowerCase()}%`
+      args.push(motif, motif)
     }
     if (tagId !== null) {
       // `recipe_tag` est couverte par sa recette : la correlation sur `r.id`
@@ -205,17 +243,36 @@ export class RecipeRepo {
       tagsByRecipe.set(t.recipe_id, list)
     }
 
-    return rows.results.map((r) => ({
-      id: r.id,
-      name: r.name,
-      defaultPortions: r.default_portions,
-      imageKey: r.image_key,
-      lineCount: r.line_count,
-      prepTimeMin: r.prep_time_min,
-      tags: tagsByRecipe.get(r.id) ?? [],
-      lastCookedAt: r.last_cooked_at,
-      cookCount30d: r.cook_count_30d,
-    }))
+    /*
+     * Les recettes completes des lignes retenues, pour en tirer la nutrition
+     * et les lignes compactes. `byIds` est deja ecrit et deja teste ; le
+     * reecrire en SQL agrege aurait fait une SECONDE implementation du total
+     * nutritionnel, ce que le projet interdit.
+     */
+    const completes = await this.byIds(rows.results.map((r) => r.id))
+
+    return rows.results.map((r) => {
+      const complete = completes.get(r.id)
+      const agrege =
+        complete === undefined
+          ? null
+          : aggregateRecipe({ lines: complete.lines, defaultPortions: complete.defaultPortions })
+      return {
+        id: r.id,
+        name: r.name,
+        defaultPortions: r.default_portions,
+        imageKey: r.image_key,
+        lineCount: r.line_count,
+        prepTimeMin: r.prep_time_min,
+        tags: tagsByRecipe.get(r.id) ?? [],
+        lastCookedAt: r.last_cooked_at,
+        cookCount30d: r.cook_count_30d,
+        nutrition: agrege?.total ?? ZERO_NUTRITION,
+        lines: (complete?.lines ?? [])
+          .filter((l) => l.ingredient.id !== null)
+          .map((l) => ({ ingredientId: l.ingredient.id as number, quantityG: l.quantityG })),
+      }
+    })
   }
 
   // ------------------------------------------------------------------ ecriture

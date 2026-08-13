@@ -23,6 +23,7 @@ import {
   currentIsoWeek,
   type Ingredient,
   type MealPlanEntry,
+  type NutritionTotal,
   type PantryStock,
   type PantryStockWrite,
   type Recipe,
@@ -475,6 +476,10 @@ export interface RecipeSummary {
   readonly lastCookedAt: string | null
   /** Nombre de cuissons sur les 30 derniers jours glissants. */
   readonly cookCount30d: number
+  /** Nutrition de la recette entiere, agregee cote Worker. */
+  readonly nutrition: NutritionTotal
+  /** Les lignes reduites a ce que le croisement avec le frigo demande. */
+  readonly lines: ReadonlyArray<{ readonly ingredientId: number; readonly quantityG: number }>
 }
 
 export function useRecipes(query = '', tagId: number | null = null) {
