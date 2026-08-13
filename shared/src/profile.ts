@@ -277,14 +277,35 @@ export const MIN_PROTEINS_PER_KG = 1.2
  */
 export const KCAL_PER_KG = 7700
 
-/** Allures proposees, en kg par semaine. */
-export const PACES = [
-  { code: 'lent', label: 'Lente', kgPerWeek: 0.25, hint: 'Le plus confortable, le plus lent' },
-  { code: 'modere', label: 'Modérée', kgPerWeek: 0.5, hint: 'Le compromis habituel' },
-  { code: 'rapide', label: 'Rapide', kgPerWeek: 0.75, hint: 'Exigeant, difficile à tenir longtemps' },
-] as const
+/**
+ * L'allure, en kg par semaine : bornes du reglage continu.
+ *
+ * ELLE ETAIT UN CODE PARMI TROIS (0,25 / 0,5 / 0,75). L'ecran offre desormais
+ * un curseur qui glisse, ce qui demande un nombre. Les profils enregistres ont
+ * ete convertis par la migration 0014 ; les trois anciennes valeurs restent
+ * atteignables, elles ne sont simplement plus les seules.
+ *
+ * Le HAUT est `SAFE_PACE.max` de `weight.ts`, soit 1 kg par semaine : c'est la
+ * borne communement citee, et le curseur ne va pas au-dela. Le BAS est
+ * volontairement SOUS le seuil de lisibilite d'une balance : quelqu'un peut
+ * vouloir aller tres doucement, l'ecran le dit sans l'interdire.
+ */
+export const PACE_BOUNDS = { min: 0.1, max: 1, step: 0.05 } as const
 
-export type PaceCode = (typeof PACES)[number]['code']
+/**
+ * Une allure ecrite en toutes lettres, pour l'accompagner d'un mot.
+ *
+ * Les seuils viennent de `SAFE_PACE` : sous 0,2 kg par semaine le changement
+ * se perd dans le bruit d'une balance, ce que le tableau de bord dit deja du
+ * rythme observe.
+ */
+export function paceLabel(kgPerWeek: number): string {
+  if (kgPerWeek < 0.2) return 'Très progressif'
+  if (kgPerWeek <= 0.35) return 'Confortable'
+  if (kgPerWeek <= 0.6) return 'Le compromis habituel'
+  if (kgPerWeek <= 0.8) return 'Exigeant'
+  return 'Difficile à tenir longtemps'
+}
 
 // ---------------------------------------------------------------------------
 
@@ -301,8 +322,8 @@ export interface Profile {
   readonly customSplit?: MacroSplit | null
   /** Poids vise, en kg. `null` = pas d'arrivee, seulement une direction. */
   readonly targetWeightKg?: number | null
-  /** Allure visee. Lue seulement en presence d'un poids vise. */
-  readonly pace?: PaceCode | null
+  /** Allure visee, en kg par semaine. Lue seulement avec un poids vise. */
+  readonly paceKgPerWeek?: number | null
 }
 
 export interface MacroTarget {
@@ -427,7 +448,7 @@ export function estimateTargets(profile: Profile, now: Date = new Date()): Targe
   const kgToTarget =
     profile.targetWeightKg != null ? Math.abs(profile.targetWeightKg - weightKg) : null
 
-  const paceKgWeek = profile.pace != null ? PACES.find((p) => p.code === profile.pace)?.kgPerWeek : undefined
+  const paceKgWeek = profile.paceKgPerWeek ?? undefined
 
   let ratio = target.adjust
   let capped = false

@@ -26,7 +26,7 @@ export interface ProfileRow {
   readonly splitCarbs: number | null
   readonly splitFats: number | null
   readonly targetWeightKg: number | null
-  readonly pace: string | null
+  readonly paceKgPerWeek: number | null
   readonly kcalTarget: number | null
   /**
    * Tour de taille, en centimetres. UNE SEULE valeur, la derniere connue, et
@@ -34,14 +34,6 @@ export interface ProfileRow {
    * recomposition, le poids seul ment, elle complete la lecture.
    */
   readonly waistCm: number | null
-  /**
-   * Jour ou la personne a reconnu les limites du calcul, ou `null`.
-   *
-   * C'est le SERVEUR qui pose la date, jamais le client : une reconnaissance
-   * antidatee ne vaudrait rien. Une date et non un booleen, pour qu'un
-   * changement du texte des limites puisse un jour se comparer a elle.
-   */
-  readonly limitsAckAt: string | null
 }
 
 /** Profil vierge : l'etat d'une personne qui n'a jamais ouvert l'ecran. */
@@ -57,10 +49,9 @@ const EMPTY: ProfileRow = {
   splitCarbs: null,
   splitFats: null,
   targetWeightKg: null,
-  pace: null,
+  paceKgPerWeek: null,
   kcalTarget: null,
   waistCm: null,
-  limitsAckAt: null,
 }
 
 export class ProfileRepo {
@@ -83,7 +74,7 @@ export class ProfileRepo {
       .prepare(
         `SELECT sex, birth_year, height_cm, weight_kg, activity, goal,
                 split, split_proteins, split_carbs, split_fats,
-                target_weight_kg, pace, kcal_target, waist_cm, limits_ack_at
+                target_weight_kg, pace_kg_per_week, kcal_target, waist_cm
            FROM user_profile WHERE user_id = ?`,
       )
       .bind(this.userId)
@@ -99,10 +90,9 @@ export class ProfileRepo {
         split_carbs: number | null
         split_fats: number | null
         target_weight_kg: number | null
-        pace: string | null
+        pace_kg_per_week: number | null
         kcal_target: number | null
         waist_cm: number | null
-        limits_ack_at: string | null
       }>()
 
     const house = await this.db
@@ -124,10 +114,9 @@ export class ProfileRepo {
             splitCarbs: row.split_carbs,
             splitFats: row.split_fats,
             targetWeightKg: row.target_weight_kg,
-            pace: row.pace,
+            paceKgPerWeek: row.pace_kg_per_week,
             kcalTarget: row.kcal_target,
             waistCm: row.waist_cm,
-            limitsAckAt: row.limits_ack_at,
           }
         : EMPTY,
       eaters: house?.eaters ?? 1,
@@ -149,8 +138,8 @@ export class ProfileRepo {
           `INSERT INTO user_profile
              (user_id, sex, birth_year, height_cm, weight_kg, activity, goal,
               split, split_proteins, split_carbs, split_fats,
-              target_weight_kg, pace, kcal_target, waist_cm, limits_ack_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+              target_weight_kg, pace_kg_per_week, kcal_target, waist_cm, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
            ON CONFLICT (user_id) DO UPDATE SET
              sex = excluded.sex,
              birth_year = excluded.birth_year,
@@ -163,10 +152,9 @@ export class ProfileRepo {
              split_carbs = excluded.split_carbs,
              split_fats = excluded.split_fats,
              target_weight_kg = excluded.target_weight_kg,
-             pace = excluded.pace,
+             pace_kg_per_week = excluded.pace_kg_per_week,
              kcal_target = excluded.kcal_target,
              waist_cm = excluded.waist_cm,
-             limits_ack_at = excluded.limits_ack_at,
              updated_at = excluded.updated_at`,
         )
         .bind(
@@ -182,10 +170,9 @@ export class ProfileRepo {
           profile.splitCarbs,
           profile.splitFats,
           profile.targetWeightKg,
-          profile.pace,
+          profile.paceKgPerWeek,
           profile.kcalTarget,
           profile.waistCm,
-          profile.limitsAckAt,
         ),
       this.db
         .prepare('UPDATE household SET eaters = ? WHERE id = ?')

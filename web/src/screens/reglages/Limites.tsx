@@ -15,9 +15,10 @@
  *     peut parfaitement tomber sous le metabolisme de base sans qu'aucun
  *     drapeau ne se leve. Homme de 40 ans, 178 cm, 95 kg, sedentaire, objectif
  *     « seche » : metabolisme 1 868, cible 1 794, et pas un mot.
- *   - "tout rythme au-dela de 1 kg par semaine". Faux : l'application n'offre
- *     pas plus de 0,75, elle ne peut donc pas refuser ce qu'on ne peut pas lui
- *     demander. Et le vrai plafond n'est pas en kg mais en part de la depense.
+ *   - "tout rythme au-dela de 1 kg par semaine". Le curseur s'arrete a 1, donc
+ *     rien au-dela ne peut meme etre demande : il n'y a pas de refus, il y a
+ *     une borne. Et le vrai plafond qui mord n'est pas en kg mais en part de
+ *     la depense (`MAX_ADJUST`), souvent plus bas que l'allure demandee.
  *   - le verbe lui-meme. Cette application ne REFUSE rien : elle corrige, elle
  *     avertit, et elle enregistre.
  *   - "recalage hebdomadaire", "recalculees chaque dimanche". Il n'y a aucune
@@ -28,14 +29,14 @@
  * qui n'existe pas. Les sources sont nommees en toutes lettres.
  */
 
-import { MAX_ADJUST, MIN_SAFE_KCAL, PACES } from '@livre/shared'
+import { MAX_ADJUST, MIN_SAFE_KCAL, PACE_BOUNDS } from '@livre/shared'
 
 import { Icon } from '../../icons/index.js'
 
 const kcalFr = (v: number) => v.toLocaleString('fr-FR')
 
 /** L'allure la plus rapide qu'on puisse choisir. Lue, jamais recopiee. */
-const ALLURE_MAX = Math.max(...PACES.map((p) => p.kgPerWeek))
+const ALLURE_MAX = PACE_BOUNDS.max
 
 /** Borne minimale de la cible saisie a la main, telle que le schema l'accepte. */
 const CIBLE_MANUELLE_MIN = 800
@@ -71,10 +72,10 @@ export function Limites({ id }: { readonly id?: string | undefined }) {
         </li>
 
         <li>
-          <strong>L’allure la plus rapide proposée est {ALLURE_MAX.toLocaleString('fr-FR')} kg par
-          semaine.</strong> Il n’y en a pas de plus rapide, et ce n’est pas un oubli. Selon ta
-          dépense, le plafond de {Math.round(MAX_ADJUST * 100)} % peut même la ramener plus bas ;
-          l’écran le dit alors.
+          <strong>Le curseur d’allure ne va pas au-delà de{' '}
+          {ALLURE_MAX.toLocaleString('fr-FR')} kg par semaine.</strong> Ce n’est pas un oubli.
+          Selon ta dépense, le plafond de {Math.round(MAX_ADJUST * 100)} % peut même ramener
+          l’écart plus bas que l’allure demandée ; l’écran le dit alors.
         </li>
 
         <li>

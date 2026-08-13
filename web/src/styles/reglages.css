@@ -13,13 +13,13 @@
 
 .screen.screen--reglages {
   /*
-   * Le pied compte trois etages : erreur, case, bouton. Mesure a 165 px sur
-   * 320 de large et 168 sur 375, SANS la ligne d'erreur ; celle-ci ajoute une
-   * ligne de texte et sa marge quand un enregistrement echoue. La reserve
-   * couvre le cas haut : sinon le bloc des limites finirait sous le pied au
-   * moment precis ou l'on a besoin de le lire.
+   * Le pied compte deux etages depuis le retrait de la case de consentement :
+   * la ligne d'etat et le bouton. Mesure a 124 px, et 165 quand la ligne
+   * d'erreur apparait. La reserve couvre le cas haut : sinon le bloc des
+   * limites finirait sous le pied au moment precis ou l'on a besoin de le
+   * lire.
    */
-  padding-bottom: calc(var(--reserve-pied) + 188px);
+  padding-bottom: calc(var(--reserve-pied) + 140px);
 }
 
 /* ---------- Lignes libelle / valeur ----------
@@ -272,73 +272,76 @@
   flex: 1;
   background: var(--color-zone-risk);
 }
-
-.arret {
+/*
+ * LE POUCE NATIF EST REDUIT A RIEN, et le rond visible pose a part.
+ *
+ * Un `input[type=range]` place son pouce a « demi-pouce + valeur x (largeur -
+ * pouce) » : sur une piste dont les frontieres de zone tombent a des
+ * pourcentages exacts, il derive de plusieurs pixels aux extremites. On garde
+ * l'input pour ce qu'il fait bien (glisser au doigt, fleches du clavier,
+ * annonce par un lecteur d'ecran) et l'on dessine le rond soi-meme.
+ */
+.allure__champ {
   position: absolute;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  align-items: center;
-  /* 44 px de cible tactile, centres sur la valeur. */
-  width: 44px;
-  padding-top: 12px;
-  margin-left: -22px;
-  cursor: pointer;
-}
-
-.arret input {
-  /* Le rond est dessine par `.arret__pastille` ; l'input reste focusable et
-     couvre toute la cible, mais ne se voit pas. */
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  top: 6px;
+  height: 44px;
   margin: 0;
   cursor: pointer;
-  opacity: 0;
+  background: transparent;
+  appearance: none;
 }
 
-.arret__pastille {
+.allure__champ::-webkit-slider-thumb {
+  width: 1px;
+  height: 44px;
+  background: transparent;
+  appearance: none;
+}
+
+.allure__champ::-moz-range-thumb {
+  width: 1px;
+  height: 44px;
+  background: transparent;
+  border: 0;
+}
+
+.allure__champ::-webkit-slider-runnable-track,
+.allure__champ::-moz-range-track {
+  background: transparent;
+}
+
+.allure__curseur {
+  position: absolute;
+  top: 12px;
   width: 22px;
   height: 22px;
+  margin-left: -11px;
+  pointer-events: none;
   background: var(--color-surface);
-  border: 3px solid var(--color-text-placeholder);
+  border: 4px solid var(--color-success);
   border-radius: var(--radius-full);
-  box-shadow: var(--shadow-subtle);
+  box-shadow: var(--shadow-normal);
 }
 
-.arret--on .arret__pastille {
-  border-color: var(--color-success);
-  border-width: 4px;
-}
-
-.arret input:focus-visible + .arret__pastille {
+.allure__champ:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-.arret__valeur {
+/* Deux reperes poses aux vraies frontieres de zone, et non aux extremites :
+   l'axe monte a 1,2 et l'etiqueter « 1 » a son bout serait un mensonge. */
+.allure__bornes {
+  position: relative;
+  height: 1.2em;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-  font-variant-numeric: tabular-nums;
 }
 
-.arret--on .arret__valeur {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-/* Lu, jamais vu : le nombre visible fait partie du nom accessible, cette
-   phrase le complete. Un `aria-label` aurait ecrase le nombre, et le
-   pilotage vocal n'aurait plus pu dire "clique sur 0,25". */
-.arret__dit {
+.allure__bornes span {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
 }
 
 .allure__legende {

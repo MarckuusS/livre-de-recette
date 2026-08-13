@@ -217,7 +217,7 @@ describe('splitOf', () => {
 })
 
 describe('estimateTargets — poids vise', () => {
-  const VISE: Profile = { ...HOMME, goal: 'perte', targetWeightKg: 74, pace: 'modere' }
+  const VISE: Profile = { ...HOMME, goal: 'perte', targetWeightKg: 74, paceKgPerWeek: 0.5 }
 
   it('laisse l’allure decider du deficit, a la place du pourcentage', () => {
     // 0,5 kg/semaine x 7700 / 7 = 550 kcal par jour.
@@ -237,7 +237,7 @@ describe('estimateTargets — poids vise', () => {
   it('prend la direction de l’ECART REEL, pas du libelle de l’objectif', () => {
     // Objectif affiche « perdre », mais le poids vise est plus lourd : c'est le
     // poids vise qui est explicite, donc c'est lui qui gagne.
-    const t = estimateTargets({ ...VISE, targetWeightKg: 84, pace: 'lent' }, NOW)!
+    const t = estimateTargets({ ...VISE, targetWeightKg: 84, paceKgPerWeek: 0.25 }, NOW)!
     expect(t.kcal).toBe(2759 + 275) // 0,25 kg/sem = 275 kcal/jour
     expect(t.weeksToTarget).toBe(16) // 4 kg a 0,25 kg par semaine
   })
@@ -253,7 +253,7 @@ describe('estimateTargets — poids vise', () => {
     const t = estimateTargets(
       {
         sex: 'f', birthYear: 1966, heightCm: 150, weightKg: 45,
-        activity: 'sedentaire', goal: 'perte', targetWeightKg: 40, pace: 'rapide',
+        activity: 'sedentaire', goal: 'perte', targetWeightKg: 40, paceKgPerWeek: 0.75,
       },
       NOW,
     )!
@@ -270,7 +270,7 @@ describe('estimateTargets — poids vise', () => {
     const t = estimateTargets(
       {
         sex: 'f', birthYear: 1966, heightCm: 150, weightKg: 45,
-        activity: 'sedentaire', goal: 'perte', targetWeightKg: 40, pace: 'rapide',
+        activity: 'sedentaire', goal: 'perte', targetWeightKg: 40, paceKgPerWeek: 0.75,
       },
       NOW,
     )!
@@ -298,7 +298,7 @@ describe('estimateTargets — poids vise', () => {
     // Le test tomberait si quelqu'un remplacait 7700 par 3500 (la valeur en
     // livres, l'erreur classique) sans toucher au reste.
     expect(KCAL_PER_KG).toBe(7700)
-    const t = estimateTargets({ ...HOMME, targetWeightKg: 70, pace: 'lent' }, NOW)!
+    const t = estimateTargets({ ...HOMME, targetWeightKg: 70, paceKgPerWeek: 0.25 }, NOW)!
     expect(t.tdee - t.kcal).toBe(Math.round((0.25 * KCAL_PER_KG) / 7))
   })
 })
@@ -379,7 +379,7 @@ describe('effetsSecondaires', () => {
   })
 
   it('signale un deficit au-dela du quart de la depense', () => {
-    const t = estimateTargets({ ...HOMME, targetWeightKg: 70, pace: 'rapide' }, NOW)!
+    const t = estimateTargets({ ...HOMME, targetWeightKg: 70, paceKgPerWeek: 0.75 }, NOW)!
     expect(effetsSecondaires(t).map((a) => a.code)).toContain('deficit-fort')
   })
 
@@ -597,7 +597,7 @@ describe('lowProteins se juge sur l’ecart APPLIQUE', () => {
     //   ratio  = +275 / 2736            = +10,05 %  (sous le plafond de 25 %)
     //   cible  = 2736 x 1,1005          = 3011 kcal
     //   prot.  = 3011 x 20 % / 4        = 151 g, soit 1,16 g/kg
-    const cibles = estimateTargets({ ...LOURD, targetWeightKg: 135, pace: 'lent' }, NOW)
+    const cibles = estimateTargets({ ...LOURD, targetWeightKg: 135, paceKgPerWeek: 0.25 }, NOW)
     expect(cibles).not.toBeNull()
     expect(cibles!.kcal).toBe(3011)
     expect(cibles!.kcal).toBeGreaterThan(cibles!.tdee)

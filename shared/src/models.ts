@@ -196,7 +196,8 @@ export const profileWriteSchema = z.object({
   splitFats: z.number().int().min(0).max(100).nullable().default(null),
   /** Poids vise. Avec l'allure, il remplace le pourcentage de l'objectif. */
   targetWeightKg: z.number().min(20).max(400).nullable().default(null),
-  pace: z.enum(['lent', 'modere', 'rapide']).nullable().default(null),
+  /** Allure visee, en kg par semaine. Bornee comme le curseur de l'ecran. */
+  paceKgPerWeek: z.number().min(0.1).max(1).nullable().default(null),
   /** Cible saisie a la main. Renseignee, elle l'emporte sur l'estimation. */
   kcalTarget: z
     .number()
@@ -207,14 +208,6 @@ export const profileWriteSchema = z.object({
     .default(null),
   /** Tour de taille en cm. La derniere valeur connue, pas un historique. */
   waistCm: z.number().min(30).max(250).nullable().default(null),
-  /**
-   * Reconnaissance des limites du calcul.
-   *
-   * Le client dit OUI ou NON en envoyant une valeur ou `null` ; il ne choisit
-   * pas la date. Le serveur ignore le contenu de la chaine et pose la sienne,
-   * sans quoi n'importe quel appelant pourrait antidater une reconnaissance.
-   */
-  limitsAckAt: z.string().nullable().default(null),
   /**
    * Nombre de personnes qui mangent ce qui est planifie. Propriete du FOYER et
    * non de la personne : c'est par lui qu'on divise le total d'une journee.

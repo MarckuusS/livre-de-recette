@@ -39,7 +39,6 @@ import {
   type ActivityCode,
   type GoalCode,
   type MacroSplit,
-  type PaceCode,
   type SplitCode,
 } from '@livre/shared'
 
@@ -50,13 +49,10 @@ import { useProfile, useSaveProfile, useWeightLog, type ProfilePayload } from '.
 import { Limites } from './reglages/Limites.js'
 import { Objectif } from './reglages/Objectif.js'
 import { PiedEnregistrer } from './reglages/PiedEnregistrer.js'
-import { EffetsCard, SplitCard, TargetsCard } from './reglages/Conservees.js'
+import { EffetsCard, TargetsCard } from './reglages/Conservees.js'
 import { EMPTY, type Draft } from './reglages/draft.js'
 import '../styles/profile.css'
 import '../styles/reglages.css'
-
-/** Ancre du bloc de limites, vers lequel le pied renvoie quand il retient. */
-const ANCRE_LIMITES = 'limites-et-precautions'
 
 export function ProfileScreen() {
   const query = useProfile()
@@ -89,9 +85,8 @@ export function ProfileScreen() {
       splitCarbs: profile.splitCarbs,
       splitFats: profile.splitFats,
       targetWeightKg: profile.targetWeightKg,
-      pace: profile.pace as PaceCode | null,
+      paceKgPerWeek: profile.paceKgPerWeek,
       kcalTarget: profile.kcalTarget,
-      limitsAckAt: profile.limitsAckAt,
       eaters,
     }
     setDraft(charge)
@@ -163,23 +158,21 @@ export function ProfileScreen() {
     const envoye: Draft = { ...draft }
     void save
       .mutateAsync(envoye satisfies ProfilePayload)
-      .then((rendu) => {
+      .then(() => {
         /*
-         * FORME FONCTIONNELLE, et repere pris sur ce qui est REELLEMENT parti.
+         * LE REPERE EST PRIS SUR CE QUI EST REELLEMENT PARTI, pas sur l'etat
+         * courant.
          *
          * Le `.then` se referme sur le brouillon du moment du clic. Sur un
          * reseau lent, quelqu'un corrige son poids pendant que la requete
-         * vole : reposer cet instantane remettrait l'ancienne valeur sous ses
-         * doigts, et `initial.current` la declarerait enregistree. L'ecran
-         * aurait affiche « Enregistre » sur une saisie perdue.
+         * vole : declarer l'etat courant enregistre ferait afficher
+         * « Enregistre » sur une saisie qui n'est jamais partie. En prenant
+         * `envoye` comme repere, `modifie` redevient vrai tout seul.
          *
-         * Le serveur ne change qu'un champ, la date de reconnaissance : on ne
-         * repose que celui-la, et le repere de comparaison devient `payload`,
-         * donc `modifie` redevient vrai tout seul si l'on a touche a quelque
-         * chose en vol.
+         * Et surtout, on ne repose RIEN dans le brouillon : le serveur ne
+         * renvoie aucun champ qu'il aurait modifie de son cote.
          */
-        setDraft((d) => ({ ...d, limitsAckAt: rendu.profile.limitsAckAt }))
-        initial.current = { ...envoye, limitsAckAt: rendu.profile.limitsAckAt }
+        initial.current = envoye
         setEnregistre(true)
         toast.show({ message: 'Objectifs enregistrés.' })
       })
@@ -288,45 +281,24 @@ export function ProfileScreen() {
         goal={draft.goal}
         targetWeightKg={draft.targetWeightKg}
         weightKg={draft.weightKg}
-        pace={draft.pace}
+        paceKgPerWeek={draft.paceKgPerWeek}
         onPatch={patch}
       />
 
-      {/* ---------- 4. Repartition ---------- */}
-      <SplitCard draft={draft} onPatch={patch} estimated={estimated} />
-
-      {/* ---------- 5. Tes cibles calculees ---------- */}
+      {/* ---------- 4. Tes cibles calculees ---------- */}
       <TargetsCard estimated={estimated} draft={draft} missing={missingText} onPatch={patch} kcal={kcal} />
 
       <EffetsCard cibles={estimated} />
 
-      {/* ---------- 6. La cuisine ---------- */}
-      <div className="card">
-        <h2 className="card__title">La cuisine</h2>
-        <NumberField
-          label="Nombre de mangeurs"
-          className="field--ligne"
-          value={draft.eaters}
-          onChange={(v) => patch({ eaters: v === null ? 1 : Math.round(v) })}
-          min={1}
-          max={20}
-          hint="Le calendrier planifie pour la cuisine, sans dire qui mange quoi. Le total d’une journée est donc divisé par ce nombre pour être comparé à ton objectif. Réglage partagé avec l’autre personne du foyer, et c’est une approximation : elle suppose que vous mangez la même chose, en même quantité."
-        />
-      </div>
-
-      {/* ---------- 7. Limites et precautions ---------- */}
-      <Limites id={ANCRE_LIMITES} />
+      {/* ---------- 5. Limites et precautions ---------- */}
+      <Limites />
 
       <PiedEnregistrer
-        ackAt={draft.limitsAckAt}
-        onAck={(reconnu) => patch({ limitsAckAt: reconnu ? new Date().toISOString() : null })}
-        bloquant={kcal !== null}
         onSubmit={submit}
         enCours={save.isPending}
         erreur={save.isError ? save.error.message : null}
         modifie={modifie}
         enregistre={enregistre && !modifie}
-        cibleLimites={ANCRE_LIMITES}
       />
     </section>
   )

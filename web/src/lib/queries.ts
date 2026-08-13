@@ -719,7 +719,7 @@ export interface ProfileResponse {
     readonly splitCarbs: number | null
     readonly splitFats: number | null
     readonly targetWeightKg: number | null
-    readonly pace: string | null
+    readonly paceKgPerWeek: number | null
     readonly kcalTarget: number | null
     /**
      * Tour de taille, en centimetres. Il n'entre dans aucun calcul de cible :
@@ -727,12 +727,6 @@ export interface ProfileResponse {
      * ou sont partis les kilos.
      */
     readonly waistCm: number | null
-    /**
-     * Jour ou les limites du calcul ont ete reconnues, ou `null`.
-     *
-     * En ECRITURE, seule sa nullite compte : le serveur pose la date lui-meme.
-     */
-    readonly limitsAckAt: string | null
   }
   /** Propriete du FOYER : les deux membres lisent le meme nombre. */
   readonly eaters: number

@@ -5,7 +5,7 @@
  * partagent sans que l'un importe l'autre.
  */
 
-import type { ActivityCode, GoalCode, PaceCode, SplitCode } from '@livre/shared'
+import type { ActivityCode, GoalCode, SplitCode } from '@livre/shared'
 
 export interface Draft {
   sex: 'f' | 'm' | null
@@ -20,16 +20,8 @@ export interface Draft {
   splitCarbs: number | null
   splitFats: number | null
   targetWeightKg: number | null
-  pace: PaceCode | null
+  paceKgPerWeek: number | null
   kcalTarget: number | null
-  /**
-   * Horodatage de la reconnaissance des limites, ou `null`.
-   *
-   * En ecriture, seule sa NULLITE compte : le serveur pose la date lui-meme et
-   * conserve celle qui existe. Le navigateur ne peut donc ni l'antidater, ni
-   * la rajeunir a chaque enregistrement.
-   */
-  limitsAckAt: string | null
   eaters: number
 }
 
@@ -37,6 +29,6 @@ export const EMPTY: Draft = {
   sex: null, birthYear: null, heightCm: null, weightKg: null, waistCm: null,
   activity: null, goal: null,
   split: null, splitProteins: null, splitCarbs: null, splitFats: null,
-  targetWeightKg: null, pace: null,
-  kcalTarget: null, limitsAckAt: null, eaters: 1,
+  targetWeightKg: null, paceKgPerWeek: null,
+  kcalTarget: null, eaters: 1,
 }

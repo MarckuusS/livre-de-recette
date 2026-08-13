@@ -20,7 +20,6 @@ import {
   hydrationTarget,
   type ActivityCode,
   type GoalCode,
-  type PaceCode,
   type SplitCode,
   type Targets,
 } from '@livre/shared'
@@ -91,7 +90,7 @@ export function useDailyTargets(): DailyTargets {
               fats: profile.splitFats ?? 0,
             },
       targetWeightKg: profile.targetWeightKg,
-      pace: profile.pace as PaceCode | null,
+      paceKgPerWeek: profile.paceKgPerWeek,
     })
 
     const kcalTarget = profile.kcalTarget ?? targets?.kcal ?? null

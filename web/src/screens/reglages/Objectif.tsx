@@ -28,7 +28,6 @@ import {
   goalForDirection,
   type DirectionCode,
   type GoalCode,
-  type PaceCode,
 } from '@livre/shared'
 
 import { NumberField, RadioGroupField } from '../../components/Field.js'
@@ -54,17 +53,17 @@ export function Objectif({
   goal,
   targetWeightKg,
   weightKg,
-  pace,
+  paceKgPerWeek,
   onPatch,
 }: {
   readonly goal: GoalCode | null
   readonly targetWeightKg: number | null
   readonly weightKg: number | null
-  readonly pace: PaceCode | null
+  readonly paceKgPerWeek: number | null
   readonly onPatch: (changes: {
     goal?: GoalCode | null
     targetWeightKg?: number | null
-    pace?: PaceCode | null
+    paceKgPerWeek?: number | null
   }) => void
 }) {
   const direction = directionOf(goal)
@@ -85,7 +84,8 @@ export function Objectif({
       : direction
 
   const contredit = direction !== null && effective !== null && effective !== direction
-  const allureCommande = targetWeightKg !== null && pace !== null && targetWeightKg !== weightKg
+  const allureCommande =
+    targetWeightKg !== null && paceKgPerWeek !== null && targetWeightKg !== weightKg
 
   return (
     <div className="card">
@@ -190,7 +190,7 @@ export function Objectif({
             <button
               type="button"
               className="button button--ghost"
-              onClick={() => onPatch({ targetWeightKg: null, pace: null })}
+              onClick={() => onPatch({ targetWeightKg: null, paceKgPerWeek: null })}
             >
               Retirer le poids visé
             </button>
@@ -201,9 +201,9 @@ export function Objectif({
       {targetWeightKg !== null ? (
         <>
           <Allure
-            value={pace}
-            onChange={(code) => onPatch({ pace: code })}
-            onClear={() => onPatch({ pace: null })}
+            value={paceKgPerWeek}
+            onChange={(kg) => onPatch({ paceKgPerWeek: kg })}
+            onClear={() => onPatch({ paceKgPerWeek: null })}
             perte={effective === 'perdre'}
           />
           {allureCommande && (

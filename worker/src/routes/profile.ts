@@ -30,25 +30,6 @@ route('PUT', '/api/profile', async ({ env, user, request }) => {
   // chaque lecture, par la meme fonction des deux cotes du reseau. Les stocker
   // aurait cree une seconde verite, a reconcilier a chaque changement de poids.
   const repo = new ProfileRepo(env.DB, me.id, me.householdId)
-
-  /*
-   * La date de reconnaissance est posee ICI, jamais recopiee du corps de la
-   * requete : le client dit seulement s'il reconnait ou non. Une valeur deja
-   * en base est conservee telle quelle, sinon chaque enregistrement de profil
-   * rajeunirait la reconnaissance et ferait perdre la date reelle.
-   */
-  const existant = await repo.get()
-  /*
-   * Un HORODATAGE COMPLET, et non un jour tronque. Le Worker ne connait pas
-   * le fuseau de la personne : `slice(0, 10)` donnerait le jour UTC, et une
-   * case cochee a 00h30 a Paris s'enregistrerait a la veille. La date est
-   * affichee ; le navigateur la remet dans son fuseau au moment de l'ecrire.
-   */
-  const limitsAckAt =
-    payload.limitsAckAt === null
-      ? null
-      : (existant.profile.limitsAckAt ?? new Date().toISOString())
-
   await repo.save(
     {
       sex: payload.sex,
@@ -62,10 +43,9 @@ route('PUT', '/api/profile', async ({ env, user, request }) => {
       splitCarbs: payload.splitCarbs,
       splitFats: payload.splitFats,
       targetWeightKg: payload.targetWeightKg,
-      pace: payload.pace,
+      paceKgPerWeek: payload.paceKgPerWeek,
       kcalTarget: payload.kcalTarget,
       waistCm: payload.waistCm,
-      limitsAckAt,
     },
     payload.eaters,
   )

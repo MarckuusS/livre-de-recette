@@ -1,38 +1,35 @@
 /**
- * La jauge de rythme.
+ * La jauge de rythme : un curseur qui glisse.
  *
- * Le mockup dessine un curseur continu sur trois zones. Le modele, lui, ne
- * connait que TROIS allures (`PACES` : 0,25, 0,5 et 0,75 kg par semaine), et
- * la colonne `user_profile.pace` porte un CHECK sur ces trois codes. On ne
- * fait donc pas semblant d'offrir un continuum : trois arrets poses sur la
- * barre, et l'echelle entiere dessinee autour d'eux.
+ * Elle a d'abord offert TROIS ARRETS, parce que le modele ne connaissait que
+ * trois codes d'allure. La colonne est devenue un nombre (migration 0014) et
+ * le curseur est maintenant continu, de 0,10 a 1 kg par semaine par pas de
+ * 0,05. Les trois anciennes valeurs restent atteignables ; elles ne sont
+ * simplement plus les seules.
  *
  * DEUX COUCHES QUI NE SE CONFONDENT PAS : une PISTE, pur decor (`aria-hidden`),
- * qui porte l'axe physique et ses zones ; et un CONTROLE pose dessus, un vrai
- * groupe de boutons radio. Le rond du mockup est l'arret selectionne, pas une
- * poignee : rien ne se traine, parce que rien n'est continu.
+ * qui porte l'axe physique de 0 a 1,2 et ses trois zones ; et un CONTROLE pose
+ * dessus. La piste va PLUS LOIN que le curseur, et c'est le point : la bande
+ * de droite montre ce qu'on ne peut pas demander. Le garde-fou se voit au lieu
+ * de s'affirmer.
  *
- * POURQUOI PAS UN `input type=range`, malgre l'apparence du mockup :
+ * LE POUCE EST DESSINE A PART. Un `input[type=range]` place le sien a
+ * « demi-pouce + valeur x (largeur - pouce) » : sur une piste dont les
+ * frontieres de zone sont a des pourcentages exacts, il derive de plusieurs
+ * pixels a chaque extremite. On reduit donc le pouce natif a 1 px, invisible,
+ * et l'on pose le rond visible a la position exacte de la valeur. L'input
+ * garde tout le reste : le glissement au doigt, les fleches du clavier, et
+ * l'annonce par un lecteur d'ecran.
  *
- *   1. un curseur ne sait pas etre VIDE. `pace` vaut `null` sur tous les
- *      profils existants, et `null` veut dire quelque chose de precis :
- *      « aucun choix, c'est l'objectif qui decide ». Un curseur sans valeur se
- *      pose au milieu et annonce une allure que personne n'a choisie ;
- *   2. les bornes de l'axe ne sont pas des valeurs offertes. L'axe va de 0 a
- *      1,2 ; les choix sont 0,25 / 0,5 / 0,75 ;
- *   3. le navigateur ne pose pas sa poignee ou la CSS la dessine : il reserve
- *      une demi-poignee a chaque bout, ce qui decale de plusieurs pixels par
- *      rapport a des zones dont les frontieres, elles, sont exactes.
- *
- * ET UNE REGLE D'ACCESSIBILITE QUI SE PAIE : un radio coche ne se decoche pas
- * au clavier. D'ou le bouton « Revenir a l'allure de l'objectif », sans lequel
- * on ne pourrait plus revenir a `null` une fois une allure choisie.
+ * `null` VEUT DIRE QUELQUE CHOSE : « aucune allure choisie, c'est l'objectif
+ * qui decide ». Un curseur a toujours une valeur, donc cet etat se rend a
+ * part : le rond est cache et la lecture dit d'ou vient l'ecart. La premiere
+ * manipulation choisit une allure ; le bouton du bas revient a `null`.
  */
 
-import { PACES, SAFE_PACE, type PaceCode } from '@livre/shared'
+import { PACE_BOUNDS, SAFE_PACE, paceLabel } from '@livre/shared'
 
-/** Haut de l'echelle dessinee. Au-dela de `SAFE_PACE.max`, pour que le
-    plafond se VOIE au lieu d'etre seulement affirme. */
+/** Haut de l'echelle DESSINEE, au-dela de ce que le curseur peut atteindre. */
 const ECHELLE_MAX = 1.2
 
 const pct = (kg: number) => (kg / ECHELLE_MAX) * 100
@@ -40,21 +37,15 @@ const pct = (kg: number) => (kg / ECHELLE_MAX) * 100
 const kgFr = (v: number) =>
   v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-/** L'allure la plus rapide qu'on puisse choisir. Lue, jamais recopiee. */
-const PLUS_RAPIDE = Math.max(...PACES.map((p) => p.kgPerWeek))
-
-/**
- * La zone d'une allure, CALCULEE et non ecrite en dur.
- *
- * Les trois allures proposees tombent aujourd'hui dans la zone sure, et
- * l'etiquette pourrait donc etre un litteral. Elle ne l'est pas : le jour ou
- * `PACES` gagne une entree plus rapide, un litteral mentirait en silence.
- */
+/** La zone d'une allure, CALCULEE : un litteral mentirait si les bornes bougeaient. */
 const zoneDe = (kgPerWeek: number): string => {
-  if (kgPerWeek < SAFE_PACE.min) return 'Trop lent pour se voir'
+  if (kgPerWeek < SAFE_PACE.min) return 'Sous le seuil visible'
   if (kgPerWeek > SAFE_PACE.max) return 'Au-delà du recommandé'
   return 'Zone recommandée'
 }
+
+/** Position du curseur quand rien n'est choisi. Le rond y est cache. */
+const AU_REPOS = 0.5
 
 export function Allure({
   value,
@@ -62,30 +53,28 @@ export function Allure({
   onClear,
   perte,
 }: {
-  readonly value: PaceCode | null
-  readonly onChange: (code: PaceCode) => void
+  readonly value: number | null
+  readonly onChange: (kgPerWeek: number) => void
   readonly onClear: () => void
   /** Vrai si l'ecart va vers le BAS. Decide du sens dit et du signe affiche. */
   readonly perte: boolean
 }) {
-  const choisi = PACES.find((p) => p.code === value) ?? null
+  const pose = value ?? AU_REPOS
   const sens = perte ? 'de moins' : 'de plus'
 
   return (
-    <fieldset className="allure">
-      <legend className="radios__legend">Allure visée</legend>
-
+    <div className="allure">
       <p className="allure__lecture">
-        {choisi === null ? (
+        {value === null ? (
           <span className="allure__vide">Celle de l’objectif</span>
         ) : (
           <>
             <span className="chiffre allure__valeur">
               {perte ? '−' : '+'}
-              {kgFr(choisi.kgPerWeek)}
+              {kgFr(value)}
             </span>{' '}
             <span className="allure__unite">kg par semaine</span>
-            <span className="allure__zone">{zoneDe(choisi.kgPerWeek)}</span>
+            <span className="allure__zone">{zoneDe(value)}</span>
           </>
         )}
       </p>
@@ -103,37 +92,49 @@ export function Allure({
           <span className="allure__bande allure__bande--exclue" />
         </span>
 
-        {PACES.map((p) => (
-          <label
-            key={p.code}
-            className={`arret${value === p.code ? ' arret--on' : ''}`}
-            style={{ left: `${pct(p.kgPerWeek)}%` }}
-          >
-            <input
-              type="radio"
-              name="allure"
-              value={p.code}
-              checked={value === p.code}
-              onChange={() => onChange(p.code)}
-            />
-            <span className="arret__pastille" aria-hidden="true" />
-            {/* Le nombre est VISIBLE et fait partie du nom accessible : un
-                `aria-label` l'ecraserait, et le pilotage vocal ne pourrait
-                plus dire « clique sur 0,25 ». Le reste de la phrase est lu
-                mais pas vu. */}
-            <span className="arret__valeur">{kgFr(p.kgPerWeek)}</span>
-            <span className="arret__dit">
-              {` kg ${sens} par semaine. ${p.label}, ${p.hint.toLowerCase()}.`}
-            </span>
-          </label>
-        ))}
+        {/* Le rond visible, pose a la position EXACTE de la valeur. */}
+        {value !== null && (
+          <span className="allure__curseur" style={{ left: `${pct(value)}%` }} aria-hidden="true" />
+        )}
+
+        {/* Le controle : transparent, il couvre exactement la portion de piste
+            que le curseur peut parcourir, de 0,10 a 1 kg par semaine. */}
+        <input
+          className="allure__champ"
+          type="range"
+          min={PACE_BOUNDS.min}
+          max={PACE_BOUNDS.max}
+          step={PACE_BOUNDS.step}
+          value={pose}
+          onChange={(e) => onChange(Number(e.target.value))}
+          style={{
+            left: `${pct(PACE_BOUNDS.min)}%`,
+            width: `${pct(PACE_BOUNDS.max) - pct(PACE_BOUNDS.min)}%`,
+          }}
+          aria-label="Allure visée"
+          /* « 0,5 » seul ne dit ni de quoi ni dans quel sens. Et tant que rien
+             n'est choisi, il ne faut surtout pas annoncer la position de
+             repos comme si elle etait un reglage. */
+          aria-valuetext={
+            value === null
+              ? 'Non définie, celle de l’objectif'
+              : `${kgFr(value)} kg ${sens} par semaine. ${zoneDe(value)}, ${paceLabel(value).toLowerCase()}.`
+          }
+        />
       </div>
 
+      <p className="allure__bornes" aria-hidden="true">
+        <span style={{ left: `${pct(SAFE_PACE.min)}%` }}>{kgFr(SAFE_PACE.min)}</span>
+        <span style={{ left: `${pct(SAFE_PACE.max)}%` }}>
+          {SAFE_PACE.max.toLocaleString('fr-FR')}
+        </span>
+      </p>
+
       <p className="allure__legende">
-        Sous {kgFr(SAFE_PACE.min)} kg par semaine, la balance ne montrerait rien de net. La plus
-        rapide proposée est {PLUS_RAPIDE.toLocaleString('fr-FR')} : la bande de droite, au-delà de{' '}
-        {SAFE_PACE.max.toLocaleString('fr-FR')}, n’est pas atteignable, et ce n’est pas un oubli.
-        La date d’arrivée découle du rythme, jamais l’inverse.
+        {value !== null && <strong>{paceLabel(value)}. </strong>}
+        Sous {kgFr(SAFE_PACE.min)} kg par semaine, la balance ne montrerait rien de net. Au-delà de{' '}
+        {SAFE_PACE.max.toLocaleString('fr-FR')}, le curseur ne va pas, et ce n’est pas un oubli. La
+        date d’arrivée découle du rythme, jamais l’inverse.
       </p>
 
       {value !== null && (
@@ -141,6 +142,6 @@ export function Allure({
           Revenir à l’allure de l’objectif
         </button>
       )}
-    </fieldset>
+    </div>
   )
 }
