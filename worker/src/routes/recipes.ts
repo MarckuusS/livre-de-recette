@@ -5,6 +5,7 @@
 import { cookingLogWriteSchema, recipeWriteSchema, tagWriteSchema } from '@livre/shared'
 
 import { logActivity } from '../activity.js'
+import { balayer } from './photos.js'
 import { HttpError, intParam, json, notFound, parseOrThrow, readJson, route } from '../http.js'
 
 // ---------------------------------------------------------------------------
@@ -93,6 +94,21 @@ route('DELETE', '/api/recipes/:id', async ({ repos, params, env, user }) => {
   const planned = await repos.recipes.plannedCount(id)
 
   await repos.recipes.delete(id)
+
+  /*
+   * LES OBJETS R2 PARTENT AVEC LA RECETTE, et il faut lire la cle AVANT le
+   * `delete` : apres, la ligne n'existe plus. Le balayage n'echoue jamais
+   * bruyamment, une photo restee dans le bucket ne doit pas empecher de
+   * supprimer une recette.
+   *
+   * Ce n'est pas qu'une question de place. `recipe.id` est declare
+   * INTEGER PRIMARY KEY SANS AUTOINCREMENT, donc SQLite reattribue le plus
+   * grand identifiant libere : sans ce balayage, une recette nouvelle pourrait
+   * heriter des objets d'un plat supprime. La cle porte une empreinte de
+   * contenu, donc rien ne serait AFFICHE par accident, mais l'objet trainerait.
+   */
+  await balayer(env, id, null)
+
   await logActivity(env.DB, user, {
     action: 'delete',
     entity: 'recipe',

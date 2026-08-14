@@ -280,15 +280,16 @@ export class RecipeRepo {
   async create(payload: RecipeWrite): Promise<number> {
     const row = await this.db
       .prepare(
-        `INSERT INTO recipe (household_id, name, instructions, default_portions, image_key, source_url, prep_time_min)
-         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        // `image_key` n'est pas dans cette liste : une recette nait sans photo,
+        // et seule `setImageKey` ecrit cette colonne. Voir `recipeWriteSchema`.
+        `INSERT INTO recipe (household_id, name, instructions, default_portions, source_url, prep_time_min)
+         VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
       )
       .bind(
         this.householdId,
         payload.name,
         payload.instructions,
         payload.defaultPortions,
-        payload.imageKey,
         payload.sourceUrl,
         payload.prepTimeMin,
       )
@@ -300,6 +301,32 @@ export class RecipeRepo {
   }
 
   /**
+   * Ecrit la cle de photo, et elle seule.
+   *
+   * SEPAREE DE `update` parce que la photo est une sous-ressource : elle
+   * s'enregistre toute seule au moment ou on la choisit, sans passer par le
+   * tampon d'edition. Voir `recipeWriteSchema` pour les trois raisons.
+   *
+   * `AND household_id = ?` n'est pas decoratif : c'est le SEUL controle
+   * d'appartenance de l'ecriture, et R2 n'en a aucun de son cote.
+   *
+   * `updated_at` N'EST PAS TOUCHE, volontairement. C'est le jeton de
+   * concurrence du contenu, que le PUT remplace en bloc. Le toucher ferait
+   * qu'un depot de photo depuis l'editeur invaliderait le jeton de ce meme
+   * editeur : `loadedUpdatedAt` est fige au chargement, et l'enregistrement
+   * suivant recevrait un 409 avec dialogue de conflit, pour une action que
+   * l'utilisateur vient de faire lui-meme. Consequence assumee : la mention
+   * "modifiee le" ne bouge pas quand seule la photo change.
+   */
+  async setImageKey(id: number, key: string | null): Promise<boolean> {
+    const result = await this.db
+      .prepare('UPDATE recipe SET image_key = ? WHERE id = ? AND household_id = ?')
+      .bind(key, id, this.householdId)
+      .run()
+    return (result.meta.changes ?? 0) > 0
+  }
+
+  /**
    * L'UPDATE fait office de controle d'appartenance : s'il ne touche aucune
    * ligne, la recette n'est pas de ce foyer et `replaceChildren` n'est jamais
    * atteint. C'est ce qui interdit de reecrire les lignes d'une recette
@@ -308,8 +335,9 @@ export class RecipeRepo {
   async update(id: number, payload: RecipeWrite): Promise<boolean> {
     const result = await this.db
       .prepare(
+        // `image_key` ABSENTE de ce SET : elle vit hors du tampon d'edition.
         `UPDATE recipe
-            SET name = ?, instructions = ?, default_portions = ?, image_key = ?,
+            SET name = ?, instructions = ?, default_portions = ?,
                 source_url = ?, prep_time_min = ?, updated_at = ${NOW_SQL}
           WHERE id = ? AND household_id = ?`,
       )
@@ -317,7 +345,6 @@ export class RecipeRepo {
         payload.name,
         payload.instructions,
         payload.defaultPortions,
-        payload.imageKey,
         payload.sourceUrl,
         payload.prepTimeMin,
         id,

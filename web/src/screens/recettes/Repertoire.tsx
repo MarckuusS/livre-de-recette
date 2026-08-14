@@ -32,6 +32,7 @@ import {
   energyBreakdown,
   feasibility,
   pantryTotals,
+  photoPath,
   type NutritionTotal,
 } from '@livre/shared'
 
@@ -287,6 +288,8 @@ function CarteRecette({
   readonly recette: RecipeSummary
   readonly faisable: boolean | null
 }) {
+  const [echecPhoto, setEchecPhoto] = useState(false)
+
   const parPortion = useMemo<NutritionTotal>(() => {
     const p = Math.max(recette.defaultPortions, 1)
     const n = recette.nutrition
@@ -305,12 +308,35 @@ function CarteRecette({
   return (
     <li className="recette">
       <Link to={`/recettes/${recette.id}`} className="recette__lien lien-surface">
-        {/* Les couverts et non une teinte de macro : un rond framboise pose au
-            hasard apprendrait que ces couleurs ne veulent rien dire, juste
-            au-dessus d'une tri-barre ou elles veulent dire quelque chose. */}
-        <span className="icon-chip" data-rayon="autre">
-          <Icon name="ui-utensils" size={22} strokeWidth={1.8} />
-        </span>
+        {/* LA PASTILLE N'EST PAS UN SUPPLEANT D'IMAGE MANQUANTE, c'est
+            l'aspect normal d'une recette sans photo, et la plupart n'en auront
+            jamais. Les couverts et non une teinte de macro : un rond framboise
+            pose au hasard apprendrait que ces couleurs ne veulent rien dire,
+            juste au-dessus d'une tri-barre ou elles veulent dire quelque chose.
+
+            Le repli sur erreur ramene la meme pastille, et c'est voulu : une
+            cle peut designer un objet absent, et une session expiree rend un
+            401. Dans les deux cas un <img> affiche le carre casse du
+            navigateur, et l'utilisateur croit avoir perdu sa photo. */}
+        {recette.imageKey === null || echecPhoto ? (
+          <span className="icon-chip" data-rayon="autre">
+            <Icon name="ui-utensils" size={22} strokeWidth={1.8} />
+          </span>
+        ) : (
+          <img
+            className="recette__photo"
+            src={photoPath(recette.id, recette.imageKey, 'thumb')}
+            /* `alt` vide : le nom de la recette est juste a cote. "Photo de
+               Gratin de courgettes" n'apprendrait rien a un lecteur d'ecran et
+               allongerait chacune des trente lignes. */
+            alt=""
+            width={54}
+            height={54}
+            loading="lazy"
+            decoding="async"
+            onError={() => setEchecPhoto(true)}
+          />
+        )}
 
         <span className="recette__corps">
           <span className="recette__nom">

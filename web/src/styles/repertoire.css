@@ -162,6 +162,31 @@
   background: var(--color-surface-pressed);
 }
 
+/*
+ * LA PASTILLE ET LA PHOTO OCCUPENT LA MEME BOITE.
+ *
+ * Deux tailles feraient une liste en dents de scie selon qu'une recette est
+ * illustree ou non, et la hauteur d'une ligne changerait au chargement des
+ * images. `.icon-chip` est partagee par quatre ecrans (rayons, bibliotheque,
+ * parametres) : on surcharge sa taille DANS LA PORTEE DE LA CARTE, jamais la
+ * classe elle-meme.
+ */
+.recette .icon-chip,
+.recette__photo {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  border-radius: var(--radius-lg);
+}
+
+.recette__photo {
+  /* `cover` et non `contain` : une photo de plat est presque toujours en
+     paysage, et `contain` laisserait deux bandes vides dans un carre. */
+  object-fit: cover;
+  /* Le temps du chargement, pour que la ligne ne clignote pas en blanc. */
+  background: var(--color-surface-pressed);
+}
+
 .recette__corps {
   flex: 1;
   min-width: 0;

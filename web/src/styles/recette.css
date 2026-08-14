@@ -51,6 +51,62 @@
   border-radius: var(--radius-xl);
 }
 
+/*
+ * AVEC PHOTO, LE BANDEAU CHANGE DE NATURE.
+ *
+ * Sans elle il est une etiquette, et 132 px suffisent. Avec elle il est le
+ * contenu de l'ecran, d'ou les 200 px.
+ */
+.fiche-hero--photo {
+  height: 200px;
+}
+
+.fiche-hero__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/*
+ * LE VOILE N'EST PAS UNE FINITION, c'est ce qui remplace une garantie perdue.
+ *
+ * Le degrade fixe assurait 12,6:1 au texte blanc pose dessus. Une photo detruit
+ * cette garantie, et il faut la reconstruire dans le PIRE cas, une photo
+ * entierement blanche. Il n'existe donc QUE sur une photo : assombrir le
+ * degrade fixe n'apporterait rien.
+ */
+.fiche-hero--photo::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: linear-gradient(to top, rgb(0 0 0 / 55%), transparent 60%);
+}
+
+/*
+ * Les trois enfants passent AU-DESSUS de l'image et du voile. La pastille
+ * d'origine l'etait deja.
+ */
+.fiche-hero--photo .fiche-hero__action,
+.fiche-hero--photo .fiche-hero__origine {
+  z-index: 1;
+}
+
+/*
+ * LE BOUTON EST TOUT EN HAUT, la ou le voile ne l'atteint pas : il porte donc
+ * seul la garantie de contraste de son icone.
+ *
+ * Les 16 % de blanc du bandeau vert disparaissent sur une photo claire, mesure
+ * a 2,1:1 sur un blanc pur. Mesure a nouveau apres correction, sur ce meme
+ * blanc : 45 % de noir donnait 3,12:1, tout juste au-dessus du seuil de 3:1 des
+ * elements graphiques, et sans aucune marge pour une photo plus claire encore.
+ * 55 % donne 4,27:1.
+ */
+.fiche-hero--photo .fiche-hero__action {
+  background: rgb(0 0 0 / 55%);
+}
+
 .fiche-hero__filigrane {
   position: absolute;
   right: var(--space-lg);

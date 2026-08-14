@@ -13,10 +13,10 @@
  * Ces informations sont deja calculees par l'API (`cookCount30d`,
  * `lastCookedAt`), il aurait ete dommage de les laisser dans le tuyau.
  *
- * Ce qui n'est PAS porte, faute de socle : les photos de recette. `imageKey`
- * est lu et transmis tel quel a chaque enregistrement pour ne pas l'effacer,
- * mais le bucket R2 n'est pas configure et aucune URL n'est servie — donc pas
- * de vignette, pas d'envoi, pas de depot d'image.
+ * Les photos de recette EXISTENT desormais, contrairement a ce que disait ce
+ * commentaire : le bucket R2 est en place et trois routes le servent. La cle
+ * ne transite plus par l'enregistrement de la recette, elle s'ecrit toute
+ * seule au moment ou l'on choisit la photo. Voir `PhotoField`.
  */
 
 import { useEffect, useState } from 'react'
@@ -65,7 +65,8 @@ export function NewRecipeSheet({
         name: name.trim(),
         instructions: '',
         defaultPortions: Math.max(1, Math.round(portions ?? 1)),
-        imageKey: null,
+        // Pas de `imageKey` : une recette nait sans photo, et la colonne ne
+        // s'ecrit que par la route dediee. Voir `recipeWriteSchema`.
         sourceUrl: null,
         prepTimeMin: null,
         lines: [],

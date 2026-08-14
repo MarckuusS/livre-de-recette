@@ -41,7 +41,22 @@ export interface RecipeDraft {
   readonly instructions: string
   readonly defaultPortions: number
   readonly prepTimeMin: number | null
-  readonly imageKey: string | null
+  /*
+   * PAS DE `imageKey` DANS LE BROUILLON, et c'est structurant.
+   *
+   * La photo s'enregistre toute seule au moment ou on la choisit, par
+   * POST /api/recipes/:id/image. Elle ne voyage pas dans ce tampon, pour trois
+   * raisons dont une seule suffirait. La securite : le champ etait libre en
+   * ecriture, donc on pouvait faire pointer SA recette vers la cle d'un autre
+   * foyer. La perte de donnee : cet editeur ne resynchronise JAMAIS son tampon
+   * depuis la prop, donc un editeur ouvert le matin sur le bureau effacerait la
+   * photo posee a midi depuis le telephone. Et iOS, qui recharge la page sous
+   * pression memoire, dont le televersement d'une photo est un declencheur
+   * documente : elle se perdrait au moment le plus probable.
+   *
+   * Consequence : `draftSignature` n'a rien a apprendre d'elle. Le probleme
+   * disparait au lieu d'etre compense.
+   */
   readonly sourceUrl: string | null
   readonly tagIds: number[]
   readonly lines: DraftLine[]
@@ -61,7 +76,6 @@ export function toDraft(recipe: Recipe): RecipeDraft {
     instructions: recipe.instructions,
     defaultPortions: recipe.defaultPortions,
     prepTimeMin: recipe.prepTimeMin,
-    imageKey: recipe.imageKey,
     sourceUrl: recipe.sourceUrl,
     tagIds: recipe.tags.map((tag) => tag.id).filter((id): id is number => id !== null),
     lines: recipe.lines.map((line) => ({
@@ -170,7 +184,6 @@ export function toPayload(draft: RecipeDraft): RecipeWrite {
     name: draft.name.trim(),
     instructions: draft.instructions,
     defaultPortions: Math.max(1, Math.round(draft.defaultPortions)),
-    imageKey: draft.imageKey,
     sourceUrl: draft.sourceUrl,
     // 0 minute n'est pas un temps de preparation : le schema le refuse, et
     // « non renseigne » se dit `null`.

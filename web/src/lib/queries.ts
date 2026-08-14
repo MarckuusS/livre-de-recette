@@ -87,6 +87,18 @@ const post = <T,>(path: string, body: unknown): Promise<T> =>
   })
 
 /**
+ * Un envoi multipart.
+ *
+ * AUCUN `content-type` N'EST POSE, et c'est le point : le navigateur est le
+ * seul a connaitre la frontiere multipart qu'il vient de fabriquer, et
+ * l'ecrire a la main produit un corps que le serveur ne sait pas decouper. On
+ * contourne donc `post`, qui pose du JSON, mais PAS `apiFetch`, qui n'impose
+ * rien sur le corps et garde la gestion d'erreur commune.
+ */
+const postForm = <T,>(path: string, body: FormData): Promise<T> =>
+  apiFetch<T>(path, { method: 'POST', body })
+
+/**
  * `ifMatch` transporte le `updatedAt` lu au chargement, pour une ecriture
  * conditionnelle : le serveur refuse en 409 si la ressource a bouge entre-temps.
  * Omis, l'ecriture reste inconditionnelle, conformement a la semantique HTTP.
@@ -532,6 +544,57 @@ export function useSaveRecipe() {
       invalidateDerived(client)
     },
   })
+}
+
+/**
+ * Deposer ou remplacer la photo de garde.
+ *
+ * LA REPONSE NE PORTE QUE LA CLE, pas la recette relue : la relire couterait
+ * quatre requetes D1 pour un seul champ. On RAPIECE donc le cache au lieu de le
+ * remplacer, contrairement a `useSaveRecipe`.
+ */
+export function useSetRecipePhoto(recipeId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (parts: { cover: Blob; thumb: Blob }) => {
+      const form = new FormData()
+      // Les noms de fichier ne servent a rien au serveur, qui ne lit que les
+      // octets ; ils evitent qu'un intermediaire nomme la partie "blob".
+      form.append('cover', parts.cover, 'cover.jpg')
+      form.append('thumb', parts.thumb, 'thumb.jpg')
+      return postForm<{ id: number; imageKey: string }>(
+        `/api/recipes/${recipeId}/image`,
+        form,
+      )
+    },
+    onSuccess: ({ imageKey }) => rafraichirPhoto(client, recipeId, imageKey),
+  })
+}
+
+export function useDeleteRecipePhoto(recipeId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => del<{ id: number; imageKey: null }>(`/api/recipes/${recipeId}/image`),
+    onSuccess: () => rafraichirPhoto(client, recipeId, null),
+  })
+}
+
+function rafraichirPhoto(
+  client: ReturnType<typeof useQueryClient>,
+  recipeId: number,
+  imageKey: string | null,
+): void {
+  client.setQueryData(keys.recipe(recipeId), (old?: Recipe) =>
+    old === undefined ? old : { ...old, imageKey },
+  )
+  // La carte du repertoire porte la vignette.
+  void client.invalidateQueries({ queryKey: ['recipes'] })
+  void client.invalidateQueries({ queryKey: keys.activity })
+  /*
+   * PAS `invalidateDerived` : une photo ne change ni les quantites, ni les
+   * prix, ni la nutrition. Le declencher relancerait la liste de courses et le
+   * frigo pour une image.
+   */
 }
 
 export function useDeleteRecipe() {

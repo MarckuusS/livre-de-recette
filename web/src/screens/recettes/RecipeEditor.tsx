@@ -35,6 +35,7 @@ import {
   NutritionCard,
   useDerived,
 } from './RecipeDerived.js'
+import { PhotoField } from './PhotoField.js'
 import { EtapesEditor } from './EtapesEditor.js'
 import { TagRow, TagSheet } from './RecipeTags.js'
 import {
@@ -190,6 +191,14 @@ export function RecipeEditor({
             required
             error={showProblem && draft.name.trim() === '' ? problem : null}
           />
+
+          {/* Juste apres le nom : la photo est de l'IDENTITE de la recette,
+              comme lui. Les nombres, les tags et les etapes sont de la
+              composition. Posee apres les etapes, elle serait derriere un bloc
+              qui fait dix ecrans de haut. */}
+          {recipe.id !== null && (
+            <PhotoField recipeId={recipe.id} imageKey={recipe.imageKey} />
+          )}
 
           <div className="form__row">
             <NumberField

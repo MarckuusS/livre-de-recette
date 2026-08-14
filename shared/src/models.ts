@@ -313,7 +313,29 @@ export const recipeWriteSchema = z.object({
   name: nonEmpty('Le nom de la recette ne peut pas être vide.'),
   instructions: z.string().default(''),
   defaultPortions: z.number().int().min(1, 'Une recette fait au moins une portion.').default(1),
-  imageKey: z.string().nullable().default(null),
+  /*
+   * PAS DE `imageKey` ICI, et c'est une decision de securite autant que de
+   * fiabilite. Il y figurait, en champ libre ecrit sans condition, ce qui
+   * ouvrait ceci : un PUT sur MA recette avec la cle d'une recette d'un AUTRE
+   * foyer, puis un GET de l'image. La route de lecture verifie l'appartenance
+   * de la recette, et elle l'a. Verifier l'appartenance de la RECETTE
+   * n'implique pas verifier l'appartenance de la CLE.
+   *
+   * Deux autres raisons convergent. L'editeur ne resynchronise jamais son
+   * tampon depuis la prop : un editeur ouvert le matin sur le bureau EFFACERAIT
+   * la photo posee a midi depuis le telephone, ce qui n'est pas un cas tordu
+   * mais le geste normal. Et iOS recharge la page sous pression memoire, dont
+   * le televersement d'une photo est un declencheur documente : la photo se
+   * perdrait exactement au moment le plus probable.
+   *
+   * La photo est donc une SOUS-RESSOURCE auto-persistee, POST et DELETE sur
+   * /api/recipes/:id/image, et la cle n'est jamais fournie par le client.
+   *
+   * PAS DE `.strict()` sur ce schema : Zod retire deja les cles inconnues, ce
+   * qui suffit. Le rendre strict ferait echouer en 422 tous les enregistrements
+   * des clients qui tournent encore sur l'ancien bundle, et une PWA installee
+   * garde le sien jusqu'a ce que le service worker prenne la main.
+   */
   sourceUrl: z.string().url('Adresse web invalide.').nullable().default(null),
   prepTimeMin: z.number().int().positive('Le temps de préparation doit être positif.').nullable().default(null),
   lines: z.array(recipeLineWriteSchema).default([]),

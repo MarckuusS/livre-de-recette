@@ -42,6 +42,7 @@ import {
   formatGrams,
   pantryTotals,
   parseSteps,
+  photoPath,
   type NutritionTotal,
   type Recipe,
 } from '@livre/shared'
@@ -120,6 +121,7 @@ function Fiche({ recipe }: { readonly recipe: Recipe }) {
    */
   const [portions, setPortions] = useState(recipe.defaultPortions)
   const [portee, setPortee] = useState<Portee>('portion')
+  const [echecPhoto, setEchecPhoto] = useState(false)
   const [detail, setDetail] = useState(false)
 
   const draft = useMemo(() => toDraft(recipe), [recipe])
@@ -153,13 +155,32 @@ function Fiche({ recipe }: { readonly recipe: Recipe }) {
   // type honnete sans imposer un `!` a la lecture.
   const echelle = PORTEES.find((p) => p.cle === portee) ?? PORTEES[0]
 
+  /*
+   * Le repli sur erreur ramene le bandeau vert, INDISCERNABLE d'une recette
+   * sans photo : une cle peut designer un objet absent, et une session expiree
+   * rend un 401. Le carre casse du navigateur ferait croire a une perte.
+   */
+  const photo =
+    recipe.id !== null && recipe.imageKey !== null && !echecPhoto
+      ? photoPath(recipe.id, recipe.imageKey)
+      : null
+
   const etapes = useMemo(() => parseSteps(recipe.instructions), [recipe.instructions])
   const ratio = portions / Math.max(recipe.defaultPortions, 1)
 
   return (
     <section className="screen screen--recette">
       {/* ---------- Le bandeau ---------- */}
-      <div className="fiche-hero">
+      {/* SANS PHOTO, RIEN NE CHANGE : degrade vert fixe, filigrane, 132 px de
+          haut. C'est une etiquette. AVEC photo il devient le contenu, d'ou les
+          200 px et le voile bas, qui n'est pas une finition : le degrade fixe
+          garantissait le contraste du texte blanc pose dessus, une photo
+          detruit cette garantie et il faut la reconstruire dans le pire cas,
+          une photo entierement blanche. */}
+      <div className={`fiche-hero${photo === null ? '' : ' fiche-hero--photo'}`}>
+        {photo !== null && (
+          <img className="fiche-hero__image" src={photo} alt="" onError={() => setEchecPhoto(true)} />
+        )}
         {/* Un seul bouton retour : la barre empilee en pose deja un, et le
             mockup en dessinait un second a douze pixels du premier. */}
         <Link
@@ -169,7 +190,11 @@ function Fiche({ recipe }: { readonly recipe: Recipe }) {
         >
           <Icon name="ui-edit" size={18} />
         </Link>
-        <Icon name="ui-utensils" size={72} className="fiche-hero__filigrane" />
+        {/* Le filigrane EST le suppleant de la photo : les deux ensemble
+            feraient des couverts geants par-dessus le plat. */}
+        {photo === null && (
+          <Icon name="ui-utensils" size={72} className="fiche-hero__filigrane" />
+        )}
         <span className="fiche-hero__origine">
           {recipe.sourceUrl === null ? 'Ma recette' : 'Importée'}
           {recipe.updatedAt !== null && ` · modifiée le ${jourCourt(recipe.updatedAt)}`}
