@@ -124,7 +124,9 @@ export function AddStockSheet({ onClose, initialScan }: AddStockSheetProps) {
         expiryDate,
         // Chaine vide -> null : le desktop stockait tantot l'un tantot l'autre
         // selon le chemin de code, et « pas de note » devenait deux choses.
-        notes: notes.trim() === '' ? null : notes.trim(),
+        storage: null,
+      unit: null,
+      notes: notes.trim() === '' ? null : notes.trim(),
       })
     } catch {
       // L'erreur reste exposee par `add.error`, affichee en bas de la feuille,

@@ -110,6 +110,19 @@ export const ingredientSchema = z.object({
   inLibrary: z.boolean().default(false),
 
   categoryL1: z.string().nullable().default(null),
+  /**
+   * Sous ce stock, le produit part en reappro. Sur l'INGREDIENT et non sur le
+   * lot : un seuil appartient au produit, pas a un pot ouvert mardi. `null` =
+   * produit non suivi, ce qui est le cas de presque toute la bibliotheque.
+   */
+  restockThresholdG: z.number().positive().nullable().default(null),
+  /**
+   * Structurellement vide pour CIQUAL et les fiches manuelles, qui n'ont pas de
+   * code-barres : ce n'est pas une donnee a completer un jour, c'est une
+   * promesse que la source ne tiendra pas pour ces fiches. Le comparateur le
+   * DIT plutot que d'afficher une case grise, qui se lirait comme un E.
+   */
+  nutriscoreGrade: z.enum(['a', 'b', 'c', 'd', 'e']).nullable().default(null),
   categoryL2: z.string().nullable().default(null),
 
   /** CSV de mois 1..12 ("6,7,8,9" = juin a septembre). `null` = pas de donnee. */
@@ -482,6 +495,26 @@ export const pantryStockSchema = z.object({
   quantityG: z.number().positive('Une quantité (g) doit être strictement positive.'),
   /** `null` = peremption non suivie (sel, epices). */
   expiryDate: dayDate.nullable().default(null),
+  /**
+   * Ou le lot est range. `null` = PAS ENCORE RANGE, et ce n'est pas un defaut :
+   * tout ce qui arrive des courses est dans cet etat, l'application ne sachant
+   * pas ou on a pose le paquet. L'ecran l'expose plutot que de deviner.
+   */
+  storage: z.enum(['frigo', 'placard', 'congelateur']).nullable().default(null),
+  /**
+   * Depuis quand a CET endroit. `addedAt` ne suffit pas : un lot achete en mai
+   * et descendu au congelateur en juillet afficherait mai, alors que le
+   * congelateur compte le temps passe. Calcule par le serveur, jamais recu du
+   * client, d'ou son absence du schema d'ecriture.
+   */
+  storageSince: utcTimestamp.nullable().default(null),
+  /**
+   * L'unite de SAISIE, a cote de la masse. Meme regle que `recipe_ingredient`
+   * depuis la 0001 et `meal_plan_entry` depuis la 0011 : sans elle, un lait de
+   * coco saisi en millilitres se relit en grammes. `null` = aucun choix
+   * enregistre, l'ecran retombe sur son heuristique.
+   */
+  unit: z.string().nullable().default(null),
   notes: z.string().nullable().default(null),
   addedAt: utcTimestamp.nullable().default(null),
   updatedAt: utcTimestamp.nullable().default(null),
@@ -511,7 +544,22 @@ export const mealPlanAmountSchema = z.object({
 })
 
 /** Ajout ou modification d'un lot au frigo. */
-export const pantryStockWriteSchema = pantryStockSchema.omit({ id: true, addedAt: true, updatedAt: true })
+/**
+ * `storageSince` est OMIS : il est calcule par le serveur au changement de
+ * lieu, comme `updated_at`. Le laisser au client permettrait de dater a
+ * volonte un sejour au congelateur.
+ */
+export const pantryStockWriteSchema = pantryStockSchema.omit({
+  id: true,
+  storageSince: true,
+  addedAt: true,
+  updatedAt: true,
+})
+
+/** Le motif d'une sortie de stock. Pose au moment du geste, seul moment ou la
+ *  question a une reponse vraie. */
+export const pantryMovementReasonSchema = z.enum(['consomme', 'jete'])
+export type PantryMovementReason = z.infer<typeof pantryMovementReasonSchema>
 export type PantryStockWrite = z.infer<typeof pantryStockWriteSchema>
 
 /** Journal de cuisson — `recipeId` vient du chemin, pas du corps. */

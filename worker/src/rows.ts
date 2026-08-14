@@ -6,6 +6,7 @@
  * de l'API vit ici — nulle part ailleurs.
  */
 
+import { isStorageSpace } from '@livre/shared'
 import type { Ingredient, MealPlanEntry, MealSlot, PantryStock, Recipe, Source, Tag } from '@livre/shared'
 
 /** Ligne brute de la table `ingredient`. */
@@ -32,6 +33,8 @@ export interface IngredientRow {
   category_l1: string | null
   category_l2: string | null
   season_months: string | null
+  restock_threshold_g: number | null
+  nutriscore_grade: string | null
   created_at: string
   updated_at: string
 }
@@ -60,6 +63,8 @@ export function toIngredient(r: IngredientRow): Ingredient {
     categoryL1: r.category_l1,
     categoryL2: r.category_l2,
     seasonMonths: r.season_months,
+    restockThresholdG: r.restock_threshold_g,
+    nutriscoreGrade: (r.nutriscore_grade ?? null) as Ingredient['nutriscoreGrade'],
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
@@ -140,6 +145,9 @@ export interface PantryStockRow {
   ingredient_id: number
   quantity_g: number
   expiry_date: string | null
+  storage: string | null
+  storage_since: string | null
+  unit: string | null
   notes: string | null
   added_at: string
   updated_at: string
@@ -150,6 +158,11 @@ export const toPantryStock = (r: PantryStockRow): PantryStock => ({
   ingredientId: r.ingredient_id,
   quantityG: r.quantity_g,
   expiryDate: r.expiry_date,
+  // Le CHECK de la base garantit deja la valeur ; ce filtre protege le cas ou
+  // une ligne serait ecrite hors des routes, et evite un cast aveugle.
+  storage: isStorageSpace(r.storage) ? r.storage : null,
+  storageSince: r.storage_since,
+  unit: r.unit,
   notes: r.notes,
   addedAt: r.added_at,
   updatedAt: r.updated_at,

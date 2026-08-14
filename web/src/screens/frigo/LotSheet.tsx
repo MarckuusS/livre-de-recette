@@ -109,6 +109,8 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
       ingredientId: lot.stock.ingredientId,
       quantityG,
       expiryDate: lot.stock.expiryDate,
+      storage: null,
+      unit: null,
       notes: lot.stock.notes,
     })
   }
@@ -147,7 +149,9 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
           ingredientId: lot.stock.ingredientId,
           quantityG: before,
           expiryDate: lot.stock.expiryDate,
-          notes: lot.stock.notes,
+          storage: null,
+      unit: null,
+      notes: lot.stock.notes,
         })
       })
     } catch {
@@ -168,7 +172,9 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
         ingredientId: lot.stock.ingredientId,
         quantityG,
         expiryDate,
-        notes: notes.trim() === '' ? null : notes.trim(),
+        storage: null,
+      unit: null,
+      notes: notes.trim() === '' ? null : notes.trim(),
       })
     } catch {
       /* voir le commentaire ci-dessus */
