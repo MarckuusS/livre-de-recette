@@ -218,30 +218,9 @@
   margin-bottom: var(--space-md);
 }
 
-.screen--recette .macro-cells {
-  margin-bottom: var(--space-md);
-}
-
-.fiche-micros {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-sm) var(--space-lg);
-  padding: 0;
-  margin: var(--space-lg) 0 0;
-  list-style: none;
-}
-
-.fiche-micros li {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
-  justify-content: space-between;
-  font-size: var(--font-size-md);
-}
-
-.fiche-micros li span:last-child {
-  font-weight: var(--font-weight-semibold);
-  font-variant-numeric: tabular-nums;
+/* La tri-barre respire avant le tableau qui la chiffre. */
+.screen--recette .macro-bar {
+  margin-bottom: var(--space-lg);
 }
 
 .fiche-plus {

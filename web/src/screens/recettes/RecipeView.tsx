@@ -46,8 +46,8 @@ import {
   type Recipe,
 } from '@livre/shared'
 
-import { MacroBar, MacroCells } from '../../components/MacrosDonut.js'
-import { NutrientLabel } from '../../components/NutrientLabel.js'
+import { MacroBar } from '../../components/MacrosDonut.js'
+import { TableauNutriments } from '../../components/TableauNutriments.js'
 import { ErrorState, LoadingRows } from '../../components/States.js'
 import { Icon } from '../../icons/index.js'
 import { RayonIcon } from '../../icons/RayonIcon.js'
@@ -77,9 +77,6 @@ const PORTEES = [
 ] as const
 
 type Portee = (typeof PORTEES)[number]['cle']
-
-const nombre = (v: number, d = 1) =>
-  v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: d })
 
 export function RecipeView() {
   const params = useParams()
@@ -237,24 +234,13 @@ function Fiche({ recipe }: { readonly recipe: Recipe }) {
           ))}
         </div>
 
-        <MacroCells total={total} caption={PORTEES.find((p) => p.cle === portee)?.legende ?? ''} />
+        {/* La tri-barre porte le dessin, le tableau porte les chiffres, et
+            AUCUNE LEGENDE ne les separe : quatre pastilles colorees posees
+            entre les deux rediraient ce que la colonne « Part » dit deja, ce
+            qui est exactement le doublon retire de l'ecran du jour. */}
         <MacroBar total={total} />
 
-        <ul className="fiche-micros">
-          {(
-            [
-              ['fiber', 'Fibres', total.fiber],
-              ['sugars', 'Sucres', total.sugars],
-              ['saturatedFats', 'Saturés', total.saturatedFats],
-              ['salt', 'Sel', total.salt],
-            ] as const
-          ).map(([cle, label, valeur]) => (
-            <li key={cle}>
-              <NutrientLabel nutrient={cle} label={label} />
-              <span>{nombre(valeur, valeur < 10 ? 1 : 0)} g</span>
-            </li>
-          ))}
-        </ul>
+        <TableauNutriments total={total} vide={recipe.lines.length === 0} />
 
         {/* Le mockup renvoie vers un « Détail complet » qui n'aurait rien de
             plus a montrer : les huit nutriments sont deja la. Le lien deplie

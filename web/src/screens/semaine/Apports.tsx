@@ -6,22 +6,19 @@
  * melangeait deux portees dans un meme tableau : on comparait sans le vouloir
  * une journee a sept.
  *
- * Chaque ecran porte donc les siens. Le composant est partage plutot que
- * recopie, sans quoi le format des nombres, le seuil des traces et la regle
- * des parts d'energie auraient fini par diverger entre les deux.
+ * Chaque ecran porte donc les siens. Le TABLEAU lui-meme a depuis demenage
+ * dans `components/TableauNutriments.tsx`, le jour ou la fiche de recette en a
+ * eu besoin : cette carte n'est plus qu'un titre autour de lui. Sans ce
+ * partage, le format des nombres, le seuil des traces et la regle des parts
+ * d'energie auraient fini par diverger d'un ecran a l'autre.
  */
 
 import { formatEuros } from "@livre/shared";
 import type { NutritionTotal } from "@livre/shared";
 
-import { NutrientLabel } from "../../components/NutrientLabel.js";
+import { TableauNutriments } from "../../components/TableauNutriments.js";
 import { Icon } from "../../icons/index.js";
-import {
-  NUTRIENT_ROWS,
-  energyShare,
-  formatNutrient,
-  type CostTotal,
-} from "./totals.js";
+import { type CostTotal } from "./totals.js";
 
 export function TableauApports({
   titre,
@@ -36,34 +33,7 @@ export function TableauApports({
   return (
     <div className="card">
       <h3 className="card__title">{titre}</h3>
-      <div className="table-scroll">
-        <table className="nutrition-table">
-          <thead>
-            <tr>
-              <th scope="col">Nutriment</th>
-              <th scope="col">Quantité</th>
-              <th scope="col">Part</th>
-            </tr>
-          </thead>
-          <tbody>
-            {NUTRIENT_ROWS.map((row) => (
-              <tr key={row.key}>
-                <th scope="row" className={row.sub ? "unit" : undefined}>
-                  <NutrientLabel
-                    nutrient={row.key}
-                    label={row.label}
-                    sub={row.sub ?? false}
-                  />
-                </th>
-                <td>{formatNutrient(entryCount, total[row.key], row)}</td>
-                <td className="nutrition-table__part">
-                  {entryCount > 0 ? energyShare(total, row.key) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <TableauNutriments total={total} vide={entryCount === 0} />
     </div>
   );
 }
