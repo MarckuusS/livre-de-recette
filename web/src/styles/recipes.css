@@ -372,13 +372,6 @@
   color: var(--color-text-secondary);
 }
 
-.nutrient-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-}
-
 /* Le donut de composition a ete promu dans components.css : il sert aussi
    a l'ecran Semaine, et une feuille d'ecran n'est chargee qu'avec son ecran. */
 

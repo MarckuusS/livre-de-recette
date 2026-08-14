@@ -165,6 +165,56 @@ export function energyBreakdown(total: NutritionTotal): EnergyBreakdown {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Composition massique
+// ---------------------------------------------------------------------------
+
+/**
+ * Les quatre familles de macros, en GRAMMES, et leur somme.
+ *
+ * C'est la base de l'anneau et de la colonne "Part" du tableau. Le choix est
+ * celui de l'utilisateur, et il change ce que la figure raconte : un anneau
+ * energetique dit "d'ou viennent les calories", un anneau massique dit "de quoi
+ * ce plat est fait". Les lipides pesent 9 kcal/g contre 4 aux glucides, donc
+ * les deux lectures donnent des dessins tres differents pour le meme plat.
+ *
+ * PIEGE A CONNAITRE : `macroMassG` N'EST PAS LE POIDS DE L'ALIMENT. L'eau, les
+ * cendres, l'alcool et les polyols n'y sont pas. Cent grammes de yaourt pesent
+ * cent grammes mais ne portent qu'environ quinze grammes de macros : une part
+ * de "60 % de glucides" veut dire soixante pour cent DES MACROS, jamais
+ * soixante pour cent de l'assiette. C'est pourquoi la fonction rend la somme
+ * qu'elle a servie de denominateur plutot que de laisser l'appelant deviner.
+ *
+ * Les fibres restent une famille a part, comme dans `energyBreakdown` : le
+ * projet les compte separement des glucides depuis le depart, et les fondre ici
+ * ferait diverger les deux lectures.
+ */
+export interface MassBreakdown {
+  readonly fatsG: number
+  readonly carbsG: number
+  readonly fiberG: number
+  readonly proteinsG: number
+  /** Somme des quatre postes. Pas le poids de l'aliment, voir ci-dessus. */
+  readonly macroMassG: number
+}
+
+export function massBreakdown(total: NutritionTotal): MassBreakdown {
+  // Une macro inconnue vaut zero dans l'agregat, regle du domaine reprise du
+  // desktop. Un negatif ne peut venir que d'une saisie fautive : le borner ici
+  // evite qu'un arc parte a l'envers dans le trace.
+  const fatsG = Math.max(0, total.fats)
+  const carbsG = Math.max(0, total.carbs)
+  const fiberG = Math.max(0, total.fiber)
+  const proteinsG = Math.max(0, total.proteins)
+  return {
+    fatsG,
+    carbsG,
+    fiberG,
+    proteinsG,
+    macroMassG: fatsG + carbsG + fiberG + proteinsG,
+  }
+}
+
 /**
  * Masse servie apres cuisson, quand le ratio est connu.
  * `cookedWeightPer100gRaw = 300` : 100 g de riz cru donnent 300 g cuits.

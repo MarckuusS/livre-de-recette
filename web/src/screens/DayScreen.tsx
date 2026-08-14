@@ -48,7 +48,7 @@ import { MealRow } from "./semaine/MealRow.js";
 import { WeekTools, type WeekTool } from "./semaine/WeekTools.js";
 import {
   NUTRIENT_ROWS,
-  energyShare,
+  massShare,
   entriesCost,
   entriesOfDay,
   entriesOfSlot,
@@ -309,9 +309,6 @@ function DayTotals({
             ? "Rien de prévu ce jour."
             : "Aucune donnée : les repas de ce jour n’ont pas de macros renseignées."
         }
-        // Le tableau des apports est rendu juste au-dessus : la legende
-        // reprenait quatre de ses huit lignes.
-        showLegend={false}
       />
 
       <CarteCout titre="Coût du jour" cout={dayCost} portee="de ce jour" />

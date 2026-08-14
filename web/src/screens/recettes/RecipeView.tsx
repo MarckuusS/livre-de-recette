@@ -46,7 +46,7 @@ import {
   type Recipe,
 } from '@livre/shared'
 
-import { MacroBar } from '../../components/MacrosDonut.js'
+import { MacrosRing } from '../../components/MacrosDonut.js'
 import { TableauNutriments } from '../../components/TableauNutriments.js'
 import { ErrorState, LoadingRows } from '../../components/States.js'
 import { Icon } from '../../icons/index.js'
@@ -149,6 +149,10 @@ function Fiche({ recipe }: { readonly recipe: Recipe }) {
   const total: NutritionTotal =
     portee === 'portion' ? derived.perPortion : portee === 'recette' ? derived.total : derived.per100g
 
+  // `find` ne peut pas echouer, `portee` vient de PORTEES ; le repli garde le
+  // type honnete sans imposer un `!` a la lecture.
+  const echelle = PORTEES.find((p) => p.cle === portee) ?? PORTEES[0]
+
   const etapes = useMemo(() => parseSteps(recipe.instructions), [recipe.instructions])
   const ratio = portions / Math.max(recipe.defaultPortions, 1)
 
@@ -234,11 +238,14 @@ function Fiche({ recipe }: { readonly recipe: Recipe }) {
           ))}
         </div>
 
-        {/* La tri-barre porte le dessin, le tableau porte les chiffres, et
-            AUCUNE LEGENDE ne les separe : quatre pastilles colorees posees
-            entre les deux rediraient ce que la colonne « Part » dit deja, ce
-            qui est exactement le doublon retire de l'ecran du jour. */}
-        <MacroBar total={total} />
+        {/* L'ANNEAU PUIS LE TABLEAU, ET RIEN ENTRE LES DEUX.
+            Les arcs disent la proportion de chaque famille en grammes, la
+            colonne « Part » du tableau redonne la meme proportion en chiffres,
+            sur la meme base. Une legende posee entre les deux rediraient une
+            troisieme fois les memes quatre lignes, sans qu'on sache laquelle
+            fait foi. Le selecteur d'echelle juste au-dessus commande les deux,
+            d'ou leur presence dans une seule carte. */}
+        <MacrosRing total={total} centerCaption={`kcal ${echelle.legende}`} />
 
         <TableauNutriments total={total} vide={recipe.lines.length === 0} />
 

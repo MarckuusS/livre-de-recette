@@ -801,14 +801,17 @@
 }
 
 /* ---------- Anneau de repartition des macros ----------
-   Partage entre la fiche recette (composition pour 100 g) et l'ecran Semaine
-   (repartition du jour). Vit ici pour cette raison. */
+   Partage entre la fiche recette, l'editeur, la feuille d'un repas et l'ecran
+   du jour. Vit ici pour cette raison.
+
+   IL EST TOUJOURS SEUL DANS SA RANGEE. La legende qui l'accompagnait a ete
+   retiree du composant, et avec elle la disposition en deux colonnes, le
+   `flex-wrap` et la bascule sous 520 px qui empilait l'une sous l'autre. Le
+   tableau des huit nutriments qui suit porte les memes chiffres. */
 
 .macros {
   display: flex;
-  gap: var(--space-lg);
-  align-items: center;
-  flex-wrap: wrap;
+  justify-content: center;
   margin-top: var(--space-md);
 }
 
@@ -831,58 +834,6 @@
 .macros__center-sub {
   fill: var(--color-text-secondary);
   font-size: 9px;
-}
-
-.macros__legend {
-  flex: 1;
-  min-width: 180px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.macros__item {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: baseline;
-  padding: var(--space-xs) 0;
-}
-
-.macros__label {
-  flex: none;
-  font-weight: var(--font-weight-medium);
-}
-
-.macros__value {
-  flex: 1;
-  font-size: var(--font-size-md);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-secondary);
-  text-align: right;
-  /* « 31 » et « % » ne doivent jamais se separer : la coupure tombait entre le
-     nombre et son unite, ce qui donnait un pourcentage orphelin sur la ligne
-     suivante. */
-  white-space: nowrap;
-}
-
-/*
- * Sous 520 px, le donut passe AU-DESSUS de la legende.
- *
- * Cote a cote, il ne restait qu'environ 150 px a la legende pour
- * « 2,9 g · 26 kcal · 31 % » : chaque entree passait a la ligne. Empilee, elle
- * dispose de toute la largeur de la carte et chaque nutriment tient sur une
- * seule ligne — ce que `flex-wrap` ne faisait pas tout seul, le graphique
- * n'etant pas assez large pour declencher le retour.
- */
-@media (max-width: 520px) {
-  .macros {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .macros__legend {
-    width: 100%;
-  }
 }
 
 /* ---------- Barre de repartition ----------
@@ -998,10 +949,6 @@
 /* Anneau SANS legende : il occupe seul sa carte, donc il se centre. La grille
    a deux colonnes le laissait colle a gauche, avec un vide a droite ou la
    legende se trouvait. */
-.macros-card--seul .macros {
-  justify-content: center;
-}
-
 /* ---------- Groupe de boutons radio ----------
    Un choix parmi plusieurs, chacun avec sa description. Vit ici et non dans
    une feuille d'ecran, pour la meme raison que le controle segmente : un

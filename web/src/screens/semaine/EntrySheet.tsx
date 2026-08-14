@@ -31,7 +31,7 @@ import { Sheet } from '../../components/Sheet.js'
 import { useMoveEntry, useUpdateEntryAmount, type CalendarResponse } from '../../lib/queries.js'
 import {
   NUTRIENT_ROWS,
-  energyShare,
+  massShare,
   entryName,
   entryNutrition,
   formatNutrient,
@@ -208,9 +208,6 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
         title="Répartition de ce repas"
         centerCaption="kcal"
         emptyMessage="Les macros de ce repas ne sont pas renseignées."
-        // Le tableau des apports suit juste dessous, avec les memes nutriments
-        // et les memes valeurs : la legende les disait deux fois.
-        showLegend={false}
       />
 
       <div className="card">
@@ -235,7 +232,7 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
                   {/* La part d'energie dans SA PROPRE colonne : collee a la
                       masse, "4,3 g 99 %" se lisait comme une seule valeur. */}
                   <td className="nutrition-table__part">
-                    {energyShare(nutrition, row.key)}
+                    {massShare(nutrition, row.key)}
                   </td>
                 </tr>
               ))}

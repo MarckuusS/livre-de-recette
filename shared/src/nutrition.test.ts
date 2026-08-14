@@ -10,6 +10,7 @@ import {
   cookedWeightG,
   divideNutrition,
   energyBreakdown,
+  massBreakdown,
   macrosFor,
 } from './nutrition.js'
 
@@ -161,5 +162,77 @@ describe('cookedWeightG', () => {
 
   it('assume 1:1 quand le ratio est inconnu', () => {
     expect(cookedWeightG(makeIngredient(), 250)).toBe(250)
+  })
+})
+
+describe('massBreakdown', () => {
+  const de = (proteins: number, carbs: number, fiber: number, fats: number) => ({
+    ...ZERO_NUTRITION,
+    proteins,
+    carbs,
+    fiber,
+    fats,
+  })
+
+  it('rend les quatre familles en grammes et leur somme', () => {
+    const m = massBreakdown(de(20, 50, 5, 25))
+    expect(m).toEqual({ proteinsG: 20, carbsG: 50, fiberG: 5, fatsG: 25, macroMassG: 100 })
+  })
+
+  it('ne dessine PAS la meme figure que la lecture energetique', () => {
+    /*
+     * Le coeur du changement demande. Meme plat, deux lectures :
+     * en masse les lipides pesent un quart, en energie ils pesent 9 kcal/g
+     * contre 4 aux glucides et occupent donc bien plus de place.
+     */
+    const plat = de(20, 50, 5, 25)
+    const masse = massBreakdown(plat)
+    const energie = energyBreakdown(plat)
+
+    expect(masse.fatsG / masse.macroMassG).toBeCloseTo(0.25, 4)
+    expect(energie.fatsKcal / energie.atwaterKcal).toBeCloseTo(225 / 515, 4)
+    // Environ 44 % de l'energie contre 25 % de la masse : la figure change.
+    expect(energie.fatsKcal / energie.atwaterKcal).toBeGreaterThan(
+      masse.fatsG / masse.macroMassG + 0.15,
+    )
+  })
+
+  it('la somme N EST PAS le poids de l aliment', () => {
+    /*
+     * Cent grammes de yaourt nature pesent cent grammes et ne portent qu'une
+     * quinzaine de grammes de macros : le reste est de l'eau. Une part lue
+     * comme "part de l'assiette" serait fausse d'un facteur sept.
+     */
+    const yaourt = de(4, 5, 0, 3.5)
+    expect(massBreakdown(yaourt).macroMassG).toBeCloseTo(12.5, 6)
+  })
+
+  it('les quatre parts font exactement 100 % des que la masse est non nulle', () => {
+    const m = massBreakdown(de(7.3, 11.9, 2.4, 0.7))
+    const somme = (m.proteinsG + m.carbsG + m.fiberG + m.fatsG) / m.macroMassG
+    expect(somme).toBeCloseTo(1, 12)
+  })
+
+  it('rend une masse nulle sur un total vide, sans diviser par zero', () => {
+    const m = massBreakdown(ZERO_NUTRITION)
+    expect(m.macroMassG).toBe(0)
+    expect(Number.isFinite(m.macroMassG)).toBe(true)
+  })
+
+  it('borne une saisie negative a zero plutot que de retourner un arc', () => {
+    // Un negatif ne peut venir que d'une saisie fautive ; laisse passer, il
+    // ferait partir un arc a l'envers dans le trace.
+    const m = massBreakdown(de(10, -5, 0, 10))
+    expect(m.carbsG).toBe(0)
+    expect(m.macroMassG).toBe(20)
+  })
+
+  it('compte les fibres a part, jamais fondues dans les glucides', () => {
+    // Le projet les separe depuis le depart. Les fondre ferait diverger cette
+    // lecture de `energyBreakdown`, qui leur donne 2 kcal/g pour elles seules.
+    const m = massBreakdown(de(0, 30, 10, 0))
+    expect(m.carbsG).toBe(30)
+    expect(m.fiberG).toBe(10)
+    expect(m.macroMassG).toBe(40)
   })
 })

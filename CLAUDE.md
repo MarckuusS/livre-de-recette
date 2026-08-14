@@ -302,6 +302,37 @@ le modèle a six objectifs et trois allures. Ce qui ne se devine pas :
 - **L'âge se saisit en années, l'année de naissance est stockée.** `ageFrom` n'est qu'une
   soustraction d'années : l'aller-retour est exact.
 
+## L'anneau et le tableau (web) — `components/MacrosDonut.tsx`
+
+Une seule forme dit la répartition des macros, sur tous les écrans qui l'affichent : la fiche
+et l'éditeur de recette, la feuille d'un repas, la journée. Ce qui ne se devine pas :
+
+- **Les arcs sont proportionnels aux GRAMMES**, plus aux calories. L'anneau répondait à
+  "d'où viennent les calories", il répond à "de quoi ce plat est fait". Ce n'est pas un
+  détail : les lipides pèsent 9 kcal/g contre 4 aux glucides, donc la lecture énergétique
+  leur donnait près du double de la place. `massBreakdown` porte le calcul, et un test
+  vérifie que les deux lectures divergent bien, pour qu'un retour en arrière casse là.
+- **La colonne "Part" du tableau lit la MÊME base** (`massShare`). Elles se suivent à trois
+  centimètres : deux bases donneraient deux nombres pour la même chose. Changer l'une sans
+  l'autre est le défaut à ne pas refaire.
+- **`macroMassG` n'est PAS le poids de l'aliment.** L'eau n'y est pas : 100 g de yaourt ne
+  portent qu'environ 12 g de macros. "51 % de glucides" veut dire 51 % des macros, jamais
+  51 % de l'assiette.
+- **Ce qui reste énergétique le reste** : le nombre au centre de l'anneau est bien des kcal,
+  et les `MACRO_SPLITS` du profil sont des parts d'énergie, ce que cette figure n'illustre pas.
+- **Il n'y a PAS de légende, et plus de façon d'en remettre une.** Le composant portait un
+  `showLegend?: boolean` optionnel valant `true` : les écrans corrects le posaient à `false`,
+  l'éditeur de recette ne le posait pas et gardait donc la sienne. Signalé trois fois, corrigé
+  deux fois sans disparaître, parce qu'on corrigeait la VALEUR là où il fallait supprimer le
+  RÉGLAGE. Tant qu'un oubli reste exprimable, un nouvel appel le reproduit. Le prop est parti
+  avec le balisage, et le typecheck a signalé les deux appels restants.
+- **`MacrosRing` existe sans carte autour**, pour la fiche : le sélecteur d'échelle (par
+  portion, recette entière, aux 100 g) commande l'anneau ET le tableau, donc les deux vivent
+  sous lui dans une seule carte. La version cartée y ferait une carte blanche dans une carte
+  blanche, ce que ce projet a déjà payé sur le planning.
+- La répartition chiffrée passe dans l'`aria-label` du tracé : quatre arcs ne se lisent pas
+  à voix haute.
+
 ## Repères nutritionnels (web) — `shared/src/limits.ts`
 
 Quatre repères journaliers affichés sous la cible en calories : trois plafonds (sel, sucres,
