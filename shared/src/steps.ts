@@ -69,13 +69,56 @@ export function stepRanks(lignes: readonly string[]): (number | null)[] {
   })
 }
 
-export function parseSteps(instructions: string): Step[] {
-  const lignes = instructions
-    // `\r\n` : un texte colle depuis un site ou saisi sous Windows en porte,
-    // et une ligne qui finirait par `\r` se verrait a l'ecran.
-    .split(/\r?\n/)
+/**
+ * Les blocs d'un texte, avant toute numerotation.
+ *
+ * UNE LIGNE VIDE SEPARE DEUX ETAPES, PAS UN SIMPLE RETOUR A LA LIGNE.
+ *
+ * Premiere version : une etape par ligne. Faux sur les donnees reelles. Un
+ * texte importe ou colle depuis un site est ENVELOPPE a quatre-vingts
+ * caracteres, et ses retours a la ligne ne separent rien :
+ *
+ *     1. Preparation. Emincer l'oignon, ecraser les gousses d'ail, couper
+ *     le poivron en petits des. Concasser les tomates pelees a la
+ *     fourchette dans leur jus.
+ *
+ * Trois lignes, une seule etape. La decouper par ligne donnait « couper le
+ * poivron en » puis « petits des. Concasser les tomates » : des fragments qui
+ * commencent au milieu d'une phrase.
+ *
+ * Un texte SANS aucune ligne vide retombe sur une etape par ligne. C'est ce
+ * qu'on tape naturellement pour enumerer des gestes courts, et c'etait le
+ * format ecrit par l'editeur avant ce correctif.
+ *
+ * Exportee parce que l'EDITEUR decoupe exactement comme la lecture : deux
+ * decoupages differents feraient afficher a l'un ce que l'autre ignore.
+ */
+export function splitSteps(instructions: string): string[] {
+  // `\r\n` : un texte colle depuis un site ou saisi sous Windows en porte, et
+  // une ligne qui finirait par `\r` se verrait a l'ecran.
+  const normalise = instructions.replace(/\r\n/g, '\n')
+
+  if (/\n[ \t]*\n/.test(normalise)) {
+    return normalise
+      .split(/\n[ \t]*\n+/)
+      .map((bloc) =>
+        bloc
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l !== '')
+          .join(' '),
+      )
+      .filter((bloc) => bloc !== '')
+  }
+
+  return normalise
+    .split('\n')
     .map((l) => l.trim())
     .filter((l) => l !== '')
+}
+
+export function parseSteps(instructions: string): Step[] {
+  const lignes = splitSteps(instructions)
 
   const etapes: Step[] = []
   let rang = 0

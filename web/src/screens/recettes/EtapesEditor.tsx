@@ -2,28 +2,34 @@
  * Les etapes d'une recette, saisies une par une.
  *
  * ELLES RESTENT UNE SEULE CHAINE EN BASE. `recipe.instructions` ne change pas
- * de type : les etapes sont ses LIGNES, jointes par des sauts de ligne a
- * l'enregistrement et redecoupees a l'ouverture. Aucune migration, et surtout
- * aucune recette existante a ressaisir : un bloc deja tape se presente
- * decoupe, et un bloc d'un seul paragraphe reste une etape, ce qui est le bon
- * comportement.
+ * de type : les etapes sont ses blocs, separes par une ligne vide a
+ * l'enregistrement et redecoupes par `splitSteps` a l'ouverture. Aucune
+ * migration, et aucune recette existante a ressaisir.
  *
- * C'est la meme regle que partout ailleurs dans ce projet : ce qui est stocke
- * reste ce que la personne a tape, la lecture se recalcule. `parseSteps`
- * (`shared/src/steps.ts`) fait le meme decoupage cote lecture, et cet editeur
- * ecrit ce qu'il sait relire.
+ * IL ECRIT AVEC UNE LIGNE VIDE, TOUJOURS. Un simple retour a la ligne serait
+ * ambigu : les textes importes sont enveloppes a quatre-vingts caracteres, et
+ * leurs retours ne separent rien du tout. En ecrivant une ligne vide entre les
+ * blocs, l'editeur produit un texte que `splitSteps` redecoupe a l'identique,
+ * quel que soit le contenu.
+ *
+ * ENTREE CREE UNE ETAPE, elle n'insere pas de retour a la ligne. C'est le geste
+ * qu'on attend d'une liste, et cela garantit qu'aucune etape ne contient de
+ * retour qui la couperait en deux au rechargement. Maj+Entree reste libre pour
+ * qui en veut vraiment un.
  *
  * LES INTERTITRES SE SAISISSENT COMME LES ETAPES. Une ligne finissant par deux
  * points (« Pour la sauce : ») est rendue comme un titre a la lecture, sans
- * numero, et ne decale pas la numerotation. Rien a cocher : on l'ecrit, elle
- * se comporte comme telle.
+ * numero, et ne decale pas la numerotation. Rien a cocher : on l'ecrit.
  */
 
 import { useMemo } from 'react'
-import { stepRanks } from '@livre/shared'
+import { splitSteps, stepRanks } from '@livre/shared'
 
 import { TextArea } from '../../components/Field.js'
 import { Icon } from '../../icons/index.js'
+
+/** Le separateur ecrit entre deux etapes. Une ligne vide, jamais un simple saut. */
+const SEPARATEUR = '\n\n'
 
 export function EtapesEditor({
   instructions,
@@ -33,54 +39,47 @@ export function EtapesEditor({
   readonly onChange: (instructions: string) => void
 }) {
   /*
-   * Le decoupage BRUT, ligne a ligne, et non `parseSteps` : l'editeur doit
-   * rendre exactement ce qui est stocke, y compris une numerotation tapee a la
-   * main, sinon la corriger la ferait disparaitre sous les doigts. `parseSteps`
-   * ne sert ici qu'a montrer le rang tel qu'il s'affichera a la lecture.
+   * LE MEME DECOUPAGE QUE LA LECTURE, par la meme fonction. Un decoupage
+   * maison ici afficherait des champs que la fiche ne montrerait pas, ou
+   * l'inverse. Une recette sans instruction ouvre sur un champ vide plutot que
+   * sur rien.
    */
-  const lignes = useMemo(() => {
-    const brut = instructions.split(/\r?\n/)
-    // Une chaine vide donne [''] : c'est voulu, l'editeur ouvre alors sur un
-    // champ unique plutot que sur rien.
-    return brut.length === 0 ? [''] : brut
+  const etapes = useMemo(() => {
+    const blocs = splitSteps(instructions)
+    return blocs.length === 0 ? [''] : blocs
   }, [instructions])
 
-  /**
-   * Les rangs tels que la fiche les affichera, alignes UN POUR UN sur les
-   * champs.
-   *
-   * Premiere version : une table du texte vers son rang, construite depuis
-   * `parseSteps`. Elle manquait toute ligne dont `parseSteps` retire quelque
-   * chose : « 4) Ajuste le sel » etait indexee sans son « 4) », la recherche
-   * echouait, et l'etape passait pour un intertitre. Le rang se calcule
-   * desormais sur les lignes brutes, par la meme regle.
-   */
-  const rangs = useMemo(() => stepRanks(lignes), [lignes])
+  /** Les rangs tels que la fiche les affichera, intertitres non numerotes. */
+  const rangs = useMemo(() => stepRanks(etapes), [etapes])
 
-  const poser = (suivantes: string[]) => onChange(suivantes.join('\n'))
+  /** Ecrit la liste telle quelle, champs vides compris : la saisie en cours. */
+  const ecrire = (suivantes: string[]) => onChange(suivantes.join(SEPARATEUR))
+
+  /** Ecrit en retirant les champs vides. Pour les gestes qui finissent une action. */
+  const ranger = (suivantes: string[]) => {
+    const gardees = suivantes.map((s) => s.trim()).filter((s) => s !== '')
+    onChange(gardees.join(SEPARATEUR))
+  }
 
   const changer = (i: number, valeur: string) =>
-    poser(lignes.map((l, k) => (k === i ? valeur : l)))
+    ecrire(etapes.map((s, k) => (k === i ? valeur : s)))
 
   const inserer = (apres: number) => {
-    const suivantes = [...lignes]
+    const suivantes = [...etapes]
     suivantes.splice(apres + 1, 0, '')
-    poser(suivantes)
+    ecrire(suivantes)
   }
 
-  const retirer = (i: number) => {
-    const suivantes = lignes.filter((_, k) => k !== i)
-    poser(suivantes.length === 0 ? [''] : suivantes)
-  }
+  const retirer = (i: number) => ranger(etapes.filter((_, k) => k !== i))
 
   const deplacer = (i: number, sens: -1 | 1) => {
     const j = i + sens
-    if (j < 0 || j >= lignes.length) return
-    const suivantes = [...lignes]
+    if (j < 0 || j >= etapes.length) return
+    const suivantes = [...etapes]
     const a = suivantes[i] as string
     suivantes[i] = suivantes[j] as string
     suivantes[j] = a
-    poser(suivantes)
+    ecrire(suivantes)
   }
 
   return (
@@ -88,9 +87,9 @@ export function EtapesEditor({
       <p className="field__label">Étapes</p>
 
       <ol className="etapes-editor__liste">
-        {lignes.map((ligne, i) => {
+        {etapes.map((etape, i) => {
           const rang = rangs[i] ?? null
-          const intertitre = ligne.trim() !== '' && rang === null
+          const intertitre = etape.trim() !== '' && rang === null
           return (
             <li key={i} className="etape-champ">
               <span
@@ -100,43 +99,55 @@ export function EtapesEditor({
                 {rang ?? '§'}
               </span>
 
-              <TextArea
-                label={`Étape ${i + 1}`}
-                className="field--sans-libelle"
-                value={ligne}
-                onChange={(v) => changer(i, v)}
-                placeholder={i === 0 ? 'Rince les lentilles à l’eau froide…' : 'Étape suivante…'}
-                minRows={1}
-              />
+              <div className="etape-champ__corps">
+                <TextArea
+                  label={`Étape ${i + 1}`}
+                  className="field--sans-libelle"
+                  value={etape}
+                  onChange={(v) => changer(i, v)}
+                  placeholder={i === 0 ? 'Rince les lentilles à l’eau froide…' : 'Étape suivante…'}
+                  minRows={2}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      inserer(i)
+                    }
+                  }}
+                />
 
-              <div className="etape-champ__outils">
-                <button
-                  type="button"
-                  className="etape-champ__outil"
-                  onClick={() => deplacer(i, -1)}
-                  disabled={i === 0}
-                  aria-label={`Monter l’étape ${i + 1}`}
-                >
-                  <Icon name="ui-chevron-up" size={16} />
-                </button>
-                <button
-                  type="button"
-                  className="etape-champ__outil"
-                  onClick={() => deplacer(i, 1)}
-                  disabled={i === lignes.length - 1}
-                  aria-label={`Descendre l’étape ${i + 1}`}
-                >
-                  <Icon name="ui-chevron-down" size={16} />
-                </button>
-                <button
-                  type="button"
-                  className="etape-champ__outil etape-champ__outil--retirer"
-                  onClick={() => retirer(i)}
-                  disabled={lignes.length === 1 && ligne === ''}
-                  aria-label={`Retirer l’étape ${i + 1}`}
-                >
-                  <Icon name="ui-trash" size={16} />
-                </button>
+                {/* Les outils SOUS le champ, et non a sa droite. En colonne de
+                    droite ils prenaient cent dix pixels sur un telephone : le
+                    texte tombait a quatre mots par ligne, et une etape
+                    ordinaire s'etalait sur cinq lignes. */}
+                <div className="etape-champ__outils">
+                  <button
+                    type="button"
+                    className="etape-champ__outil"
+                    onClick={() => deplacer(i, -1)}
+                    disabled={i === 0}
+                    aria-label={`Monter l’étape ${i + 1}`}
+                  >
+                    <Icon name="ui-chevron-up" size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="etape-champ__outil"
+                    onClick={() => deplacer(i, 1)}
+                    disabled={i === etapes.length - 1}
+                    aria-label={`Descendre l’étape ${i + 1}`}
+                  >
+                    <Icon name="ui-chevron-down" size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="etape-champ__outil etape-champ__outil--retirer"
+                    onClick={() => retirer(i)}
+                    disabled={etapes.length === 1 && etape === ''}
+                    aria-label={`Retirer l’étape ${i + 1}`}
+                  >
+                    <Icon name="ui-trash" size={16} />
+                  </button>
+                </div>
               </div>
             </li>
           )
@@ -146,15 +157,15 @@ export function EtapesEditor({
       <button
         type="button"
         className="button button--secondary"
-        onClick={() => inserer(lignes.length - 1)}
+        onClick={() => inserer(etapes.length - 1)}
       >
         <Icon name="ui-plus" size={16} className="icon--inline" /> Ajouter une étape
       </button>
 
       <p className="field__hint">
-        Une étape par champ. Une ligne qui se termine par deux points, comme «&nbsp;Pour la
-        sauce&nbsp;:&nbsp;», devient un intertitre : elle ne prend pas de numéro et ne décale pas
-        les étapes suivantes.
+        Entrée crée l’étape suivante. Une ligne qui se termine par deux points, comme «&nbsp;Pour
+        la sauce&nbsp;:&nbsp;», devient un intertitre : elle ne prend pas de numéro et ne décale
+        pas les étapes suivantes.
       </p>
     </div>
   )

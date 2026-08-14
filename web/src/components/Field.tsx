@@ -22,7 +22,15 @@
  *      valeur par accident.
  */
 
-import { useId, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react'
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type Ref,
+} from 'react'
 
 import '../styles/components.css'
 
@@ -317,6 +325,11 @@ export interface TextAreaProps extends BaseFieldProps {
    * ligne a l'oeil.
    */
   readonly className?: string | undefined
+  /**
+   * Touches interceptees avant la saisie. Sert a l'editeur d'etapes, ou
+   * Entree cree l'etape suivante au lieu d'inserer un retour a la ligne.
+   */
+  readonly onKeyDown?: ((event: KeyboardEvent<HTMLTextAreaElement>) => void) | undefined
 }
 
 export function TextArea({
@@ -324,6 +337,7 @@ export function TextArea({
   value,
   onChange,
   className,
+  onKeyDown,
   placeholder,
   minRows = 3,
   autoFocus,
@@ -363,6 +377,7 @@ export function TextArea({
         className="field__textarea"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={onKeyDown}
         placeholder={placeholder}
         rows={minRows}
         autoFocus={autoFocus}

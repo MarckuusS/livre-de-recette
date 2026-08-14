@@ -524,14 +524,25 @@
   list-style: none;
 }
 
+/*
+ * DEUX COLONNES, PAS TROIS. Les outils etaient a droite du champ et prenaient
+ * cent dix pixels : sur un telephone de 375, il restait cent-quatre-vingts
+ * pixels de saisie, le texte tombait a quatre mots par ligne, et une etape
+ * ordinaire s'etalait sur cinq lignes. Ils passent SOUS le champ, qui prend
+ * desormais toute la largeur restante.
+ *
+ * Le rang garde la sienne : sans cela, passer de l'etape 9 a l'etape 10
+ * decalerait toute la colonne de saisie d'un caractere.
+ */
 .etape-champ {
   display: grid;
-  /* Rang, champ extensible, outils. Le rang et les outils gardent leur
-     largeur : sans cela, passer de l'etape 9 a l'etape 10 decalerait toute
-     la colonne de saisie d'un caractere. */
-  grid-template-columns: 26px 1fr auto;
+  grid-template-columns: 26px 1fr;
   gap: var(--space-sm);
   align-items: start;
+}
+
+.etape-champ__corps {
+  min-width: 0;
 }
 
 .etape-champ__rang {
@@ -558,17 +569,20 @@
 .etape-champ__outils {
   display: flex;
   gap: 2px;
-  margin-top: 4px;
+  /* Colles a droite, sous le champ : ils accompagnent l'etape sans lui prendre
+     de largeur, et le regard qui descend la liste ne les rencontre pas. */
+  justify-content: flex-end;
+  margin-top: 2px;
 }
 
 .etape-champ__outil {
   display: grid;
   place-items: center;
-  /* 36 px : une rangee de trois outils a 44 px pousserait le champ de saisie
-     sous les 150 px de large sur un telephone. Ils restent au-dessus du
-     minimum tactile courant, et le geste principal reste la saisie. */
-  width: 36px;
-  height: 36px;
+  /* 44 px, le minimum tactile : ils ne prennent plus de largeur au champ
+     depuis qu'ils sont passes dessous, il n'y a donc plus de raison de les
+     rogner. */
+  width: 44px;
+  height: 44px;
   color: var(--color-text-secondary);
   cursor: pointer;
   background: none;

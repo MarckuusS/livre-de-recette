@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractDurations, isHeading, parseSteps, stepRanks } from './steps.js'
+import { extractDurations, isHeading, parseSteps, splitSteps, stepRanks } from './steps.js'
 
 describe('parseSteps', () => {
   it('numerote une etape par ligne', () => {
@@ -135,5 +135,59 @@ describe('isHeading', () => {
 
   it('refuse une instruction ordinaire', () => {
     expect(isHeading('Rince les lentilles.')).toBe(false)
+  })
+})
+
+describe('splitSteps, sur des donnees reelles', () => {
+  /*
+   * Le texte qui a revele le defaut : une recette importee, enveloppee a
+   * quatre-vingts caracteres, paragraphes separes par une ligne vide. Le
+   * decoupage par ligne en faisait six etapes dont quatre commencaient au
+   * milieu d'une phrase.
+   */
+  const IMPORTEE = [
+    'Pour 4 personnes - environ 50 minutes.',
+    '',
+    '1. Preparation. Emincer l’oignon, ecraser les gousses d’ail, couper le poivron en',
+    'petits des. Concasser les tomates pelees a la fourchette dans leur jus. Ecraser',
+    'les graines de cumin au mortier (ou utiliser le dos d’une casserole sur une',
+    'planche).',
+    '',
+    '2. Suer les legumes. Faire chauffer l’huile d’olive dans une cocotte.',
+  ].join('\n')
+
+  it('recolle un paragraphe enveloppe en UNE etape', () => {
+    const blocs = splitSteps(IMPORTEE)
+    expect(blocs).toHaveLength(3)
+    expect(blocs[1]).toContain('couper le poivron en petits des')
+    expect(blocs[1]).toContain('sur une planche).')
+  })
+
+  it('numerote ces trois blocs et rien de plus', () => {
+    const s = parseSteps(IMPORTEE)
+    expect(s.map((e) => e.index)).toEqual([1, 2, 3])
+    // La numerotation tapee a la main est retiree, comme partout.
+    expect(s[1]?.text.startsWith('Preparation.')).toBe(true)
+  })
+
+  it('retombe sur une etape par ligne quand le texte n’a AUCUNE ligne vide', () => {
+    // C'est ce qu'on tape pour enumerer des gestes courts, et le format que
+    // l'editeur ecrivait avant ce correctif.
+    expect(splitSteps('Un.\nDeux.\nTrois.')).toEqual(['Un.', 'Deux.', 'Trois.'])
+  })
+
+  it('avale les lignes vides multiples et les retours Windows', () => {
+    expect(splitSteps('Un.\r\n\r\n\r\n\r\nDeux.\r\n')).toEqual(['Un.', 'Deux.'])
+  })
+
+  it('avale une ligne qui ne contient que des espaces', () => {
+    // Un « paragraphe » separe par une ligne d'espaces est le cas courant d'un
+    // copier-coller depuis un traitement de texte.
+    expect(splitSteps('Un.\n   \nDeux.')).toEqual(['Un.', 'Deux.'])
+  })
+
+  it('rend une liste vide sur du vide', () => {
+    expect(splitSteps('')).toEqual([])
+    expect(splitSteps('  \n\n  ')).toEqual([])
   })
 })
