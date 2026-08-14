@@ -6,7 +6,7 @@
  * le plus proche de la peremption sans toucher aux autres.
  */
 
-import { pantryStockWriteSchema } from '@livre/shared'
+import { isStorageSpace, pantryMovementReasonSchema, pantryStockWriteSchema } from '@livre/shared'
 
 import { logActivity } from '../activity.js'
 import { badRequest, intParam, json, notFound, parseOrThrow, readJson, route } from '../http.js'
@@ -70,9 +70,25 @@ route('POST', '/api/pantry/:id/consume', async ({ repos, params, request, env, u
   const stock = await repos.pantry.get(id)
   if (!stock) throw notFound('Lot introuvable.')
 
-  const body = (await readJson(request)) as { quantityG?: unknown }
+  const body = (await readJson(request)) as { quantityG?: unknown; reason?: unknown }
   const amount = Number(body?.quantityG)
   if (!Number.isFinite(amount) || amount <= 0) throw badRequest('Quantité à retirer invalide.')
+
+  /*
+   * LE MOTIF EST OBLIGATOIRE, et c'est tout l'interet de cette route.
+   *
+   * Un pot fini et un pot perime laissaient jusqu'ici la meme trace. Le seul
+   * instant ou la question a une reponse vraie est celui du geste : on la pose
+   * la, une fois, plutot que de deviner ensuite. Sans defaut, parce qu'un
+   * defaut a "consomme" transformerait chaque hesitation en zero gaspillage.
+   */
+  const motif = pantryMovementReasonSchema.safeParse(body?.reason)
+  if (!motif.success) throw badRequest('Motif de sortie manquant.', 'missing_reason')
+
+  // Le mouvement est ecrit AVANT : si la consommation echoue ensuite, un
+  // mouvement de trop vaut mieux qu'un mouvement perdu.
+  const sorti = Math.min(amount, stock.quantityG)
+  await repos.pantry.recordMovement(stock.ingredientId, sorti, motif.data)
 
   const outcome = await repos.pantry.consume(id, amount)
   const ingredient = await repos.ingredients.get(stock.ingredientId)
@@ -82,7 +98,7 @@ route('POST', '/api/pantry/:id/consume', async ({ repos, params, request, env, u
     entity: 'pantry_stock',
     entityId: id,
     label: ingredient?.name ?? 'Lot',
-    details: { consomme_g: Math.min(amount, stock.quantityG), reste_g: outcome.remainingG },
+    details: { motif: motif.data, sorti_g: sorti, reste_g: outcome.remainingG },
   })
 
   return json({ ...(await loadPantry(repos)), removed: outcome.removed, remainingG: outcome.remainingG })
@@ -105,4 +121,56 @@ route('DELETE', '/api/pantry/:id', async ({ repos, params, env, user }) => {
   })
 
   return json(await loadPantry(repos))
+})
+
+/**
+ * Ranger un lot, et RIEN D'AUTRE.
+ *
+ * Distincte du PUT complet parce que le geste l'est : depuis l'onglet
+ * "A ranger", on donne une place a huit articles d'affilee sans vouloir
+ * toucher a leur quantite, leur date ou leur note. Passer par le PUT
+ * obligerait le client a renvoyer une fiche entiere qu'il n'a pas modifiee,
+ * et le moindre ecart de son cache ecraserait une saisie faite ailleurs.
+ *
+ * Sert aussi au retour : `null` remet le lot a ranger, ce qui est le seul
+ * moyen de corriger une erreur de rangement.
+ */
+route('PUT', '/api/pantry/:id/storage', async ({ repos, params, request, env, user }) => {
+  const id = intParam(params, 'id')
+  const stock = await repos.pantry.get(id)
+  if (!stock) throw notFound('Lot introuvable.')
+
+  const body = (await readJson(request)) as { storage?: unknown }
+  const brut = body?.storage ?? null
+  if (brut !== null && !isStorageSpace(brut)) {
+    throw badRequest('Lieu de rangement inconnu.', 'invalid_storage')
+  }
+
+  await repos.pantry.setStorage(id, brut)
+
+  const ingredient = await repos.ingredients.get(stock.ingredientId)
+  await logActivity(env.DB, user, {
+    action: 'update',
+    entity: 'pantry_stock',
+    entityId: id,
+    label: ingredient?.name ?? 'Lot',
+    details: { range: brut ?? 'a ranger' },
+  })
+
+  return json(await loadPantry(repos))
+})
+
+/**
+ * Le bilan des sorties depuis une date.
+ *
+ * Une requete d'agregation, deux nombres. C'est pour cela que les mouvements
+ * vivent dans une table et non dans `activity_log.details`, qui est du TEXT
+ * sans schema ni index : un bilan s'y calculerait en relisant tout le journal.
+ */
+route('GET', '/api/pantry/movements', async ({ repos, url }) => {
+  const since = url.searchParams.get('since')
+  if (since === null || !/^\d{4}-\d{2}-\d{2}/.test(since)) {
+    throw badRequest('Date de début invalide.', 'invalid_since')
+  }
+  return json(await repos.pantry.movementTotals(since))
 })

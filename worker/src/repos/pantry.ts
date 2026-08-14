@@ -6,12 +6,13 @@
  * Les totaux par ingredient (pour la liste de courses) agregent donc les lots.
  */
 
-import type { PantryStock } from '@livre/shared'
+import type { PantryMovementReason, PantryStock, StorageSpace } from '@livre/shared'
 
 import { toPantryStock, type PantryStockRow } from '../rows.js'
 import { NOW_SQL } from './sql.js'
 
-const STOCK_COLUMNS = 'id, ingredient_id, quantity_g, expiry_date, notes, added_at, updated_at'
+const STOCK_COLUMNS =
+  'id, ingredient_id, quantity_g, expiry_date, storage, storage_since, unit, notes, added_at, updated_at'
 
 export class PantryRepo {
   constructor(
@@ -57,35 +58,131 @@ export class PantryRepo {
     return new Map(results.map((r) => [r.ingredient_id, r.total]))
   }
 
+  /**
+   * `storage_since` n'est ecrit QUE si le lot arrive quelque part. Un lot pose
+   * sans lieu reste a ranger, et dater son sejour n'aurait pas de sens.
+   */
   async add(stock: {
     ingredientId: number
     quantityG: number
     expiryDate: string | null
+    storage: StorageSpace | null
+    unit: string | null
     notes: string | null
   }): Promise<number> {
     const row = await this.db
       .prepare(
-        `INSERT INTO pantry_stock (household_id, ingredient_id, quantity_g, expiry_date, notes)
-         VALUES (?, ?, ?, ?, ?) RETURNING id`,
+        `INSERT INTO pantry_stock
+           (household_id, ingredient_id, quantity_g, expiry_date, storage, storage_since, unit, notes)
+         VALUES (?, ?, ?, ?, ?, ${stock.storage === null ? 'NULL' : NOW_SQL}, ?, ?) RETURNING id`,
       )
-      .bind(this.householdId, stock.ingredientId, stock.quantityG, stock.expiryDate, stock.notes)
+      .bind(
+        this.householdId,
+        stock.ingredientId,
+        stock.quantityG,
+        stock.expiryDate,
+        stock.storage,
+        stock.unit,
+        stock.notes,
+      )
       .first<{ id: number }>()
     if (!row) throw new Error("INSERT pantry_stock n'a rien renvoye")
     return row.id
   }
 
+  /**
+   * `storage_since` N'EST REECRIT QUE SI LE LIEU CHANGE.
+   *
+   * Sans cette condition, corriger une note remettrait a zero le compteur du
+   * congelateur, qui est precisement ce que cet ecran affiche. Le lieu courant
+   * est donc relu avant d'ecrire.
+   */
   async update(
     id: number,
-    stock: { quantityG: number; expiryDate: string | null; notes: string | null },
+    stock: {
+      quantityG: number
+      expiryDate: string | null
+      storage: StorageSpace | null
+      unit: string | null
+      notes: string | null
+    },
   ): Promise<boolean> {
+    const avant = await this.get(id)
+    if (!avant) return false
+    const lieuChange = avant.storage !== stock.storage
+
     const result = await this.db
       .prepare(
-        `UPDATE pantry_stock SET quantity_g = ?, expiry_date = ?, notes = ?, updated_at = ${NOW_SQL}
+        `UPDATE pantry_stock
+            SET quantity_g = ?, expiry_date = ?, storage = ?, unit = ?, notes = ?,
+                storage_since = ${lieuChange ? (stock.storage === null ? 'NULL' : NOW_SQL) : 'storage_since'},
+                updated_at = ${NOW_SQL}
           WHERE id = ? AND household_id = ?`,
       )
-      .bind(stock.quantityG, stock.expiryDate, stock.notes, id, this.householdId)
+      .bind(
+        stock.quantityG,
+        stock.expiryDate,
+        stock.storage,
+        stock.unit,
+        stock.notes,
+        id,
+        this.householdId,
+      )
       .run()
     return (result.meta.changes ?? 0) > 0
+  }
+
+  /**
+   * Deplacer un lot, et RIEN D'AUTRE.
+   *
+   * Sert au rangement en masse depuis l'onglet "A ranger", ou l'on ne veut
+   * toucher ni la quantite, ni la date, ni la note, ni l'unite : un rangement
+   * n'est pas une modification de fiche.
+   */
+  async setStorage(id: number, storage: StorageSpace | null): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE pantry_stock
+            SET storage = ?, storage_since = ${storage === null ? 'NULL' : NOW_SQL}, updated_at = ${NOW_SQL}
+          WHERE id = ? AND household_id = ?`,
+      )
+      .bind(storage, id, this.householdId)
+      .run()
+    return (result.meta.changes ?? 0) > 0
+  }
+
+  /**
+   * Une sortie de stock, avec son motif.
+   *
+   * ECRITE AVANT la consommation. Si la consommation echoue ensuite, un
+   * mouvement de trop vaut mieux qu'un mouvement perdu : aucun ecran ne montre
+   * un mouvement isolement, ils ne servent qu'a un total, et un total legerement
+   * haut se corrige alors qu'un total muet ne se voit pas.
+   */
+  async recordMovement(
+    ingredientId: number,
+    quantityG: number,
+    reason: PantryMovementReason,
+  ): Promise<void> {
+    await this.db
+      .prepare(
+        'INSERT INTO pantry_movement (household_id, ingredient_id, quantity_g, reason) VALUES (?, ?, ?, ?)',
+      )
+      .bind(this.householdId, ingredientId, quantityG, reason)
+      .run()
+  }
+
+  /** Le bilan d'une fenetre : une requete, deux nombres. */
+  async movementTotals(since: string): Promise<{ consommeG: number; jeteG: number }> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT reason, SUM(quantity_g) AS g FROM pantry_movement
+          WHERE household_id = ? AND at >= ? GROUP BY reason`,
+      )
+      .bind(this.householdId, since)
+      .all<{ reason: string; g: number }>()
+    const parMotif = new Map(results.map((r) => [r.reason, r.g]))
+    return { consommeG: parMotif.get('consomme') ?? 0, jeteG: parMotif.get('jete') ?? 0 }
   }
 
   /**

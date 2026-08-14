@@ -203,6 +203,8 @@ route('POST', '/api/courses/commit', async ({ repos, env, user }) => {
 
   const today = new Date().toISOString().slice(0, 10)
   let created = 0
+  // Les lots crees, pour que le bilan propose de les ranger tout de suite.
+  const stockedIds: number[] = []
   let stocked = 0
   let priced = 0
   const ingredientIds: number[] = []
@@ -242,13 +244,24 @@ route('POST', '/api/courses/commit', async ({ repos, env, user }) => {
 
     ingredientIds.push(ingredientId)
 
-    // 2. Le lot au frigo.
-    await repos.pantry.add({
+    /*
+     * 2. Le lot, SANS LIEU ET SANS DATE, et les deux sont volontaires.
+     *
+     * L'application ne sait pas ou l'on rangera ce paquet, et elle ne le
+     * devinera pas : il attend dans l'onglet "A ranger", ou l'on lui donne sa
+     * place. Quant a la date, personne ne publie de duree de conservation par
+     * produit : la deviner serait l'inventer, et elle serait crue. Le rangement
+     * est le moment naturel de lire l'etiquette, une fois, et d'avoir juste.
+     */
+    const lotId = await repos.pantry.add({
       ingredientId,
       quantityG: item.quantityG,
       expiryDate: null,
+      storage: null,
+      unit: null,
       notes: `Courses du ${today} chez ${session.store}`,
     })
+    stockedIds.push(lotId)
     stocked += 1
 
     // 3. Le prix, au nom du magasin de la session.
@@ -287,6 +300,9 @@ route('POST', '/api/courses/commit', async ({ repos, env, user }) => {
     itemCount: session.items.length,
     createdCount: created,
     stockedCount: stocked,
+    // Additif : un client ancien l'ignore. Le bilan de fin de courses s'en sert
+    // pour proposer de ranger tout de suite ce qui vient d'arriver.
+    stockedIds,
     pricedCount: priced,
     totalEur: totalOf(session),
   })

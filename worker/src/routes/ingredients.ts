@@ -502,7 +502,24 @@ function toOffCandidate(raw: unknown): Record<string, unknown> {
     categoryL1: null,
     categoryL2: null,
     seasonMonths: null,
+    restockThresholdG: null,
+    /*
+     * OpenFoodFacts le renvoyait DEJA, c'est cette traduction qui le jetait :
+     * la requete ne l'omettait pas, elle le laissait tomber ici. Deux noms
+     * circulent selon l'anciennete de la fiche, `nutriscore_grade` et
+     * `nutrition_grades` ; on accepte les deux, on minuscule, et on filtre sur
+     * a..e parce qu'OFF ecrit aussi "not-applicable" et "unknown", qui ne sont
+     * pas des notes et se liraient comme un mauvais score.
+     */
+    nutriscoreGrade: offGrade(p['nutriscore_grade'] ?? p['nutrition_grades']),
     createdAt: null,
     updatedAt: null,
   }
+}
+
+/** Une note a..e, ou `null`. Jamais "unknown", qui n'est pas une note. */
+function offGrade(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const grade = raw.trim().toLowerCase()
+  return ['a', 'b', 'c', 'd', 'e'].includes(grade) ? grade : null
 }
