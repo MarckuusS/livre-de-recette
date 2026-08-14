@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractDurations, parseSteps } from './steps.js'
+import { extractDurations, isHeading, parseSteps, stepRanks } from './steps.js'
 
 describe('parseSteps', () => {
   it('numerote une etape par ligne', () => {
@@ -90,5 +90,50 @@ describe('extractDurations', () => {
 
   it('ne retient pas une duree nulle', () => {
     expect(extractDurations('0 min')).toEqual([])
+  })
+})
+
+describe('stepRanks', () => {
+  it('aligne un rang par ligne brute, sans rien filtrer', () => {
+    // Le point du separer de `parseSteps` : l'editeur a un champ par ligne, y
+    // compris vide, et doit poser le bon numero en face du bon champ.
+    expect(stepRanks(['Un.', 'Deux.', 'Trois.'])).toEqual([1, 2, 3])
+  })
+
+  it('numerote une ligne dont le numero est deja tape a la main', () => {
+    // Le defaut qui a motive cette fonction : « 4) Ajuste le sel » etait
+    // indexee sans son « 4) » et passait pour un intertitre.
+    expect(stepRanks(['Un.', '4) Ajuste le sel, un trait de citron.'])).toEqual([1, 2])
+  })
+
+  it('ne numerote ni les intertitres ni les lignes vides', () => {
+    expect(stepRanks(['Pour la sauce :', 'Melange.', '', 'Pour le plat :', 'Cuis.'])).toEqual([
+      null, 1, null, null, 2,
+    ])
+  })
+
+  it('donne le meme rang que parseSteps sur un texte sans ligne vide', () => {
+    const texte = 'Un.\nPour la sauce :\n2) Deux.\nTrois.'
+    const parLignes = stepRanks(texte.split('\n'))
+    expect(parseSteps(texte).map((e) => e.index)).toEqual(parLignes)
+  })
+})
+
+describe('isHeading', () => {
+  it('reconnait une ligne de section', () => {
+    expect(isHeading('Pour la sauce :')).toBe(true)
+    expect(isHeading('  Pour le plat:  ')).toBe(true)
+  })
+
+  it('refuse une phrase longue qui finit par deux-points', () => {
+    expect(
+      isHeading(
+        'Melange le tout dans un saladier en veillant a ne pas ecraser les morceaux, puis reserve :',
+      ),
+    ).toBe(false)
+  })
+
+  it('refuse une instruction ordinaire', () => {
+    expect(isHeading('Rince les lentilles.')).toBe(false)
   })
 })

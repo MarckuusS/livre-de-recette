@@ -41,6 +41,34 @@ const INTERTITRE = /:\s*$/
 /** Numerotation deja tapee a la main : « 1. », « 2) », « 3 - », « Etape 4 : ». */
 const NUMERO_EN_TETE = /^\s*(?:[ée]tape\s*)?\d{1,2}\s*[.)\]:-]\s+/i
 
+/**
+ * Cette ligne est-elle un intertitre ?
+ *
+ * Exportee parce que l'EDITEUR pose la meme question : il doit afficher le rang
+ * qu'aura chaque ligne a la lecture. Deux copies de ce test finiraient par
+ * diverger, et l'editeur annoncerait un numero que la fiche ne donnerait pas.
+ */
+export function isHeading(ligne: string): boolean {
+  const l = ligne.trim()
+  return INTERTITRE.test(l) && l.length <= 60
+}
+
+/**
+ * Les rangs de LIGNES BRUTES, dans l'ordre, sans rien retirer ni filtrer.
+ *
+ * `parseSteps` retire les lignes vides et la numerotation tapee a la main : ses
+ * indices ne correspondent donc plus a ceux des champs de saisie. Cette
+ * fonction-ci garde l'alignement un pour un, ce dont l'editeur a besoin pour
+ * poser le bon numero en face du bon champ.
+ */
+export function stepRanks(lignes: readonly string[]): (number | null)[] {
+  let rang = 0
+  return lignes.map((l) => {
+    if (l.trim() === '') return null
+    return isHeading(l) ? null : ++rang
+  })
+}
+
 export function parseSteps(instructions: string): Step[] {
   const lignes = instructions
     // `\r\n` : un texte colle depuis un site ou saisi sous Windows en porte,
@@ -53,7 +81,7 @@ export function parseSteps(instructions: string): Step[] {
   let rang = 0
 
   for (const brute of lignes) {
-    const heading = INTERTITRE.test(brute) && brute.length <= 60
+    const heading = isHeading(brute)
     // Le numero deja tape est RETIRE, sinon l'ecran afficherait « 2. 2) Ajoute
     // les lentilles ». Le rang affiche est celui du decoupage, qui reste juste
     // meme quand la numerotation manuelle saute un chiffre.

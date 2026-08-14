@@ -30,14 +30,12 @@ import { useToast } from '../../components/Toast.js'
 import { MacrosDonut } from '../../components/MacrosDonut.js'
 import { ApiError } from '../../lib/api.js'
 import { useDeleteRecipe, useSaveRecipe } from '../../lib/queries.js'
-import { CookingLogCard } from './CookingLog.js'
 import {
   CostCard,
   NutritionCard,
-  PortionsScaler,
-  ScaleBanner,
   useDerived,
 } from './RecipeDerived.js'
+import { EtapesEditor } from './EtapesEditor.js'
 import { TagRow, TagSheet } from './RecipeTags.js'
 import {
   draftProblem,
@@ -68,7 +66,6 @@ export function RecipeEditor({
   // Deuxieme appel a `toDraft` volontaire : la signature ignore les cles de
   // ligne, les deux tampons produisent donc exactement la meme empreinte.
   const [baseline, setBaseline] = useState<string>(() => draftSignature(toDraft(recipe)))
-  const [displayPortions, setDisplayPortions] = useState<number | null>(null)
   const [showProblem, setShowProblem] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -84,7 +81,17 @@ export function RecipeEditor({
 
   const dirty = useMemo(() => draftSignature(draft) !== baseline, [draft, baseline])
   const problem = draftProblem(draft)
-  const derived = useDerived(draft, displayPortions)
+  /*
+   * `null` EN DUR, et c'est le point de la separation des deux ecrans.
+   *
+   * L'editeur portait une carte « Cuisiner pour… » qui mettait les quantites a
+   * l'echelle pendant la saisie. Il fallait donc rediviser par le facteur au
+   * retour du champ, et poser un bandeau pour expliquer la manoeuvre. La mise
+   * a l'echelle vit desormais sur la fiche de lecture, ou rien ne se tape :
+   * ici le facteur vaut toujours un, et la regle qu'il fallait expliquer
+   * n'existe plus.
+   */
+  const derived = useDerived(draft, null)
 
   // Le cache est rafraichi apres chaque ecriture, et TanStack Query relit au
   // retour sur l'onglet : la prop `recipe` peut donc changer pendant l'edition.
@@ -188,13 +195,7 @@ export function RecipeEditor({
             <NumberField
               label="Portions"
               value={draft.defaultPortions}
-              onChange={(value) => {
-                // Changer les portions de reference annule la mise a l'echelle :
-                // garder l'ancien facteur donnerait un ratio implicite que plus
-                // personne ne sait expliquer. Regle reprise du desktop.
-                setDisplayPortions(null)
-                patch({ defaultPortions: Math.max(1, Math.round(value ?? 1)) })
-              }}
+              onChange={(value) => patch({ defaultPortions: Math.max(1, Math.round(value ?? 1)) })}
               min={1}
               max={50}
               decimals={0}
@@ -224,21 +225,12 @@ export function RecipeEditor({
             }
           />
 
-          <TextArea
-            label="Instructions"
-            value={draft.instructions}
+          <EtapesEditor
+            instructions={draft.instructions}
             onChange={(instructions) => patch({ instructions })}
-            placeholder="Étapes de préparation…"
-            minRows={4}
           />
         </div>
       </div>
-
-      <ScaleBanner
-        derived={derived}
-        defaultPortions={draft.defaultPortions}
-        onReset={() => setDisplayPortions(null)}
-      />
 
       <div className="card">
         <h3 className="card__title">
@@ -265,7 +257,6 @@ export function RecipeEditor({
                 <LineEditor
                   key={line.key}
                   line={line}
-                  ratio={derived.ratio}
                   canMoveUp={index > 0}
                   canMoveDown={index < group.lines.length - 1}
                   onChange={(changes) => patchLine(line.key, changes)}
@@ -288,13 +279,6 @@ export function RecipeEditor({
         ))}
       </div>
 
-      <PortionsScaler
-        derived={derived}
-        defaultPortions={draft.defaultPortions}
-        onChange={setDisplayPortions}
-        onReset={() => setDisplayPortions(null)}
-      />
-
       <NutritionCard derived={derived} />
       <MacrosDonut
         total={derived.per100g}
@@ -304,7 +288,6 @@ export function RecipeEditor({
       />
       <CostCard derived={derived} />
 
-      {recipe.id !== null && <CookingLogCard recipeId={recipe.id} />}
 
       {recipe.sourceUrl && (
         <p className="note">
@@ -359,7 +342,6 @@ export function RecipeEditor({
         onDiscard={() => {
           setDraft(toDraft(recipe))
           setBaseline(draftSignature(toDraft(recipe)))
-          setDisplayPortions(null)
           setShowProblem(false)
         }}
       />
@@ -414,7 +396,6 @@ function groupByRayon(lines: readonly DraftLine[]): RayonGroup[] {
 
 function LineEditor({
   line,
-  ratio,
   canMoveUp,
   canMoveDown,
   onChange,
@@ -422,7 +403,6 @@ function LineEditor({
   onRemove,
 }: {
   readonly line: DraftLine
-  readonly ratio: number
   readonly canMoveUp: boolean
   readonly canMoveDown: boolean
   readonly onChange: (changes: Partial<DraftLine>) => void
@@ -434,7 +414,7 @@ function LineEditor({
 
   // La quantite AFFICHEE suit la mise a l'echelle ; ce qui est stocke n'en
   // depend pas. Diviser au retour est ce que le bandeau orange annonce.
-  const displayed = line.quantityG === null ? null : line.quantityG * ratio
+  const displayed = line.quantityG
 
   return (
     <li className="editor-line">
@@ -483,7 +463,7 @@ function LineEditor({
         <QuantityField
           label={`Quantité de ${line.ingredient.name}`}
           value={displayed}
-          onChange={(grams) => onChange({ quantityG: grams === null ? null : grams / ratio })}
+          onChange={(grams) => onChange({ quantityG: grams })}
           pieceWeightG={line.ingredient.pieceWeightG}
           unit={line.unit}
           onUnitChange={(unit) => onChange({ unit })}

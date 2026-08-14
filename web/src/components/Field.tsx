@@ -311,12 +311,19 @@ export interface TextAreaProps extends BaseFieldProps {
   /** Hauteur minimale, en lignes. La zone grandit ensuite avec le contenu. */
   readonly minRows?: number | undefined
   readonly autoFocus?: boolean | undefined
+  /**
+   * Classe posee sur l'enveloppe. Sert notamment a `field--sans-libelle`,
+   * quand le libelle doit rester lu par un lecteur d'ecran sans occuper une
+   * ligne a l'oeil.
+   */
+  readonly className?: string | undefined
 }
 
 export function TextArea({
   label,
   value,
   onChange,
+  className,
   placeholder,
   minRows = 3,
   autoFocus,
@@ -342,7 +349,14 @@ export function TextArea({
   }, [value])
 
   return (
-    <FieldShell ids={ids} label={label} required={required} hint={hint} error={error}>
+    <FieldShell
+      ids={ids}
+      label={label}
+      required={required}
+      hint={hint}
+      error={error}
+      className={className}
+    >
       <textarea
         ref={ref}
         id={ids.controlId}

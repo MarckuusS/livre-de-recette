@@ -29,7 +29,6 @@ import {
   type RecipeLine,
 } from '@livre/shared'
 
-import { NumberField } from '../../components/Field.js'
 import { NutrientLabel } from '../../components/NutrientLabel.js'
 import { Icon } from '../../icons/index.js'
 import { formatNumber, plural, scaleLines, toRecipeLines, type RecipeDraft } from './draft.js'
@@ -106,78 +105,6 @@ export function useDerived(draft: RecipeDraft, displayPortions: number | null): 
 
 // ---------------------------------------------------------------------------
 // Mise a l'echelle
-// ---------------------------------------------------------------------------
-
-export function PortionsScaler({
-  derived,
-  defaultPortions,
-  onChange,
-  onReset,
-}: {
-  readonly derived: Derived
-  readonly defaultPortions: number
-  readonly onChange: (portions: number | null) => void
-  readonly onReset: () => void
-}) {
-  return (
-    <div className="card">
-      <h3 className="card__title">Cuisiner pour…</h3>
-      <p className="card__lead">
-        Ajuste les quantités affichées sans toucher à la recette enregistrée.
-      </p>
-      <div className="scaler">
-        <NumberField
-          label="Portions à préparer"
-          value={derived.displayedPortions}
-          onChange={(value) => onChange(value === null ? null : Math.max(1, Math.round(value)))}
-          min={1}
-          max={99}
-          decimals={0}
-        />
-        <button
-          type="button"
-          className="button button--ghost"
-          onClick={onReset}
-          disabled={!derived.isScaled}
-        >
-          Revenir à {defaultPortions}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/**
- * Le bandeau dit la regle la moins evidente de l'ecran : en mode mis a
- * l'echelle, la quantite qu'on tape est ramenee aux portions de la recette
- * avant d'etre stockee.
- */
-export function ScaleBanner({
-  derived,
-  defaultPortions,
-  onReset,
-}: {
-  readonly derived: Derived
-  readonly defaultPortions: number
-  readonly onReset: () => void
-}) {
-  if (!derived.isScaled) return null
-  return (
-    <div className="scale-banner" role="status">
-      <p className="scale-banner__text">
-        Quantités affichées pour <strong>{derived.displayedPortions} portions</strong> (recette pour{' '}
-        {defaultPortions}, ×{formatNumber(derived.ratio, 2)}). Une quantité modifiée ici sera
-        enregistrée ramenée à {defaultPortions} portions.
-      </p>
-      <button type="button" className="button button--ghost" onClick={onReset}>
-        Réinitialiser
-      </button>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Tableau nutritionnel
 // ---------------------------------------------------------------------------
 
 /** Ordre et decimales du reglement UE 1169/2011, repris tel quel du desktop. */

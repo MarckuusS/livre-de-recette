@@ -510,3 +510,89 @@
 .save-bar {
   padding-bottom: calc(var(--space-md) + var(--scan-overlap));
 }
+
+/* ---------- Les etapes, saisies une par une ----------
+   Elles restent une seule chaine en base : ce sont ses lignes. L'editeur
+   ecrit ce que `parseSteps` sait relire, et rien n'est reecrit en base. */
+
+.etapes-editor__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 0;
+  margin: var(--space-xs) 0 var(--space-md);
+  list-style: none;
+}
+
+.etape-champ {
+  display: grid;
+  /* Rang, champ extensible, outils. Le rang et les outils gardent leur
+     largeur : sans cela, passer de l'etape 9 a l'etape 10 decalerait toute
+     la colonne de saisie d'un caractere. */
+  grid-template-columns: 26px 1fr auto;
+  gap: var(--space-sm);
+  align-items: start;
+}
+
+.etape-champ__rang {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 9px;
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-full);
+}
+
+/* Un intertitre n'a pas de numero : il porte un pied-de-mouche, qui dit
+   « section » sans pretendre a un rang. */
+.etape-champ__rang--titre {
+  color: var(--color-text-placeholder);
+  background: none;
+}
+
+.etape-champ__outils {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.etape-champ__outil {
+  display: grid;
+  place-items: center;
+  /* 36 px : une rangee de trois outils a 44 px pousserait le champ de saisie
+     sous les 150 px de large sur un telephone. Ils restent au-dessus du
+     minimum tactile courant, et le geste principal reste la saisie. */
+  width: 36px;
+  height: 36px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.etape-champ__outil:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.etape-champ__outil--retirer:not(:disabled) {
+  color: var(--color-error);
+}
+
+/* Le libelle reste lu par un lecteur d'ecran, invisible a l'oeil : « Étape 3 »
+   au-dessus de chaque champ tripleraient la hauteur de la liste, alors que le
+   rang est deja dessine a gauche. */
+.field--sans-libelle > .field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
