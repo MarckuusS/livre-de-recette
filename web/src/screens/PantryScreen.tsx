@@ -1,36 +1,62 @@
 /**
- * Frigo & cellier — l'inventaire physique du foyer.
+ * Chez moi — l'inventaire physique du foyer, en quatre espaces.
  *
- * Deux idees portent cet ecran, et rien d'autre ne devrait s'y ajouter :
+ * TROIS IDEES LE PORTENT, et rien d'autre ne devrait s'y ajouter :
  *
  *   1. Le LOT est l'unite. Deux briques de lait ouvertes a une semaine d'ecart
  *      ne se confondent pas : elles ont deux peremptions, on consomme la plus
  *      urgente. La liste est donc une liste de lots, pas d'ingredients.
- *   2. Ce qui est range ici est RETRANCHE de la liste de courses. C'est la
+ *   2. CHAQUE ESPACE A SA LOGIQUE. Le frigo compte des jours, le placard un
+ *      niveau, le congelateur du temps passe. Appliquer un compte a rebours
+ *      rouge a un paquet de riz serait absurde, et un niveau de stock ne dit
+ *      rien d'un yaourt entame. Voir `espaces.ts`.
+ *   3. Ce qui est range ici est SIGNALE sur la liste de courses. C'est la
  *      raison d'etre de l'ecran, et elle n'a rien d'evident : elle est ecrite
- *      en toutes lettres sous l'en-tete, avec un lien vers la liste.
+ *      en toutes lettres, avec un lien.
  *
- * Le desktop offrait un panneau lateral de chips a glisser-deposer sur la
- * liste. Il n'est pas porte : le glisser-deposer HTML5 ne fonctionne pas au
- * doigt sous iOS, et le geste equivalent — chercher, taper, valider — est deja
- * celui de la feuille d'ajout. La regle metier qu'il portait (quantite par
- * defaut = 1 piece si l'ingredient en a une, 100 g sinon) est conservee la-bas.
+ * "A RANGER" N'EST PAS UN LIEU, c'est l'absence de lieu. Tout ce qui arrive des
+ * courses y atterrit, parce que l'application ne sait pas ou l'on a pose le
+ * paquet et qu'elle ne le devinera pas. L'onglet disparait une fois vide.
  *
- * Le tri, le groupement et le filtre vivent dans l'URL et non dans un
- * `useState` : debout devant le frigo, un rafraichissement accidentel ne doit
- * pas renvoyer l'utilisateur au tri par defaut.
+ * Le desktop offrait un panneau lateral de chips a glisser-deposer. Il n'est
+ * pas porte : le glisser-deposer HTML5 ne fonctionne pas au doigt sous iOS, et
+ * le geste equivalent, chercher puis taper, est deja celui de la feuille
+ * d'ajout. La regle metier qu'il portait (quantite par defaut = 1 piece si
+ * l'ingredient en a une, 100 g sinon) est conservee la-bas.
+ *
+ * Le tri, le groupement, le filtre ET l'onglet vivent dans l'URL : debout
+ * devant le frigo, un rafraichissement accidentel ne doit pas tout remettre a
+ * zero.
  */
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { Icon } from '../icons/index.js'
+import {
+  STORAGE_SPACES,
+  expiringLotCount,
+  formatGrams,
+  restockRatio,
+  type StorageSpace,
+} from '@livre/shared'
 
 import { SelectField } from '../components/Field.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
-import { usePantry } from '../lib/queries.js'
+import { Icon } from '../icons/index.js'
+import { useMovements, usePantry, useSetStorage } from '../lib/queries.js'
 import { useScanParam, type ScanRequest } from '../lib/useScanParam.js'
 import { AddStockSheet } from './frigo/AddStockSheet.js'
 import { LotSheet } from './frigo/LotSheet.js'
+import {
+  ESPACE_PARAM,
+  espaceLabel,
+  espaceParDefaut,
+  espaceToParam,
+  formatDepuis,
+  joursDepuisEntree,
+  lotsOf,
+  onglets,
+  type EspaceTab,
+} from './frigo/espaces.js'
 import {
   GROUPS,
   SORTS,
@@ -49,7 +75,7 @@ import {
 } from './frigo/lots.js'
 import '../styles/pantry.css'
 
-/** Seuil du seau « a consommer vite », en jours. Il inclut les lots deja perimes. */
+/** Seuil du seau "a consommer vite", en jours. Il inclut les lots deja perimes. */
 const SOON_THRESHOLD_DAYS = 5
 
 export function PantryScreen() {
@@ -91,8 +117,8 @@ export function PantryScreen() {
    * Copie LOCALE du code, effacee a la fermeture.
    *
    * `useScanParam` retient sa valeur pour qu'elle survive a l'effacement de
-   * l'URL — elle reste donc posee apres usage. Sans cette copie, rouvrir la
-   * feuille par le bouton « + » y re-injecterait le produit deja range.
+   * l'URL, elle reste donc posee apres usage. Sans cette copie, rouvrir la
+   * feuille par le bouton "+" y re-injecterait le produit deja range.
    */
   const [scanEnCours, setScanEnCours] = useState<ScanRequest | null>(null)
   useEffect(() => {
@@ -111,8 +137,31 @@ export function PantryScreen() {
     () => (query.data ? buildLots(query.data.items, query.data.ingredients, today) : []),
     [query.data, today],
   )
-  const visible = useMemo(() => sortLots(filterLots(lots, filter), sort), [lots, filter, sort])
-  const sections = useMemo(() => groupLots(visible, group), [visible, group])
+
+  const tabs = useMemo(() => onglets(lots), [lots])
+  /*
+   * L'onglet demande, s'il existe encore.
+   *
+   * Il peut disparaitre sous les doigts : ranger le dernier article de "A
+   * ranger" supprime son onglet. On retombe alors sur le defaut plutot que
+   * d'afficher une liste vide sans onglet actif.
+   */
+  const demande = params.get('ou')
+  const espace: EspaceTab = useMemo(() => {
+    const lu = demande !== null && demande in ESPACE_PARAM ? ESPACE_PARAM[demande] : undefined
+    if (lu === undefined) return espaceParDefaut(lots)
+    return tabs.some((t) => t.espace === lu) ? lu : espaceParDefaut(lots)
+  }, [demande, lots, tabs])
+
+  const duLieu = useMemo(() => lotsOf(lots, espace), [lots, espace])
+  const visible = useMemo(() => sortLots(filterLots(duLieu, filter), sort), [duLieu, filter, sort])
+  /*
+   * Le groupement par urgence n'a de sens QUE la ou les dates comptent. Au
+   * placard et au congelateur, il ferait une section "En stock" contenant tout,
+   * ce qui est un titre pour rien.
+   */
+  const groupeEffectif: GroupValue = espace === 'frigo' ? group : group === 'urgence' ? 'aucun' : group
+  const sections = useMemo(() => groupLots(visible, groupeEffectif), [visible, groupeEffectif])
 
   // Le lot en cours d'edition est relu a chaque rendu dans la liste complete :
   // la feuille suit ainsi les ecritures (une consommation change la quantite)
@@ -120,12 +169,30 @@ export function PantryScreen() {
   // non dans `visible`, sans quoi filtrer pendant l'edition la refermerait.
   const editing = editingId === null ? null : (lots.find((lot) => lot.id === editingId) ?? null)
 
-  const soonCount = visible.filter(
-    (lot) => lot.daysLeft !== null && lot.daysLeft <= SOON_THRESHOLD_DAYS,
-  ).length
+  // L'alerte porte sur le FRIGO seul : c'est le seul espace ou une date presse.
+  const pressent = useMemo(
+    () =>
+      query.data
+        ? expiringLotCount(
+            query.data.items.filter((s) => s.storage === 'frigo'),
+            today,
+            SOON_THRESHOLD_DAYS,
+          )
+        : 0,
+    [query.data, today],
+  )
 
   return (
     <section className="screen screen--pantry">
+      <header className="chezmoi-entete">
+        <div>
+          <p className="chezmoi-entete__surtitre">
+            {lots.length} produit{lots.length > 1 ? 's' : ''} suivi{lots.length > 1 ? 's' : ''}
+          </p>
+          <h2>Chez moi</h2>
+        </div>
+      </header>
+
       {/*
         Ce texte a longtemps promis deux choses que le code ne fait pas : que le
         stock etait RETRANCHE de la liste de courses, et qu'un ingredient couvert
@@ -134,8 +201,6 @@ export function PantryScreen() {
         propose de cocher. Le pre-cochage automatique du desktop a ete abandonne
         volontairement (une case cochee qu'on n'a pas cochee soi-meme se lit
         comme une erreur sur telephone), mais la phrase, elle, n'avait pas suivi.
-        On lisait la promesse, on ouvrait la liste, tout etait decoche, et on en
-        concluait que le frigo n'etait pas pris en compte.
       */}
       <p className="pantry-note">
         Ce que tu ranges ici est <strong>signalé sur ta liste de courses</strong> : un ingrédient
@@ -148,31 +213,45 @@ export function PantryScreen() {
 
       {query.isSuccess && lots.length > 0 && (
         <>
+          <nav className="espaces" aria-label="Espaces de rangement">
+            {tabs.map((tab) => (
+              <button
+                key={espaceToParam(tab.espace)}
+                type="button"
+                className={`espace${tab.espace === espace ? ' espace--on' : ''}`}
+                aria-pressed={tab.espace === espace}
+                onClick={() => setParam('ou', espaceToParam(tab.espace), ' ')}
+              >
+                {tab.label} <span className="espace__compte">{tab.count}</span>
+              </button>
+            ))}
+          </nav>
+
+          {espace === null && <ARangerBandeau count={duLieu.length} />}
+
+          {espace === 'frigo' && pressent > 0 && <UrgenceBandeau count={pressent} />}
+
           <PantryToolbar
             filter={filter}
             sort={sort}
             group={group}
+            showGroup={espace === 'frigo'}
             onFilterChange={(value) => setParam('q', value, '')}
             onSortChange={(value) => setParam('tri', value, 'urgence')}
             onGroupChange={(value) => setParam('groupe', value, 'urgence')}
           />
+
           <p className="pantry-summary">
             <span>
               {visible.length} article{visible.length > 1 ? 's' : ''}
-              {visible.length !== lots.length && ` sur ${lots.length}`}
+              {visible.length !== duLieu.length && ` sur ${duLieu.length}`}
             </span>
-            {soonCount > 0 && (
-              <span className="pantry-summary__alert">
-                <Icon name="ui-alert" size={16} className="icon--inline" /> {soonCount} à consommer
-                rapidement
-              </span>
-            )}
           </p>
         </>
       )}
 
       {query.isSuccess && lots.length === 0 && (
-        <EmptyState title="Frigo vide">
+        <EmptyState title="Rien chez toi">
           Rien en stock pour l’instant. Ajoute ce que tu as sous la main : la liste de courses en
           tiendra compte dès le prochain calcul.{' '}
           <button type="button" className="button button--ghost" onClick={() => setAddingStock(true)}>
@@ -181,13 +260,19 @@ export function PantryScreen() {
         </EmptyState>
       )}
 
-      {/* Deux etats vides distincts, la ou le desktop n'en avait qu'un : « frigo
-          vide » quand il n'y a rien, « rien ne correspond » quand c'est le
-          filtre qui masque tout. Le message unique laissait croire a un frigo
-          vide alors qu'un mot restait dans le champ. */}
-      {query.isSuccess && lots.length > 0 && visible.length === 0 && (
+      {/* Trois etats vides distincts, la ou le desktop n'en avait qu'un : rien
+          nulle part, rien DANS CET ESPACE, et rien qui corresponde au filtre.
+          Le message unique laissait croire a un frigo vide alors qu'un mot
+          restait dans le champ. */}
+      {query.isSuccess && lots.length > 0 && duLieu.length === 0 && (
+        <EmptyState title={`${espaceLabel(espace)} vide`}>
+          Rien de rangé ici pour l’instant.
+        </EmptyState>
+      )}
+
+      {query.isSuccess && duLieu.length > 0 && visible.length === 0 && (
         <EmptyState title="Aucun résultat">
-          Rien ne correspond à « {filter} » dans ton frigo.{' '}
+          Rien ne correspond à « {filter} » dans {espaceLabel(espace).toLowerCase()}.{' '}
           <button type="button" className="button button--ghost" onClick={() => setParam('q', '', '')}>
             Effacer le filtre
           </button>
@@ -195,8 +280,16 @@ export function PantryScreen() {
       )}
 
       {sections.map((section) => (
-        <PantrySection key={section.key} section={section} onOpen={setEditingId} />
+        <PantrySection
+          key={section.key}
+          section={section}
+          espace={espace}
+          today={today}
+          onOpen={setEditingId}
+        />
       ))}
+
+      {query.isSuccess && lots.length > 0 && <BilanSorties />}
 
       {query.isSuccess && (
         <button
@@ -223,10 +316,81 @@ export function PantryScreen() {
 
 // ---------------------------------------------------------------------------
 
+function ARangerBandeau({ count }: { readonly count: number }) {
+  return (
+    <p className="bandeau bandeau--ranger">
+      <Icon name="ui-cart" size={18} className="icon--inline" />
+      <span>
+        <strong>
+          {count} article{count > 1 ? 's' : ''}
+        </strong>{' '}
+        {count > 1 ? 'arrivent' : 'arrive'} des courses. Donne-leur une place, et la date lue sur
+        l’emballage.
+      </span>
+    </p>
+  )
+}
+
+function UrgenceBandeau({ count }: { readonly count: number }) {
+  return (
+    <p className="bandeau bandeau--urgence">
+      <Icon name="ui-alert" size={18} className="icon--inline" />
+      <span>
+        <strong>
+          {count} produit{count > 1 ? 's' : ''}
+        </strong>{' '}
+        à consommer sous {SOON_THRESHOLD_DAYS} jours.
+      </span>
+      {/* Le repertoire sait deja croiser recettes et frigo : on y renvoie plutot
+          que de recalculer ici une liste de recettes possibles. */}
+      <Link to="/recettes?frigo=1" className="bandeau__lien lien-surface">
+        Que cuisiner ?
+      </Link>
+    </p>
+  )
+}
+
+/**
+ * Le bilan des sorties de la semaine.
+ *
+ * IL N'EXISTE QUE PARCE QUE LA QUESTION EST POSEE AU MOMENT DU GESTE. Un bilan
+ * deduit de differences de stock compterait comme "jete" tout ce qui a ete
+ * mange. Ce n'est ni une note, ni une tendance, et cela ne modifie aucune liste
+ * de courses : c'est un chiffre, et il est vrai.
+ *
+ * Rien ne s'affiche tant qu'aucune sortie n'a ete saisie : une ligne a
+ * "0 g jeté" se lirait comme un satisfecit alors qu'elle ne dit rien.
+ */
+function BilanSorties() {
+  const depuis = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return d.toISOString().slice(0, 10)
+  }, [])
+  const bilan = useMovements(depuis)
+
+  if (!bilan.isSuccess) return null
+  const { consommeG, jeteG } = bilan.data
+  if (consommeG === 0 && jeteG === 0) return null
+
+  return (
+    <p className="bilan-sorties">
+      Ces 7 jours : <strong>{formatGrams(consommeG)}</strong> consommés
+      {jeteG > 0 && (
+        <>
+          , <strong>{formatGrams(jeteG)}</strong> jetés
+        </>
+      )}
+      .
+    </p>
+  )
+}
+
 function PantryToolbar({
   filter,
   sort,
   group,
+  showGroup,
   onFilterChange,
   onSortChange,
   onGroupChange,
@@ -234,6 +398,8 @@ function PantryToolbar({
   filter: string
   sort: SortValue
   group: GroupValue
+  /** Le groupement par urgence n'a de sens qu'au frigo. */
+  showGroup: boolean
   onFilterChange: (value: string) => void
   onSortChange: (value: SortValue) => void
   onGroupChange: (value: GroupValue) => void
@@ -242,8 +408,8 @@ function PantryToolbar({
     <div className="pantry-toolbar">
       <div className="pantry-toolbar__search">
         {/* Filtrage cote client : le frigo d'un foyer tient en quelques dizaines
-            de lignes, et une requete HTTP par frappe — ce que faisait le
-            desktop en SQL local — est inacceptable en 4G. */}
+            de lignes, et une requete HTTP par frappe, ce que faisait le
+            desktop en SQL local, est inacceptable en 4G. */}
         <input
           type="search"
           className="search-field"
@@ -273,12 +439,14 @@ function PantryToolbar({
           onChange={(value) => onSortChange(readOption<SortValue>(value, SORTS, 'urgence'))}
           options={SORTS.map((option) => ({ value: option.value, label: option.label }))}
         />
-        <SelectField
-          label="Grouper"
-          value={group}
-          onChange={(value) => onGroupChange(readOption<GroupValue>(value, GROUPS, 'urgence'))}
-          options={GROUPS.map((option) => ({ value: option.value, label: option.label }))}
-        />
+        {showGroup && (
+          <SelectField
+            label="Grouper"
+            value={group}
+            onChange={(value) => onGroupChange(readOption<GroupValue>(value, GROUPS, 'urgence'))}
+            options={GROUPS.map((option) => ({ value: option.value, label: option.label }))}
+          />
+        )}
       </div>
     </div>
   )
@@ -286,9 +454,13 @@ function PantryToolbar({
 
 function PantrySection({
   section,
+  espace,
+  today,
   onOpen,
 }: {
   section: LotSection
+  espace: EspaceTab
+  today: Date
   onOpen: (id: number) => void
 }) {
   return (
@@ -305,16 +477,36 @@ function PantrySection({
       )}
       <ul className="lot-list">
         {section.lots.map((lot) => (
-          <LotRow key={lot.id} lot={lot} onOpen={onOpen} />
+          <LotRow key={lot.id} lot={lot} espace={espace} today={today} onOpen={onOpen} />
         ))}
       </ul>
     </div>
   )
 }
 
-function LotRow({ lot, onOpen }: { lot: Lot; onOpen: (id: number) => void }) {
+/**
+ * Une ligne, dont la SECONDE information change avec l'espace.
+ *
+ * Le nom, la quantite et la fratrie sont communs. Ce qui suit ne l'est pas :
+ * le frigo montre l'echeance, le placard le niveau face au seuil, le
+ * congelateur le temps passe. C'est la traduction en pixels de la regle qui
+ * fonde ces trois espaces.
+ */
+function LotRow({
+  lot,
+  espace,
+  today,
+  onOpen,
+}: {
+  lot: Lot
+  espace: EspaceTab
+  today: Date
+  onOpen: (id: number) => void
+}) {
+  const seuil = lot.ingredient?.restockThresholdG ?? null
+
   return (
-    <li className={`lot lot--${lot.bucket}`}>
+    <li className={`lot${espace === 'frigo' ? ` lot--${lot.bucket}` : ''}`}>
       {/* Toute la ligne ouvre la fiche du lot. Sur le desktop, cliquer une
           ligne ne faisait rien : le seul geste possible etait la croix de
           suppression, et modifier une quantite imposait de tout ressaisir. */}
@@ -323,22 +515,84 @@ function LotRow({ lot, onOpen }: { lot: Lot; onOpen: (id: number) => void }) {
           <span className="lot__name">{lot.name}</span>
           <span className="lot__meta">
             <span>{formatLotQuantity(lot)}</span>
-            <span className={`lot__expiry lot__expiry--${lot.bucket}`}>
-              {formatExpiryLabel(lot.daysLeft)}
-            </span>
+
+            {espace === 'frigo' && (
+              <span className={`lot__expiry lot__expiry--${lot.bucket}`}>
+                {formatExpiryLabel(lot.daysLeft)}
+              </span>
+            )}
+
+            {/* Le congelateur compte le temps PASSE. "Encore 3 mois"
+                supposerait une table de durees par aliment que personne ne
+                publie, et on la croirait. */}
+            {espace === 'congelateur' && formatDepuis(joursDepuisEntree(lot, today)) !== null && (
+              <span className="lot__depuis">{formatDepuis(joursDepuisEntree(lot, today))}</span>
+            )}
+
+            {/* Au placard, une date reste une date : si elle est saisie, elle
+                s'affiche comme partout ailleurs. Elle n'y est simplement jamais
+                mise en avant. */}
+            {espace === 'placard' && lot.daysLeft !== null && (
+              <span className="lot__expiry">{formatExpiryLabel(lot.daysLeft)}</span>
+            )}
+
             {lot.siblingCount > 1 && (
               <span className="lot__siblings">
                 {lot.siblingCount} lots · {formatLotTotal(lot)}
               </span>
             )}
           </span>
+
+          {/* La barre se lit PAR RAPPORT AU SEUIL, jamais a un "plein" que
+              personne n'a saisi, et le texte donne les grammes pour qu'aucune
+              proportion ne soit a deviner. */}
+          {espace === 'placard' && seuil !== null && (
+            <span className="lot__niveau">
+              <span className="lot__niveau-piste" aria-hidden="true">
+                <span
+                  className={`lot__niveau-part${lot.totalG < seuil ? ' lot__niveau-part--bas' : ''}`}
+                  style={{ width: `${restockRatio(lot.totalG, seuil) * 100}%` }}
+                />
+              </span>
+              <span className="lot__niveau-texte">
+                {formatGrams(lot.totalG)} pour un seuil de {formatGrams(seuil)}
+                {lot.totalG < seuil && ' · ajouté aux courses'}
+              </span>
+            </span>
+          )}
+
           {lot.stock.notes && <span className="lot__notes">{lot.stock.notes}</span>}
         </span>
         <span className="lot__chevron" aria-hidden="true">
           ›
         </span>
       </button>
+
+      {/* Ranger en UN geste, sans ouvrir la fiche : c'est le seul geste utile
+          sur un article qui vient d'arriver, et il se repete huit fois de
+          suite. Passer par la fiche pour chacun rendrait la file decourageante,
+          et une file qu'on ne vide pas ne sert a rien. */}
+      {espace === null && <BoutonsRangement lotId={lot.id} />}
     </li>
+  )
+}
+
+function BoutonsRangement({ lotId }: { readonly lotId: number }) {
+  const ranger = useSetStorage()
+  return (
+    <div className="ranger-actions">
+      {STORAGE_SPACES.map((espace: StorageSpace) => (
+        <button
+          key={espace}
+          type="button"
+          className="ranger-action"
+          disabled={ranger.isPending}
+          onClick={() => ranger.mutate({ id: lotId, storage: espace })}
+        >
+          {espaceLabel(espace)}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -348,7 +602,7 @@ function LotRow({ lot, onOpen }: { lot: Lot; onOpen: (id: number) => void }) {
  * La date du jour, renouvelee au retour au premier plan.
  *
  * Les seaux d'urgence se calculent par rapport a aujourd'hui. Une PWA reste
- * ouverte des jours entiers en arriere-plan : sans ce reveil, « périme demain »
+ * ouverte des jours entiers en arriere-plan : sans ce reveil, "perime demain"
  * resterait affiche une semaine. On ne remplace l'objet que si le JOUR a
  * change, sinon chaque retour d'onglet recalculerait toute la liste.
  */
@@ -358,7 +612,9 @@ function useToday(): Date {
   useEffect(() => {
     const sync = () => {
       if (document.visibilityState !== 'visible') return
-      setToday((previous) => (previous.toDateString() === new Date().toDateString() ? previous : new Date()))
+      setToday((previous) =>
+        previous.toDateString() === new Date().toDateString() ? previous : new Date(),
+      )
     }
     document.addEventListener('visibilitychange', sync)
     return () => document.removeEventListener('visibilitychange', sync)

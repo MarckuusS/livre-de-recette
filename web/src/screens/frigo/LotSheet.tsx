@@ -22,7 +22,7 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { formatEuros, formatGrams } from '@livre/shared'
+import { formatEuros, formatGrams, type PantryMovementReason } from '@livre/shared'
 
 import { DateField, TextField } from '../../components/Field.js'
 import { QuantityField } from '../../components/QuantityField.js'
@@ -109,8 +109,8 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
       ingredientId: lot.stock.ingredientId,
       quantityG,
       expiryDate: lot.stock.expiryDate,
-      storage: null,
-      unit: null,
+      storage: lot.stock.storage,
+      unit: lot.stock.unit,
       notes: lot.stock.notes,
     })
   }
@@ -125,11 +125,20 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
    * Le `catch` est vide a dessein : l'erreur reste exposee par `mutation.error`,
    * affichee en bas de la feuille, et l'echec ne demonte rien.
    */
-  const takeShare = async (fraction: number) => {
+  /*
+   * `motif` est demande a l'appelant, jamais devine.
+   *
+   * Un pot fini et un pot perime laissaient la meme trace. Le seul instant ou
+   * la question a une reponse vraie est celui du geste : prendre une part d'un
+   * lot, c'est cuisiner, donc "consomme" ; vider un lot perime est un autre
+   * bouton, avec un autre mot. C'est ce qui rend le bilan du gaspillage vrai
+   * plutot que decoratif.
+   */
+  const takeShare = async (fraction: number, motif: PantryMovementReason = 'consomme') => {
     const amount = shareAmount(lot.stock.quantityG, fraction)
     const before = lot.stock.quantityG
     try {
-      const pantry = await consume.mutateAsync({ id: lot.id, quantityG: amount })
+      const pantry = await consume.mutateAsync({ id: lot.id, quantityG: amount, reason: motif })
       // La route ajoute `removed` et `remainingG` a sa reponse ; queries.ts la
       // type `PantryResponse` sans eux et ne nous appartient pas, d'ou cette
       // lecture explicite plutot qu'une deduction sur les quantites.
@@ -139,18 +148,25 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
         // grille de trois boutons de meme allure. Un faux contact en cuisine
         // suffisait a le perdre sans recours. Le toast d'annulation existait
         // deja et servait a l'ecran Semaine pour exactement ce cas.
-        toast.showUndo(`${lot.name} : lot terminé, retiré du frigo.`, () => restore(before))
+        toast.showUndo(
+          motif === 'jete'
+            ? `${lot.name} : lot jeté, retiré du frigo.`
+            : `${lot.name} : lot terminé, retiré du frigo.`,
+          () => restore(before),
+        )
         onClose()
         return
       }
-      toast.showUndo(`${formatGrams(amount)} de ${lot.name} consommés.`, () => {
+      toast.showUndo(
+        `${formatGrams(amount)} de ${lot.name} ${motif === 'jete' ? 'jetés' : 'consommés'}.`,
+        () => {
         void update.mutateAsync({
           id: lot.id,
           ingredientId: lot.stock.ingredientId,
           quantityG: before,
           expiryDate: lot.stock.expiryDate,
-          storage: null,
-      unit: null,
+          storage: lot.stock.storage,
+      unit: lot.stock.unit,
       notes: lot.stock.notes,
         })
       })
@@ -172,8 +188,8 @@ export function LotSheet({ lot, onClose }: LotSheetProps) {
         ingredientId: lot.stock.ingredientId,
         quantityG,
         expiryDate,
-        storage: null,
-      unit: null,
+        storage: lot.stock.storage,
+      unit: lot.stock.unit,
       notes: notes.trim() === '' ? null : notes.trim(),
       })
     } catch {

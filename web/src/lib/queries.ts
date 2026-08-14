@@ -25,7 +25,9 @@ import {
   type MealPlanEntry,
   type NutritionTotal,
   type PantryStock,
+  type PantryMovementReason,
   type PantryStockWrite,
+  type StorageSpace,
   type Recipe,
   type RecipeWrite,
   type SessionItem,
@@ -1095,9 +1097,29 @@ export interface ConsumeResponse extends PantryResponse {
   readonly remainingG: number | null
 }
 
+/**
+ * Ranger un lot, et rien d'autre.
+ *
+ * Passe par la route dediee et non par `useUpdateStock` : depuis l'onglet
+ * "A ranger" on donne une place a huit articles d'affilee, et renvoyer une
+ * fiche entiere qu'on n'a pas modifiee ferait ecraser par le cache une saisie
+ * faite ailleurs.
+ */
+export const useSetStorage = () =>
+  usePantryMutation<{ id: number; storage: StorageSpace | null }>(({ id, storage }) =>
+    put<PantryResponse>(`/api/pantry/${id}/storage`, { storage }),
+  )
+
+/** Le bilan des sorties depuis une date. Deux nombres, une requete. */
+export const useMovements = (since: string) =>
+  useQuery({
+    queryKey: [...keys.pantry, 'movements', since],
+    queryFn: () => apiFetch<{ consommeG: number; jeteG: number }>(`/api/pantry/movements?since=${since}`),
+  })
+
 export const useConsumeStock = () =>
-  usePantryMutation<{ id: number; quantityG: number }, ConsumeResponse>(({ id, quantityG }) =>
-    post<ConsumeResponse>(`/api/pantry/${id}/consume`, { quantityG }),
+  usePantryMutation<{ id: number; quantityG: number; reason: PantryMovementReason }, ConsumeResponse>(({ id, quantityG, reason }) =>
+    post<ConsumeResponse>(`/api/pantry/${id}/consume`, { quantityG, reason }),
   )
 
 export const useDeleteStock = () =>

@@ -452,3 +452,213 @@
 .price-paid__link {
   color: var(--color-primary-text);
 }
+
+/* ---------- Chez moi : l'en-tete, les quatre espaces ---------- */
+
+/*
+ * Le titre vit DANS LA PAGE et non dans la barre : `/frigo` n'est pas un
+ * onglet, il n'a donc ni hero ni surtitre d'application. Meme forme que le
+ * repertoire de recettes.
+ */
+.chezmoi-entete {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.chezmoi-entete h2 {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-hero);
+  font-weight: var(--font-weight-extrabold);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.chezmoi-entete__surtitre {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/*
+ * Les onglets d'espace. TROIS OU QUATRE selon qu'il reste des articles a
+ * ranger : le quatrieme n'est pas un lieu, et un onglet permanent et vide se
+ * lirait comme une fonction cassee.
+ *
+ * `overflow-x` plutot qu'un retour a la ligne : a quatre entrees sur 375 px,
+ * l'ensemble tient de justesse, et une deuxieme ligne ferait sauter tout
+ * l'ecran des qu'un compteur passe a deux chiffres.
+ */
+.espaces {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  overflow-x: auto;
+  background: var(--color-surface-pressed);
+  border-radius: var(--radius-lg);
+  scrollbar-width: none;
+}
+
+.espaces::-webkit-scrollbar {
+  display: none;
+}
+
+.espace {
+  flex: 1;
+  /* Les libelles ont des longueurs tres differentes ("Frigo" contre
+     "A ranger") : sans cette base, le flex les rend proportionnels a leur
+     texte et les onglets n'ont plus la meme largeur. */
+  flex-basis: 0;
+  min-height: 40px;
+  padding: 0 var(--space-sm);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+}
+
+.espace--on {
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-subtle);
+}
+
+.espace__compte {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-placeholder);
+}
+
+.espace--on .espace__compte {
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Les deux bandeaux ---------- */
+
+.bandeau {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-md);
+  line-height: 1.4;
+  border-radius: var(--radius-lg);
+}
+
+.bandeau--ranger {
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-subtle);
+}
+
+/*
+ * Le bandeau d'urgence prend l'ENCRE d'alerte, `--color-warning-ink`, mesuree
+ * a 7,59:1 sur ce fond. Pas `--color-warning` lui-meme, qui est une teinte
+ * d'aplat, ni `-strong`, reserve aux puces.
+ *
+ * LA BORDURE N'EST PAS DECORATIVE. `--color-warning-pale` ne fait que 1,02:1
+ * contre une carte, 1,09 de nuit : sans elle, le bloc serait un rectangle
+ * invisible. C'est ecrit dans theme.css, et c'est le piege de ce jeton.
+ */
+.bandeau--urgence {
+  color: var(--color-warning-ink);
+  background: var(--color-warning-pale);
+  border: 1px solid var(--color-warning-border);
+}
+
+.bandeau__lien {
+  margin-left: auto;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+/* ---------- Ranger en un geste ---------- */
+
+/*
+ * Trois boutons sous la ligne, et non dans la fiche.
+ *
+ * C'est le seul geste utile sur un article qui vient d'arriver, et il se repete
+ * huit fois de suite : ouvrir une fiche pour chacun rendrait la file
+ * decourageante, et une file qu'on ne vide pas ne sert a rien.
+ */
+.ranger-actions {
+  display: flex;
+  gap: var(--space-xs);
+  padding: 0 var(--space-md) var(--space-sm);
+}
+
+.ranger-action {
+  flex: 1;
+  min-height: 40px;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-text);
+  background: var(--color-surface-pressed);
+  border: 0;
+  border-radius: var(--radius-md);
+}
+
+.ranger-action:active {
+  background: var(--color-border);
+}
+
+.ranger-action:disabled {
+  opacity: 0.5;
+}
+
+/* ---------- Le niveau au placard ---------- */
+
+.lot__niveau {
+  display: block;
+  margin-top: var(--space-xs);
+}
+
+.lot__niveau-piste {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+.lot__niveau-part {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+  border-radius: var(--radius-full);
+}
+
+/* Sous le seuil : la barre change de couleur, et le texte le DIT aussi. La
+   couleur seule ne porte jamais une information dans ce projet. */
+.lot__niveau-part--bas {
+  background: var(--color-warning);
+}
+
+.lot__niveau-texte {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Le temps passe au congelateur ---------- */
+
+.lot__depuis {
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Le bilan des sorties ---------- */
+
+/*
+ * Ni note, ni tendance, ni couleur de jugement : jeter n'est pas une faute, et
+ * ce chiffre ne modifie aucune liste de courses. Il n'existe que parce que la
+ * question du motif est posee au moment du geste.
+ */
+.bilan-sorties {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  text-align: center;
+}

@@ -23,6 +23,7 @@ export const INGREDIENT_COLUMNS = `
   fats_g, saturated_fats_g, fiber_g, salt_g,
   price_eur, price_quantity_g, piece_weight_g, cooked_weight_per_100g_raw,
   in_personal_library, category_l1, category_l2, season_months,
+  restock_threshold_g, nutriscore_grade,
   created_at, updated_at`
 
 /** Colonnes modifiables, indexees par le nom camelCase de l'API. */
@@ -47,6 +48,13 @@ const WRITABLE = {
   categoryL1: 'category_l1',
   categoryL2: 'category_l2',
   seasonMonths: 'season_months',
+  // Le seuil se regle sur la fiche du produit, a cote de son prix de
+  // reference, et non dans une feuille perdue du placard : il appartient au
+  // produit, pas au lot.
+  restockThresholdG: 'restock_threshold_g',
+  // Renseigne par le scan, jamais saisi a la main : c'est une note publiee par
+  // OpenFoodFacts, pas une appreciation.
+  nutriscoreGrade: 'nutriscore_grade',
 } as const
 
 /**
