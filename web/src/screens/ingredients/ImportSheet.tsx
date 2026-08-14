@@ -640,7 +640,7 @@ function ScannedProduct({
           {notFound && (
             <Link
               to={`/ingredients/nouveau?ean=${ean}`}
-              className="button button--primary"
+              className="button button--primary lien-surface"
               onClick={onDismiss}
             >
               Créer la fiche

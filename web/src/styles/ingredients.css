@@ -35,7 +35,6 @@
   min-height: var(--control-height-lg);
   line-height: 1;
   padding: 0 var(--space-sm);
-  text-decoration: none;
   white-space: nowrap;
   /* Neutralise le `margin-top` que .button--secondary porte dans app.css pour
      son usage en pile : dans une rangee il decalerait un bouton sur deux. */
@@ -464,7 +463,6 @@
   place-items: center;
   height: var(--control-height-lg);
   line-height: 1;
-  text-decoration: none;
 }
 
 /* ---------- Cellules en lecture seule ---------- */

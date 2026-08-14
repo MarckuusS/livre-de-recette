@@ -123,7 +123,7 @@ export function AccueilScreen() {
           </ul>
         )}
 
-        <Link className="button button--secondary accueil__vers-planning" to="/planning">
+        <Link className="button button--secondary accueil__vers-planning lien-surface" to="/planning">
           <Icon name="ui-calendar" size={18} className="icon--inline" />
           {repas.length === 0 ? 'Planifier la journée' : 'Ouvrir le planning'}
         </Link>
@@ -166,7 +166,7 @@ function Acces() {
   return (
     <nav className="acces" aria-label="Les autres écrans">
       {ACCES.map((a) => (
-        <Link key={a.to} to={a.to} className="acces__carte">
+        <Link key={a.to} to={a.to} className="acces__carte lien-surface">
           <span className="acces__icone" aria-hidden="true">
             <Icon name={a.icon} size={22} strokeWidth={1.7} />
           </span>

@@ -69,11 +69,23 @@
      fond en `background-clip`, mais la zone tapable fait la taille minimale. */
   width: 44px;
   height: 44px;
-  color: var(--hero-encre);
   background: rgb(255 255 255 / 16%);
   background-clip: content-box;
   border: 4px solid transparent;
   border-radius: var(--radius-full);
+}
+
+/*
+ * CLASSE DOUBLEE, et pas par gout de la specificite.
+ *
+ * `.lien-surface` vit dans app.css, qui est evalue APRES cette feuille : a
+ * specificite egale il gagnerait avec son `color: inherit`, et l'icone
+ * prendrait l'encre du corps, sombre, sur un bandeau vert profond. C'est le
+ * meme piege que `.screen.screen--recette` en tete de ce fichier, dans l'autre
+ * sens : la, une feuille d'ecran perdait contre app.css ; ici, elle doit gagner.
+ */
+.fiche-hero__action.fiche-hero__action {
+  color: var(--hero-encre);
 }
 
 .fiche-hero__origine {

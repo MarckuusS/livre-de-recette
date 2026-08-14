@@ -363,7 +363,7 @@ export function SessionSummary({
           <button type="button" className="button button--primary" onClick={onClose}>
             Revenir à ma liste
           </button>
-          <Link to="/frigo" className="button button--secondary">
+          <Link to="/frigo" className="button button--secondary lien-surface">
             Voir le frigo
           </Link>
         </div>

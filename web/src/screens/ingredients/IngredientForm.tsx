@@ -688,7 +688,7 @@ function ScannedFill({
       <div className="ing-scan-fill">
         <p className="status status--ok">« {product.name} » est déjà dans ta bibliothèque.</p>
         <div className="ing-scan-fill__actions">
-          <Link to={`/ingredients/${product.id}`} className="button button--primary">
+          <Link to={`/ingredients/${product.id}`} className="button button--primary lien-surface">
             Ouvrir sa fiche
           </Link>
           <button type="button" className="button button--ghost" onClick={onDismiss}>

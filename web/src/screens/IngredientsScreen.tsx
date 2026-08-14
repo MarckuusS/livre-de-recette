@@ -190,7 +190,7 @@ export function IngredientsScreen() {
         >
           Importer
         </button>
-        <Link to="/ingredients/nouveau" className="button button--secondary ing-toolbar__action">
+        <Link to="/ingredients/nouveau" className="button button--secondary ing-toolbar__action lien-surface">
           Nouveau
         </Link>
       </div>
@@ -374,7 +374,7 @@ function IngredientRow({ ingredient }: { ingredient: Ingredient }) {
 
   return (
     <li className="row">
-      <Link to={`/ingredients/${ingredient.id}`} className="row__link">
+      <Link to={`/ingredients/${ingredient.id}`} className="row__link lien-surface">
         {/* La liste est triee par nom par defaut, donc les rayons y sont
             melanges : la pastille est le seul endroit ou l'on voit d'un coup
             d'oeil a quel rayon appartient chaque ingredient. */}

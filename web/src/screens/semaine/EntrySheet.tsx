@@ -183,7 +183,7 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
         {target !== null && (
           <Link
             to={target.kind === 'ingredient' ? `/ingredients/${target.ingredient.id}` : `/recettes/${target.recipe.id}`}
-            className="button button--success button--block"
+            className="button button--success button--block lien-surface"
           >
             {target.kind === 'ingredient' ? 'Ouvrir la fiche ingrédient' : 'Ouvrir la recette'}
           </Link>

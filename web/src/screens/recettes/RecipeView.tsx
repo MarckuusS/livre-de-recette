@@ -164,7 +164,7 @@ function Fiche({ recipe }: { readonly recipe: Recipe }) {
             mockup en dessinait un second a douze pixels du premier. */}
         <Link
           to={`/recettes/${recipe.id}/modifier`}
-          className="fiche-hero__action"
+          className="fiche-hero__action lien-surface"
           aria-label="Modifier la recette"
         >
           <Icon name="ui-edit" size={18} />

@@ -215,7 +215,7 @@ export function AddEntrySheet({ isoWeek, dayOfWeek, slot, onClose }: AddEntryShe
 function VersLaFiche({ to, libelle }: { readonly to: string; readonly libelle: string }) {
   return (
     <>
-      <Link to={to} className="button button--secondary button--block">
+      <Link to={to} className="button button--secondary button--block lien-surface">
         <Icon name="ui-edit" size={16} className="icon--inline" /> {libelle}
       </Link>
       <p className="field__hint">L’ajout en cours n’est pas conservé.</p>

@@ -304,7 +304,7 @@ function CarteRecette({
 
   return (
     <li className="recette">
-      <Link to={`/recettes/${recette.id}`} className="recette__lien">
+      <Link to={`/recettes/${recette.id}`} className="recette__lien lien-surface">
         {/* Les couverts et non une teinte de macro : un rond framboise pose au
             hasard apprendrait que ces couleurs ne veulent rien dire, juste
             au-dessus d'une tri-barre ou elles veulent dire quelque chose. */}

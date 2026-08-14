@@ -111,16 +111,45 @@
   align-items: center;
 }
 
+/*
+ * Un lien qui EST une surface : carte, ligne de liste, tuile, bouton.
+ *
+ * Tout son rectangle est cliquable. Le trait du navigateur y barre le contenu
+ * entier au lieu de designer un mot, et la couleur de lien y repeint un titre
+ * en olive. LES DEUX DECLARATIONS VONT ENSEMBLE : `.recette__lien` a oublie les
+ * deux le meme jour, et n'en corriger qu'une laisserait une carte au titre
+ * olive parmi des titres a l'encre.
+ *
+ * L'INVERSE A ETE ECARTE, et c'est le coeur de la decision. Un
+ * `a { text-decoration: none }` global avec adhesion pour les liens de prose
+ * aurait le mauvais sens de defaut : un lien de prose prive de son trait ne
+ * tient plus que 1,35:1 contre le texte secondaire qui l'entoure, et rien ne
+ * le signale. Ici l'oubli produit une carte soulignee, qu'on voit le jour meme.
+ * Le projet a deja refuse deux fois par ecrit la signalisation par la couleur
+ * seule ; en faire la regle par defaut la contredirait.
+ *
+ * POSEE EN TETE DE CE FICHIER PARCE QUE app.css EST EVALUE EN DERNIER : les
+ * feuilles d'ecran sont importees par les ecrans, donc plus tot dans le graphe.
+ * Les classes qui veulent leur propre couleur doivent donc passer APRES. Trois
+ * sont plus bas dans ce fichier ; la quatrieme vit ailleurs et double sa classe,
+ * voir `.fiche-hero__action` dans recette.css.
+ */
+.lien-surface {
+  color: inherit;
+  text-decoration: none;
+}
+
 .icon-button {
   display: grid;
   place-items: center;
   width: var(--control-height-lg);
   height: var(--control-height-lg);
   font-size: var(--font-size-lg);
-  /* Explicite, parce que deux de ces boutons sont des `<a>` (Paramètres) et
-     deux des `<button>` (thème, retour). Sans cette ligne, les premiers
-     prenaient la couleur de lien et l'engrenage s'affichait en bleu a cote
-     d'un soleil blanc, pour la seule raison qu'ils n'ont pas la meme balise. */
+  /* Explicite depuis le jour ou deux de ces boutons etaient des `<a>`
+     (Paramètres) : ils prenaient la couleur de lien, et l'engrenage s'affichait
+     en bleu a cote d'un soleil blanc, pour la seule raison qu'ils n'ont pas la
+     meme balise. Ce ne sont plus que des `<button>` aujourd'hui, mais la classe
+     peut redevenir un lien et la ligne ne coute rien. */
   color: var(--color-text);
   text-decoration: none;
   background: transparent;

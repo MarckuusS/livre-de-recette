@@ -422,7 +422,7 @@ function LineEditor({
         {line.ingredient.id === null ? (
           <span className="editor-line__name">{line.ingredient.name}</span>
         ) : (
-          <Link className="editor-line__name" to={`/ingredients/${line.ingredient.id}`}>
+          <Link className="editor-line__name lien-surface" to={`/ingredients/${line.ingredient.id}`}>
             {line.ingredient.name}
           </Link>
         )}

@@ -157,7 +157,7 @@ function JourLigne({
     <li>
       <Link
         to={`/planning/${index}?semaine=${isoWeek}`}
-        className={`jour${today ? " jour--aujourdhui" : ""}`}
+        className={`jour lien-surface${today ? " jour--aujourdhui" : ""}`}
       >
         <span className="jour__haut">
           <span className="jour__nom">{label}</span>

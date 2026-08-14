@@ -241,7 +241,7 @@ function ScannedProduct({
             // Quitter la feuille perd le lot en cours de saisie — a ce
             // stade il n'y a rien d'autre a perdre qu'un code, et creer la
             // fiche est la seule facon de ranger vraiment ce produit.
-            <Link to={`/ingredients/nouveau?ean=${ean}`} className="button button--primary">
+            <Link to={`/ingredients/nouveau?ean=${ean}`} className="button button--primary lien-surface">
               Créer sa fiche
             </Link>
           )}

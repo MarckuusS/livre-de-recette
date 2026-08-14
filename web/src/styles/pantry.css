@@ -424,7 +424,6 @@
      remonte au-dessus des vrais boutons. */
   display: grid;
   place-items: center;
-  text-decoration: none;
 }
 
 /* ---------- Prix payé ---------- */

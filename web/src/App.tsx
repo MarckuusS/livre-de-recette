@@ -160,7 +160,7 @@ export function App() {
                 QUI est connecte, ce qui compte dans un foyer ou le poids, la
                 taille et les objectifs sont personnels — on n'ouvre pas les
                 siens en croyant ouvrir ceux de l'autre. */}
-            <NavLink to="/profil" className="avatar" aria-label={`Mon espace — ${me.displayName}`}>
+            <NavLink to="/profil" className="avatar lien-surface" aria-label={`Mon espace — ${me.displayName}`}>
               {me.displayName.slice(0, 1).toUpperCase()}
             </NavLink>
           </div>
@@ -258,7 +258,7 @@ export function App() {
             <NavLink
               key={tab.to}
               to={tab.to}
-              className={({ isActive }) => `tabbar__item${isActive ? ' tabbar__item--active' : ''}`}
+              className={({ isActive }) => `tabbar__item lien-surface${isActive ? ' tabbar__item--active' : ''}`}
             >
               <span className="tabbar__icon">
                 <Icon name={tab.icon} size={24} strokeWidth={1.7} />
@@ -269,7 +269,7 @@ export function App() {
 
           <NavLink
             to={SCAN}
-            className={({ isActive }) => `tabbar__scan${isActive ? ' tabbar__scan--active' : ''}`}
+            className={({ isActive }) => `tabbar__scan lien-surface${isActive ? ' tabbar__scan--active' : ''}`}
             aria-label="Scanner un code-barres"
           >
             <Icon name="ui-scan" size={26} strokeWidth={1.9} />
@@ -279,7 +279,7 @@ export function App() {
             <NavLink
               key={tab.to}
               to={tab.to}
-              className={({ isActive }) => `tabbar__item${isActive ? ' tabbar__item--active' : ''}`}
+              className={({ isActive }) => `tabbar__item lien-surface${isActive ? ' tabbar__item--active' : ''}`}
             >
               <span className="tabbar__icon">
                 <Icon name={tab.icon} size={24} strokeWidth={1.7} />
