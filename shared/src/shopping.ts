@@ -27,7 +27,15 @@ export interface ShoppingItem {
   readonly costEur: string | null
   /** Quantite deja presente au frigo, tous lots confondus. */
   readonly inPantryG: number
-  /** Vrai si le stock couvre le besoin : la case « deja au frigo » est pre-cochee. */
+  /**
+   * Vrai si le stock couvre le besoin.
+   *
+   * LA CASE N'EST PAS PRE-COCHEE, contrairement a ce que disait ce commentaire.
+   * Le pre-cochage venait du desktop et a ete retire apres incident : sur
+   * telephone, une case cochee qu'on n'a pas cochee soi-meme se lit comme une
+   * erreur, et l'utilisateur croyait avoir coche par megarde. L'ecran PROPOSE
+   * de cocher, en un geste, et n'ecrit rien tout seul.
+   */
   readonly isCoveredByPantry: boolean
   /** Nombre de pieces approximatif, quand l'ingredient a une taille naturelle. */
   readonly pieceCount: number | null

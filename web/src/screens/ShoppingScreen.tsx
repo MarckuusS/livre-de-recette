@@ -218,6 +218,13 @@ function ShoppingContent({
 
   return (
     <>
+      <Progression
+        total={list.items.length}
+        coches={list.items.length - remaining.length}
+        resteEur={remainingCents / 100}
+        sansPrix={list.missingPriceCount}
+      />
+
       <div className="shopping-tools">
         <button
           type="button"
@@ -693,3 +700,67 @@ function planningLink(isoWeek: string, currentWeek: string): string {
 }
 
 
+
+
+/**
+ * Ou en est-on, et combien cela coute.
+ *
+ * LE TOTAL DIT CE QU'IL VAUT. Le mockup annonce "Total estime : 38,90 EUR" sans
+ * rien de plus ; or deux tiers seulement des ingredients de la bibliotheque ont
+ * un prix, et un total nu se lirait comme complet. Le nombre est juste, c'est
+ * le libelle qui mentait : il porte donc son nombre de lignes sans prix, comme
+ * la carte de nutrition dit "3 ingredients ont des valeurs manquantes".
+ *
+ * "Environ" et non un montant sec : les prix sont les DERNIERS RELEVES, tous
+ * magasins confondus, et le projet n'a pas de prix par magasin.
+ */
+function Progression({
+  total,
+  coches,
+  resteEur,
+  sansPrix,
+}: {
+  readonly total: number
+  readonly coches: number
+  readonly resteEur: number
+  readonly sansPrix: number
+}) {
+  if (total === 0) return null
+  const part = Math.round((coches / total) * 100)
+
+  return (
+    <div className="card progression">
+      <div className="progression__haut">
+        <span className="progression__gauche">
+          <span className="chiffre">{coches}</span> / {total} dans le panier
+        </span>
+        {/* AUCUN PRIX CONNU N'EST PAS ZERO EURO. Avec six articles sans prix,
+            "Environ 0,00 EUR" se lit comme "c'est gratuit". On ne montre alors
+            aucun montant : c'est la meme regle que le tableau de nutrition, qui
+            ecrit un tiret plutot qu'un zero quand il n'y a rien a totaliser. */}
+        <span className="progression__droite">
+          {sansPrix >= total
+            ? 'Prix inconnus'
+            : `${sansPrix > 0 ? 'Environ ' : ''}${formatEuros(String(resteEur))} à prendre`}
+        </span>
+      </div>
+
+      <span
+        className="progression__piste"
+        role="img"
+        aria-label={`${coches} sur ${total} articles cochés`}
+      >
+        <span className="progression__part" style={{ width: `${part}%` }} />
+      </span>
+
+      {/* Dit une fois, sous le nombre, plutot qu'accole a lui : accole, il
+          transformait le montant en avertissement. */}
+      {sansPrix > 0 && (
+        <p className="progression__note">
+          {sansPrix} article{sansPrix > 1 ? 's' : ''} sans prix ne compte
+          {sansPrix > 1 ? 'nt' : ''} pas dans ce montant.
+        </p>
+      )}
+    </div>
+  )
+}

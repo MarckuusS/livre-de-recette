@@ -422,3 +422,60 @@
   color: var(--color-success);
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Ou en est-on ----------
+   En tete, avant les rayons : c'est la question qu'on se pose en levant les
+   yeux du chariot. Le pied garde le detail, il n'est visible qu'en bas. */
+
+.card.progression {
+  padding: var(--space-md);
+}
+
+.progression__haut {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.progression__gauche {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.progression__gauche .chiffre {
+  font-size: var(--font-size-xl);
+}
+
+.progression__droite {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.progression__piste {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+.progression__part {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+  border-radius: var(--radius-full);
+  transition: width var(--duration-normal) var(--easing-standard);
+}
+
+/* Sous le nombre et non accole a lui : accole, il transformait le montant en
+   avertissement. */
+.progression__note {
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
