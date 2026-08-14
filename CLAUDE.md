@@ -302,6 +302,63 @@ le modèle a six objectifs et trois allures. Ce qui ne se devine pas :
 - **L'âge se saisit en années, l'année de naissance est stockée.** `ageFrom` n'est qu'une
   soustraction d'années : l'aller-retour est exact.
 
+## Photo de garde (web) — `shared/src/photo.ts`, `worker/src/routes/photos.ts`
+
+Une photo par recette, stockée dans R2, servie par une route authentifiée. Ce qui ne se devine pas :
+
+- **R2 est le premier magasin du projet SANS colonne de foyer**, et sans possibilité d'en avoir
+  une. Dans D1, un `AND household_id = ?` oublié rend une liste vide parce que le dépôt porte le
+  foyer structurellement ; dans R2, **tout le cloisonnement est dérivé**. Il n'existe que parce
+  que chaque route passe par `repos.recipes.get()` **avant** de toucher au bucket.
+- **Vérifier l'appartenance de la RECETTE n'implique pas vérifier celle de la CLÉ.** C'est le
+  point le plus subtil du chantier, et c'est pourquoi `imageKey` est **sorti de
+  `recipeWriteSchema`** : champ libre en écriture, il permettait de faire pointer sa recette vers
+  la photo d'un autre foyer. La photo est une sous-ressource, POST et DELETE sur
+  `/api/recipes/:id/image`, et la clé n'est jamais fournie par le client.
+- **L'ordre des écritures est la seule garantie**, aucune transaction ne couvre D1 et R2. Règle :
+  *D1 ne doit jamais désigner un objet qui n'existe pas.* Dépôt, R2 d'abord ; retrait, D1 d'abord.
+  Le bon sens échoue invisiblement (objet orphelin, balayé au dépôt suivant), le mauvais échoue en
+  affichant une image cassée.
+- **Le `content-type` servi est une constante littérale, et `writeHttpMetadata` n'est JAMAIS
+  appelé.** Cette méthode, que la doc Cloudflare montre en exemple, rejoue ce que le client avait
+  déclaré : un SVG téléversé en `image/svg+xml` puis ouvert en navigation de premier niveau serait
+  un document dont les scripts liraient `/api/profile`. S'y ajoutent `nosniff` et une CSP
+  `sandbox`, qui neutralise le scénario même si tout le reste échoue.
+- **La clé porte une empreinte SHA-256 du contenu, et l'URL la reprend en `?v=`.** `immutable` et
+  clé versionnée **se tiennent debout mutuellement** : prendre l'un sans l'autre casse en silence,
+  clé fixe plus `immutable` donnant l'ancienne photo pendant un an. Le serveur **ignore** `v`, ce
+  qui fait qu'une vieille URL sert l'image courante au lieu d'une erreur. L'empreinte rend aussi
+  le dépôt idempotent.
+- **`request.formData()` ne borne rien** : un corps de 100 Mo tue l'isolat, et cette mort n'est
+  **pas rattrapable** par le `try/catch` du routeur. Le corps est plafonné dans le flux lui-même,
+  `content-length` n'étant qu'un rejet précoce, jamais une garantie.
+- **On REFUSE l'EXIF, on ne le retire pas.** L'étiquette Orientation vit dans APP1 ; sur un fichier
+  qui n'est pas passé par le canvas, la rotation n'est pas cuite dans les pixels, et effacer
+  l'étiquette la rendrait **définitive**. APP0 (JFIF) et APP2 (ICC) sont tolérés, un navigateur
+  joignant parfois un profil de couleur à la sortie d'un canvas.
+- **Le navigateur réduit, pas le Worker**, et pas d'abord par économie : le décodeur du système est
+  **le seul qui lise le HEIC** d'un iPhone, `workerd` n'en a aucun. Trois pièges tenus, tous sur du
+  matériel **récent** : la limite de surface d'un canvas iOS (16 777 216 px, un iPhone 15 Pro
+  photographie 1,46 fois au-dessus), `imageOrientation: 'from-image'` sans quoi toute photo
+  verticale sort couchée, et le repli **silencieux** de `toBlob` sur PNG quand le type est inconnu.
+- **`accept="image/*"` et rien d'autre** : depuis Safari 17, mentionner `image/heic` fait convertir
+  VERS le HEIC tout ce qu'on donne. Et **pas de `capture`**, qui sur iOS fait disparaître la
+  photothèque.
+- **Le bucket est sous juridiction `eu`, pas sous une simple zone.** `--location` n'est qu'un
+  indice que Cloudflare peut ignorer, et il l'a ignoré : mesuré. Le binding porte donc
+  `jurisdiction = "eu"` ; **sans cette ligne le Worker ne trouve plus le bucket du tout**.
+- **La pastille aux couverts n'est pas un suppléant d'image manquante**, c'est l'aspect normal
+  d'une recette sans photo. Elle occupe la **même boîte** que la vignette, sinon la liste part en
+  dents de scie. Le repli sur `onError` ramène la même pastille : une session expirée rend un 401,
+  et le carré cassé du navigateur ferait croire à une perte.
+- **Le voile bas du bandeau n'est pas une finition** : le dégradé fixe garantissait le contraste du
+  texte blanc, une photo détruit cette garantie et il faut la reconstruire dans le pire cas, une
+  photo entièrement blanche. Mesuré à 7,13:1. Le bouton, tout en haut, échappe au voile et porte
+  seul sa pastille à 55 % de noir, mesurée à 4,40:1.
+- **Pas de `runtimeCaching` pour les photos** : ce serait la première exception à la règle écrite
+  dans `vite.config.ts`, et un handler `CacheFirst` répondrait **sans repasser par le cookie**.
+  Conséquence assumée : au démarrage à froid sans réseau, les photos affichent le suppléant.
+
 ## L'anneau et le tableau (web) — `components/MacrosDonut.tsx`
 
 Une seule forme dit la répartition des macros, sur tous les écrans qui l'affichent : la fiche
