@@ -24,17 +24,14 @@ import { Link } from 'react-router'
 
 import { NumberField, SelectField } from '../../components/Field.js'
 import { MacrosDonut } from '../../components/MacrosDonut.js'
-import { NutrientLabel } from '../../components/NutrientLabel.js'
+import { TableauNutriments } from '../../components/TableauNutriments.js'
 import { Icon } from '../../icons/index.js'
 import { QuantityField } from '../../components/QuantityField.js'
 import { Sheet } from '../../components/Sheet.js'
 import { useMoveEntry, useUpdateEntryAmount, type CalendarResponse } from '../../lib/queries.js'
 import {
-  NUTRIENT_ROWS,
-  massShare,
   entryName,
   entryNutrition,
-  formatNutrient,
   targetOf,
   toMealSlot,
   type SavedEntry,
@@ -210,35 +207,13 @@ export function EntrySheet({ isoWeek, entry, data, onClose, onDelete }: EntryShe
         emptyMessage="Les macros de ce repas ne sont pas renseignées."
       />
 
+      {/* Le composant PARTAGE, et non une quatrieme copie du meme tableau.
+          Celle-ci existait ici, avec ses propres en-tetes et sa propre regle de
+          part : elle aurait fini par diverger sur le format des nombres ou le
+          seuil des traces. */}
       <div className="card">
         <h3 className="card__title">Apports de ce repas</h3>
-        <div className="table-scroll">
-          <table className="nutrition-table">
-            {/* Deux colonnes chiffrees : la masse, puis la part d'energie. */}
-            <thead>
-              <tr>
-                <th scope="col">Nutriment</th>
-                <th scope="col">Quantité</th>
-                <th scope="col">Part</th>
-              </tr>
-            </thead>
-            <tbody>
-              {NUTRIENT_ROWS.map((row) => (
-                <tr key={row.key}>
-                  <th scope="row" className={row.sub ? 'unit' : undefined}>
-                    <NutrientLabel nutrient={row.key} label={row.label} sub={row.sub ?? false} />
-                  </th>
-                  <td>{formatNutrient(1, nutrition[row.key], row)}</td>
-                  {/* La part d'energie dans SA PROPRE colonne : collee a la
-                      masse, "4,3 g 99 %" se lisait comme une seule valeur. */}
-                  <td className="nutrition-table__part">
-                    {massShare(nutrition, row.key)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TableauNutriments total={nutrition} />
       </div>
     </Sheet>
   )

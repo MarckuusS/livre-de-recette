@@ -29,8 +29,10 @@ import {
   type RecipeLine,
 } from '@livre/shared'
 
+import { MacrosRing } from '../../components/MacrosDonut.js'
 import { NutrientLabel } from '../../components/NutrientLabel.js'
 import { Icon } from '../../icons/index.js'
+import { massShare } from '../semaine/totals.js'
 import { formatNumber, plural, scaleLines, toRecipeLines, type RecipeDraft } from './draft.js'
 
 // ---------------------------------------------------------------------------
@@ -126,6 +128,21 @@ const NUTRIENT_ROWS: ReadonlyArray<{
   { label: 'Sel', key: 'salt', unit: 'g', decimals: 2, color: 'salt' },
 ]
 
+/**
+ * L'anneau PUIS le tableau, dans UNE SEULE carte.
+ *
+ * L'ordre est une regle du projet, pas une preference de mise en page : la
+ * figure montre, le tableau chiffre ce qu'elle montre. Le tableau vivait ici et
+ * l'anneau dans une carte separee EN DESSOUS, ce qui inversait la lecture et
+ * laissait deux cartes blanches dire la meme chose.
+ *
+ * LA COLONNE "PART" EST LA DEUXIEME, entre le nom et les trois echelles, et
+ * cette place est raisonnee. Les trois echelles forment une famille ; la part
+ * n'en fait pas partie, puisqu'elle est la MEME pour les trois : une proportion
+ * de masse ne change pas quand on divise par le nombre de portions. La poser en
+ * cinquieme colonne l'aurait de plus rejetee hors de l'ecran, ce tableau
+ * defilant deja horizontalement sur un telephone.
+ */
 export function NutritionCard({ derived }: { readonly derived: Derived }) {
   const columns: ReadonlyArray<readonly [string, NutritionTotal]> = [
     ['Pour 100 g', derived.per100g],
@@ -137,11 +154,16 @@ export function NutritionCard({ derived }: { readonly derived: Derived }) {
     <div className="card">
       <h3 className="card__title">Valeurs nutritionnelles</h3>
 
+      {/* Le nombre au centre est celui des 100 g ; les ARCS, eux, valent pour
+          les trois echelles a la fois. */}
+      <MacrosRing total={derived.per100g} centerCaption="kcal / 100 g" />
+
       <div className="table-scroll">
         <table className="nutrition-table nutrition-table--macros">
           <thead>
             <tr>
               <th scope="col">Pour</th>
+              <th scope="col">Part</th>
               {columns.map(([label]) => (
                 <th key={label} scope="col">
                   {label}
@@ -159,6 +181,14 @@ export function NutritionCard({ derived }: { readonly derived: Derived }) {
                 <th scope="row">
                   <NutrientLabel nutrient={row.key} label={row.label} sub={row.sub ?? false} />
                 </th>
+                {/* Vide pour l'energie, le sel et les sous-lignes : l'energie
+                    EST le total, le sel n'appartient a aucune des quatre
+                    familles, et sucres et satures sont deja comptes dans la
+                    leur. Leur donner une part ferait une colonne qui ne
+                    totalise pas 100. */}
+                <td className="nutrition-table__part">
+                  {massShare(derived.per100g, row.key)}
+                </td>
                 {columns.map(([label, totals]) => (
                   <td key={label}>
                     {formatNumber(totals[row.key], row.decimals)}

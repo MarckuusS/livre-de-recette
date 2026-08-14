@@ -288,13 +288,10 @@ export function RecipeEditor({
         ))}
       </div>
 
+      {/* L'anneau a rejoint `NutritionCard`, au-dessus de son tableau : il en
+          etait separe par une carte, et il le SUIVAIT, ce qui inversait la
+          lecture. */}
       <NutritionCard derived={derived} />
-      <MacrosDonut
-        total={derived.per100g}
-        title="Composition pour 100 g"
-        centerCaption="kcal / 100 g"
-        emptyMessage="Aucune donnée : les ingrédients de cette recette n’ont pas de macros renseignées."
-      />
       <CostCard derived={derived} />
 
 

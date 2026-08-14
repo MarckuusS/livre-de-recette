@@ -377,6 +377,18 @@ et l'éditeur de recette, la feuille d'un repas, la journée. Ce qui ne se devin
   51 % de l'assiette.
 - **Ce qui reste énergétique le reste** : le nombre au centre de l'anneau est bien des kcal,
   et les `MACRO_SPLITS` du profil sont des parts d'énergie, ce que cette figure n'illustre pas.
+- **L'ANNEAU EST TOUJOURS AU-DESSUS DE SON TABLEAU, dans la MÊME carte, sans rien entre les deux.**
+  La figure montre, le tableau chiffre ce qu'elle montre. La règle vaut sur les **quatre** surfaces
+  qui affichent la paire : fiche de recette, éditeur, journée, feuille d'un repas. Elle a été
+  redemandée **quatre fois** parce que chaque correction ne regardait que l'écran signalé pendant
+  que les autres gardaient l'ordre inverse. `web/src/components/anneau-tableau.test.ts` la vérifie
+  désormais sur les quatre fichiers, et le test a été vu échouer avant d'être gardé.
+- **Le tableau de l'éditeur n'est PAS le composant partagé** : il porte trois colonnes d'échelle
+  (100 g, portion, recette entière) et vivait donc hors de la règle, ce qui explique qu'il ait été
+  le dernier à manquer sa colonne de part. Celle-ci est sa **deuxième** colonne, entre le nom et
+  les trois échelles : les échelles forment une famille dont la part ne fait pas partie, puisqu'une
+  proportion de masse ne change pas quand on divise par le nombre de portions. Et posée en
+  cinquième, elle sortait de l'écran : mesuré sur téléphone, 469 px de tableau pour 311 visibles.
 - **Il n'y a PAS de légende, et plus de façon d'en remettre une.** Le composant portait un
   `showLegend?: boolean` optionnel valant `true` : les écrans corrects le posaient à `false`,
   l'éditeur de recette ne le posait pas et gardait donc la sienne. Signalé trois fois, corrigé

@@ -27,8 +27,6 @@ import {
   type NutritionTotal,
 } from "@livre/shared";
 
-import { MacrosDonut } from "../components/MacrosDonut.js";
-import { NutrientLabel } from "../components/NutrientLabel.js";
 import { EmptyState, ErrorState, LoadingRows } from "../components/States.js";
 import { useToast } from "../components/Toast.js";
 import { Icon } from "../icons/index.js";
@@ -47,12 +45,9 @@ import { GoalCard } from "./semaine/GoalCard.js";
 import { MealRow } from "./semaine/MealRow.js";
 import { WeekTools, type WeekTool } from "./semaine/WeekTools.js";
 import {
-  NUTRIENT_ROWS,
-  massShare,
   entriesCost,
   entriesOfDay,
   entriesOfSlot,
-  formatNutrient,
   sumNutrition,
   type SavedEntry,
 } from "./semaine/totals.js";
@@ -290,26 +285,21 @@ function DayTotals({
 
   return (
     <>
+      {/* L'anneau est DANS cette carte, au-dessus de son tableau. Il vivait
+          dans une carte separee, POSEE APRES, et la carte d'objectif passait
+          entre les deux : la figure arrivait apres les chiffres qu'elle
+          illustre, et la colonne "Part" du tableau n'avait rien a cote d'elle
+          a expliquer. */}
       <TableauApports
         titre="Apports du jour"
         total={dayTotal}
         entryCount={dayEntries.length}
+        anneau="kcal ce jour"
       />
 
-      {/* Entre les nombres bruts et l'anneau : c'est la lecture personnelle de
-          la journee, et elle n'a de sens qu'apres avoir vu les totaux. */}
+      {/* Apres les nombres bruts : c'est la lecture personnelle de la journee,
+          et elle n'a de sens qu'une fois les totaux vus. */}
       <GoalCard dayTotal={dayTotal} hasEntries={dayEntries.length > 0} />
-
-      <MacrosDonut
-        total={dayTotal}
-        title="Répartition du jour"
-        centerCaption="kcal ce jour"
-        emptyMessage={
-          dayEntries.length === 0
-            ? "Rien de prévu ce jour."
-            : "Aucune donnée : les repas de ce jour n’ont pas de macros renseignées."
-        }
-      />
 
       <CarteCout titre="Coût du jour" cout={dayCost} portee="de ce jour" />
     </>

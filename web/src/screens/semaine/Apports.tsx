@@ -17,22 +17,42 @@ import { formatEuros } from "@livre/shared";
 import type { NutritionTotal } from "@livre/shared";
 
 import { TableauNutriments } from "../../components/TableauNutriments.js";
+import { MacrosRing } from "../../components/MacrosDonut.js";
 import { Icon } from "../../icons/index.js";
 import { type CostTotal } from "./totals.js";
 
+/**
+ * L'anneau PUIS le tableau, dans la meme carte.
+ *
+ * L'ordre est une regle du projet : la figure montre, le tableau chiffre ce
+ * qu'elle montre, et la colonne "Part" du tableau lit exactement la base des
+ * arcs. L'ecran du jour posait l'anneau dans une carte SEPAREE et EN DESSOUS
+ * du tableau, avec la carte d'objectif entre les deux : la lecture etait
+ * inversee et les deux figures ne se rencontraient jamais.
+ *
+ * `anneau` est OPTIONNEL parce que l'ecran de la semaine affiche ce meme
+ * tableau sans anneau. Lui en ajouter un serait une decision d'ecran, pas une
+ * consequence de ce correctif.
+ */
 export function TableauApports({
   titre,
   total,
   entryCount,
+  anneau,
 }: {
   readonly titre: string;
   readonly total: NutritionTotal;
   /** Zero fait afficher "—" plutot que des zeros, qui passeraient pour mesures. */
   readonly entryCount: number;
+  /** Legende sous le nombre central, par exemple « kcal ce jour ». */
+  readonly anneau?: string | undefined;
 }) {
   return (
     <div className="card">
       <h3 className="card__title">{titre}</h3>
+      {anneau !== undefined && entryCount > 0 && (
+        <MacrosRing total={total} centerCaption={anneau} />
+      )}
       <TableauNutriments total={total} vide={entryCount === 0} />
     </div>
   );
