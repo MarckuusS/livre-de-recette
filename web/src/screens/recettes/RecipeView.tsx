@@ -63,11 +63,17 @@ import { toDraft } from './draft.js'
 import { useDerived } from './RecipeDerived.js'
 import '../../styles/recette.css'
 
-/** Les trois echelles de lecture de la nutrition. */
+/**
+ * Les trois echelles de lecture de la nutrition.
+ *
+ * `label` titre l'onglet, `legende` accompagne le chiffre. Les deux different :
+ * l'onglet s'ecrit en tete de phrase, la legende se lit a la suite de « kcal »,
+ * ou une majuscule au milieu se remarque.
+ */
 const PORTEES = [
-  { cle: 'portion', label: 'Par portion' },
-  { cle: 'recette', label: 'Recette entière' },
-  { cle: 'cent', label: 'Aux 100 g crus' },
+  { cle: 'portion', label: 'Par portion', legende: 'par portion' },
+  { cle: 'recette', label: 'Recette entière', legende: 'pour la recette' },
+  { cle: 'cent', label: 'Aux 100 g crus', legende: 'pour 100 g crus' },
 ] as const
 
 type Portee = (typeof PORTEES)[number]['cle']
@@ -231,7 +237,7 @@ function Fiche({ recipe }: { readonly recipe: Recipe }) {
           ))}
         </div>
 
-        <MacroCells total={total} caption={PORTEES.find((p) => p.cle === portee)?.label ?? ''} />
+        <MacroCells total={total} caption={PORTEES.find((p) => p.cle === portee)?.legende ?? ''} />
         <MacroBar total={total} />
 
         <ul className="fiche-micros">

@@ -144,31 +144,52 @@
 }
 
 /*
- * 44 px TAPABLES, 32 px dessines.
+ * 44 px TAPABLES, 32 px DESSINES, et le rond dessine a part.
  *
- * Le rond etait de 32 px et la cible avec lui : sous le minimum, et c'est le
- * bouton qu'on vise en cuisine avec un doigt gras. La bordure transparente
- * agrandit la boite sans agrandir le dessin, et `background-clip: content-box`
- * garde le fond a l'interieur.
+ * Premiere version : une bordure transparente de 6 px agrandissait la boite et
+ * `background-clip: content-box` gardait le fond au centre. Le fond n'etait
+ * alors plus rond mais en amande, parce que le rayon retenu pour le decoupage
+ * se deduit du rayon de la boite de bordure moins l'epaisseur, un calcul qui
+ * ne redonne un cercle que si les quatre cotes s'accordent au pixel pres.
+ *
+ * Le rond est donc un pseudo-element aux dimensions ECRITES, avec un rayon de
+ * 50 % : il ne peut pas etre autre chose qu'un cercle. Le bouton, lui, garde
+ * ses 44 px de cible et ne porte plus aucun fond.
  */
 .stepper__bouton {
+  position: relative;
   display: grid;
   place-items: center;
   width: 44px;
   height: 44px;
   color: var(--color-text);
   cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.stepper__bouton::before {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  content: '';
   background: var(--color-surface);
-  background-clip: content-box;
-  border: 6px solid transparent;
-  border-radius: var(--radius-full);
-  box-shadow: none;
+  border-radius: 50%;
+}
+
+/* Le glyphe passe AU-DESSUS du rond : sans cela le pseudo-element, pose apres
+   dans l'ordre de peinture, le recouvrirait. */
+.stepper__bouton > * {
+  position: relative;
 }
 
 .stepper__bouton:disabled {
   color: var(--color-text-disabled);
   cursor: not-allowed;
-  background: transparent;
+}
+
+.stepper__bouton:disabled::before {
+  background: none;
 }
 
 .stepper__valeur {
@@ -180,12 +201,33 @@
 
 /* ---------- Nutrition ---------- */
 
+/*
+ * La respiration verticale de la carte.
+ *
+ * Les trois blocs se touchaient : le segmente collait aux cellules, et les
+ * cellules a la tri-barre. Trois surfaces coloree posees bord a bord se lisent
+ * comme un seul pave, et l'on ne voit plus que le segmente commande les
+ * chiffres du dessous.
+ *
+ * Les marges vivent ICI et non dans `components.css` : `.macro-cells` et
+ * `.macro-bar` servent quatre autres ecrans, ou leur espacement est deja
+ * regle par le contexte.
+ */
+.screen--recette .segmented {
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.screen--recette .macro-cells {
+  margin-bottom: var(--space-md);
+}
+
 .fiche-micros {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-sm) var(--space-md);
+  gap: var(--space-sm) var(--space-lg);
   padding: 0;
-  margin: var(--space-md) 0 0;
+  margin: var(--space-lg) 0 0;
   list-style: none;
 }
 
