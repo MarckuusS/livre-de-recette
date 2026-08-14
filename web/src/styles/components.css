@@ -626,13 +626,28 @@
  * viseur qui prend l'ecran se VISE. C'est la difference la plus visible avec
  * la maquette, et elle ne tient qu'a un contenant.
  */
+/*
+ * IL DOIT S'ETIRER LUI-MEME, sinon son enfant n'a rien a remplir.
+ *
+ * Le viseur portait deja `flex: 1`, mais ce conteneur-ci n'en avait pas : sa
+ * hauteur valait donc celle de son contenu, et `flex: 1` sur l'enfant ne
+ * reclamait de la place dans... rien. Sous le viseur apparaissait alors le fond
+ * sombre de l'ecran, qu'on lisait comme une bande noire de la camera.
+ *
+ * `min-height: 0` va AVEC le `flex: 1` : un element flex vaut `min-height: auto`
+ * par defaut, ce qui l'empeche de descendre sous la hauteur de son contenu et
+ * ferait deborder le viseur au lieu de le contraindre.
+ */
 .scanner--plein {
+  flex: 1;
+  min-height: 0;
   gap: 0;
 }
 
 .scanner--plein .scanner__stage {
   /* Toute la hauteur disponible entre l'en-tete et la barre d'onglets. */
   flex: 1;
+  min-height: 0;
   aspect-ratio: auto;
   border-radius: 0;
 }
