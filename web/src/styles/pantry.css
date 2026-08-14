@@ -662,3 +662,188 @@
   color: var(--color-text-secondary);
   text-align: center;
 }
+
+/* ---------- La carte de lots, et ses lignes ---------- */
+
+/*
+ * UNE carte par section, des FILETS entre les lignes.
+ *
+ * L'ecran posait une carte par lot : a six produits, on ne voyait plus une
+ * liste mais six objets blancs sans rapport, separes par du vide. Le mockup
+ * groupe, et il a raison : c'est ce qui fait lire une suite plutot qu'une pile.
+ */
+.carte-lots {
+  padding: 0 var(--space-md);
+  margin: 0;
+  list-style: none;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-subtle);
+}
+
+.carte-lots .lot {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.carte-lots .lot + .lot {
+  border-top: 1px solid var(--color-border);
+}
+
+/* La ligne devient une rangee : pastille, corps, badge, chevron. */
+.carte-lots .lot__open {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  width: 100%;
+  padding: var(--space-md) 0;
+  text-align: left;
+  background: none;
+  border: 0;
+}
+
+.lot__pastille {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+}
+
+.carte-lots .lot__body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- Le badge d'echeance ---------- */
+
+/*
+ * "J-1" tient en deux caracteres la ou "Périme demain" en prend treize, ce qui
+ * laisse le nom du produit sur une seule ligne. Le texte long n'est pas perdu :
+ * il est le libelle accessible de cette pastille, et il reste dans la fiche.
+ *
+ * Trois niveaux au frigo, AUCUNE couleur d'alarme ailleurs : une date sur un
+ * produit sec est indicative, la peindre en rose ferait jeter ce qui se goute.
+ */
+.badge-echeance {
+  flex: none;
+  padding: 3px var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  border-radius: var(--radius-full);
+}
+
+.badge-echeance--soon {
+  color: var(--color-echeance-urgent-ink);
+  background: var(--color-echeance-urgent-pale);
+}
+
+.badge-echeance--watch {
+  color: var(--color-warning-strong);
+  background: var(--color-warning-pale);
+  /* `--color-warning-pale` ne fait que 1,02:1 sur une carte : sans bordure, la
+     pastille serait invisible et le badge flotterait. */
+  border: 1px solid var(--color-warning-border);
+}
+
+.badge-echeance--stock {
+  color: var(--color-success);
+  background: var(--color-success-pale);
+}
+
+/* Au placard : la date se lit, elle ne crie pas. */
+.badge-echeance--neutre {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-pressed);
+}
+
+/* ---------- La phrase de renvoi ---------- */
+
+/*
+ * UNE ligne. La version longue mangeait le tiers superieur de l'ecran avant la
+ * premiere donnee, et sur un telephone c'est tout ce qu'on voit en arrivant.
+ */
+.chezmoi-lien {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+/* Les boutons de rangement suivent la ligne DANS la carte. */
+.carte-lots .ranger-actions {
+  padding: 0 0 var(--space-sm);
+}
+
+/* ---------- Les chips de tri ---------- */
+
+/*
+ * Un menu deroulant cache le choix actif derriere un appui et n'en montre qu'un
+ * a la fois. Les chips disent d'un coup d'oeil ce qui est actif ET ce qui est
+ * possible, et se tapent sans dialogue. C'est ce que fait deja le repertoire de
+ * recettes.
+ *
+ * Elles DEFILENT plutot que de passer a la ligne : les cinq tris ne tiennent
+ * pas sur 375 px, et une deuxieme rangee ferait descendre la premiere donnee
+ * sous la ligne de flottaison.
+ */
+.tris {
+  display: flex;
+  gap: var(--space-xs);
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tris::-webkit-scrollbar {
+  display: none;
+}
+
+.tri {
+  flex: none;
+  min-height: 34px;
+  padding: 0 var(--space-md);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  background: var(--color-surface);
+  border: 0;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-subtle);
+}
+
+/* L'actif s'inverse : encre sur olive, comme les filtres du repertoire. */
+.tri--on {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+/* Le groupement est un second axe : plus discret, sans ombre, pour qu'on ne
+   confonde pas les deux rangees. */
+.tri--groupe {
+  background: var(--color-surface-pressed);
+  box-shadow: none;
+}
+
+.tri--groupe.tri--on {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+/* Les deux familles de chips dans UNE rangee qui defile, separees par un trait
+   vertical : deux rangees coutaient trente-six pixels avant la premiere
+   donnee, et le groupement est un axe secondaire du tri. */
+.tris__groupe {
+  display: flex;
+  flex: none;
+  gap: var(--space-xs);
+}
+
+.tris__separateur {
+  flex: none;
+  width: 1px;
+  margin: var(--space-xs) 2px;
+  background: var(--color-border);
+}

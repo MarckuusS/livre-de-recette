@@ -42,6 +42,8 @@ import {
 import { SelectField } from '../components/Field.js'
 import { EmptyState, ErrorState, LoadingRows } from '../components/States.js'
 import { Icon } from '../icons/index.js'
+import { RayonIcon } from '../icons/RayonIcon.js'
+import { useRayonStyle } from '../lib/useRayonStyle.js'
 import { useMovements, usePantry, useSetStorage } from '../lib/queries.js'
 import { useScanParam, type ScanRequest } from '../lib/useScanParam.js'
 import { AddStockSheet } from './frigo/AddStockSheet.js'
@@ -63,6 +65,7 @@ import {
   buildLots,
   filterLots,
   formatExpiryLabel,
+  formatJours,
   formatLotQuantity,
   formatLotTotal,
   groupLots,
@@ -75,6 +78,14 @@ import {
 } from './frigo/lots.js'
 import '../styles/pantry.css'
 
+/**
+ * Repli qui ne correspond a AUCUN onglet : l'espace choisi s'ecrit donc
+ * toujours dans l'adresse, meme quand c'est celui par defaut. Sans cela,
+ * revenir a l'onglet par defaut effacerait le parametre et un
+ * rafraichissement rouvrirait ailleurs.
+ */
+const JAMAIS = '\u0000'
+
 /** Seuil du seau "a consommer vite", en jours. Il inclut les lots deja perimes. */
 const SOON_THRESHOLD_DAYS = 5
 
@@ -85,7 +96,15 @@ export function PantryScreen() {
   const [params, setParams] = useSearchParams()
   const filter = params.get('q') ?? ''
   const sort = readOption<SortValue>(params.get('tri'), SORTS, 'urgence')
-  const group = readOption<GroupValue>(params.get('groupe'), GROUPS, 'urgence')
+  /*
+   * LE DEFAUT EST "AUCUN", c'est-a-dire UNE SEULE CARTE.
+   *
+   * Groupe par urgence, l'ecran rendait trois cartes blanches separees par du
+   * vide pour six produits, et le tri "a consommer d'abord" perdait son sens :
+   * il triait DANS chaque section, alors qu'on veut la liste entiere du plus
+   * pressant au moins pressant. Le groupement reste offert par les chips.
+   */
+  const group = readOption<GroupValue>(params.get('groupe'), GROUPS, 'aucun')
 
   const setParam = (key: string, value: string, fallback: string) => {
     setParams(
@@ -194,17 +213,18 @@ export function PantryScreen() {
       </header>
 
       {/*
-        Ce texte a longtemps promis deux choses que le code ne fait pas : que le
-        stock etait RETRANCHE de la liste de courses, et qu'un ingredient couvert
-        y arrivait COCHE. L'agregation se contente d'estampiller `inPantryG` et
-        `isCoveredByPantry`, et la ligne arrive decochee, avec un encart qui
-        propose de cocher. Le pre-cochage automatique du desktop a ete abandonne
-        volontairement (une case cochee qu'on n'a pas cochee soi-meme se lit
-        comme une erreur sur telephone), mais la phrase, elle, n'avait pas suivi.
+        UNE LIGNE, PAS CINQ. Le texte precedent disait vrai mais mangeait le
+        tiers superieur de l'ecran avant la premiere donnee, et sur un
+        telephone c'est tout ce qu'on voit en arrivant. Ce qu'il doit porter
+        tient en une phrase : il se passe quelque chose sur la liste, et voici
+        le lien.
+
+        Il promettait par ailleurs deux choses fausses, que le stock etait
+        RETRANCHE de la liste et qu'un ingredient couvert y arrivait COCHE. Le
+        pre-cochage a ete retire apres incident et la phrase n'avait pas suivi.
       */}
-      <p className="pantry-note">
-        Ce que tu ranges ici est <strong>signalé sur ta liste de courses</strong> : un ingrédient
-        déjà couvert par le frigo y porte un repère, et la liste propose de le cocher d’un geste.{' '}
+      <p className="chezmoi-lien">
+        Ce que tu ranges ici est signalé sur ta liste.{' '}
         <Link to="/courses">Voir la liste</Link>
       </p>
 
@@ -220,7 +240,7 @@ export function PantryScreen() {
                 type="button"
                 className={`espace${tab.espace === espace ? ' espace--on' : ''}`}
                 aria-pressed={tab.espace === espace}
-                onClick={() => setParam('ou', espaceToParam(tab.espace), ' ')}
+                onClick={() => setParam('ou', espaceToParam(tab.espace), JAMAIS)}
               >
                 {tab.label} <span className="espace__compte">{tab.count}</span>
               </button>
@@ -238,15 +258,19 @@ export function PantryScreen() {
             showGroup={espace === 'frigo'}
             onFilterChange={(value) => setParam('q', value, '')}
             onSortChange={(value) => setParam('tri', value, 'urgence')}
-            onGroupChange={(value) => setParam('groupe', value, 'urgence')}
+            onGroupChange={(value) => setParam('groupe', value, 'aucun')}
           />
 
-          <p className="pantry-summary">
-            <span>
-              {visible.length} article{visible.length > 1 ? 's' : ''}
-              {visible.length !== duLieu.length && ` sur ${duLieu.length}`}
-            </span>
-          </p>
+          {/* Ne s'affiche QUE si un filtre masque quelque chose. Sans filtre,
+              elle repetait mot pour mot le compteur de l'onglet, deux
+              centimetres plus haut. */}
+          {visible.length !== duLieu.length && (
+            <p className="pantry-summary">
+              <span>
+                {visible.length} article{visible.length > 1 ? 's' : ''} sur {duLieu.length}
+              </span>
+            </p>
+          )}
         </>
       )}
 
@@ -432,20 +456,53 @@ function PantryToolbar({
         )}
       </div>
 
-      <div className="pantry-toolbar__options">
-        <SelectField
-          label="Trier"
-          value={sort}
-          onChange={(value) => onSortChange(readOption<SortValue>(value, SORTS, 'urgence'))}
-          options={SORTS.map((option) => ({ value: option.value, label: option.label }))}
-        />
+      {/*
+        DES CHIPS, PAS UN MENU DEROULANT.
+        Un menu cache le choix actif derriere un appui et n'en montre qu'un a la
+        fois ; les chips disent d'un coup d'oeil ce qui est actif et ce qui est
+        possible, et se tapent sans dialogue. C'est ce que fait deja le
+        repertoire de recettes, et c'est ce que montre la maquette.
+
+        Les CINQ tris restent atteignables : les trois premiers en chips, les
+        deux autres derriere le dernier chip, qui fait defiler la rangee. Aucun
+        n'a disparu, ils sont seulement hierarchises par usage.
+      */}
+      {/* UNE SEULE RANGEE, qui defile. Deux rangees prenaient trente-six pixels
+          de plus avant la premiere donnee, sur un ecran ou l'on en compte huit
+          cent : le groupement suit les tris apres un separateur, et rien n'est
+          perdu. */}
+      <div className="tris">
+        <span className="tris__groupe" role="group" aria-label="Trier">
+          {SORTS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`tri${sort === option.value ? ' tri--on' : ''}`}
+              aria-pressed={sort === option.value}
+              onClick={() => onSortChange(option.value)}
+            >
+              {option.court}
+            </button>
+          ))}
+        </span>
+
         {showGroup && (
-          <SelectField
-            label="Grouper"
-            value={group}
-            onChange={(value) => onGroupChange(readOption<GroupValue>(value, GROUPS, 'urgence'))}
-            options={GROUPS.map((option) => ({ value: option.value, label: option.label }))}
-          />
+          <>
+            <span className="tris__separateur" aria-hidden="true" />
+            <span className="tris__groupe" role="group" aria-label="Grouper">
+              {GROUPS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`tri tri--groupe${group === option.value ? ' tri--on' : ''}`}
+                  aria-pressed={group === option.value}
+                  onClick={() => onGroupChange(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </span>
+          </>
         )}
       </div>
     </div>
@@ -475,7 +532,11 @@ function PantrySection({
           {section.hint && <span className="section-header__hint"> · {section.hint}</span>}
         </h2>
       )}
-      <ul className="lot-list">
+      {/* UNE carte pour toute la section, et des FILETS entre les lignes.
+          Une carte par lot donnait une pile de rectangles blancs separes par du
+          vide : a six produits on ne voyait plus une liste, mais six objets
+          sans rapport les uns avec les autres. */}
+      <ul className="carte-lots">
         {section.lots.map((lot) => (
           <LotRow key={lot.id} lot={lot} espace={espace} today={today} onOpen={onOpen} />
         ))}
@@ -503,6 +564,7 @@ function LotRow({
   today: Date
   onOpen: (id: number) => void
 }) {
+  const styleOf = useRayonStyle()
   const seuil = lot.ingredient?.restockThresholdG ?? null
 
   return (
@@ -511,29 +573,25 @@ function LotRow({
           ligne ne faisait rien : le seul geste possible etait la croix de
           suppression, et modifier une quantite imposait de tout ressaisir. */}
       <button type="button" className="lot__open" onClick={() => onOpen(lot.id)}>
+        {/* La pastille porte l'icone du RAYON, pas de l'aliment : c'est une
+            regle du projet, et elle tient a une donnee que l'ingredient a
+            deja. Le mockup y met un emoji, que la ligne visuelle interdit
+            depuis que 67 icones les ont remplaces : un emoji ne se teinte pas,
+            ne suit pas le theme sombre et se pixellise a l'agrandissement. */}
+        <span className="lot__pastille icon-chip" {...styleOf(lot.categoryL1).tint}>
+          <RayonIcon glyph={styleOf(lot.categoryL1).glyph} size={20} strokeWidth={1.8} />
+        </span>
+
         <span className="lot__body">
           <span className="lot__name">{lot.name}</span>
           <span className="lot__meta">
             <span>{formatLotQuantity(lot)}</span>
-
-            {espace === 'frigo' && (
-              <span className={`lot__expiry lot__expiry--${lot.bucket}`}>
-                {formatExpiryLabel(lot.daysLeft)}
-              </span>
-            )}
 
             {/* Le congelateur compte le temps PASSE. "Encore 3 mois"
                 supposerait une table de durees par aliment que personne ne
                 publie, et on la croirait. */}
             {espace === 'congelateur' && formatDepuis(joursDepuisEntree(lot, today)) !== null && (
               <span className="lot__depuis">{formatDepuis(joursDepuisEntree(lot, today))}</span>
-            )}
-
-            {/* Au placard, une date reste une date : si elle est saisie, elle
-                s'affiche comme partout ailleurs. Elle n'y est simplement jamais
-                mise en avant. */}
-            {espace === 'placard' && lot.daysLeft !== null && (
-              <span className="lot__expiry">{formatExpiryLabel(lot.daysLeft)}</span>
             )}
 
             {lot.siblingCount > 1 && (
@@ -563,6 +621,28 @@ function LotRow({
 
           {lot.stock.notes && <span className="lot__notes">{lot.stock.notes}</span>}
         </span>
+
+        {/*
+          LE BADGE D'ECHEANCE, A DROITE, EN PASTILLE.
+          "J-1", "J-15" tient en deux caracteres la ou "Périme demain" en prend
+          treize, ce qui laisse la place au nom du produit sur une seule ligne.
+          Le texte long reste dans la fiche du lot, ou il y a la place.
+
+          Il ne s'affiche QUE si une date existe, et JAMAIS au congelateur, qui
+          compte le temps passe et non ce qui reste. Au placard il s'affiche
+          sans couleur d'alarme : une date sur un produit sec est indicative.
+        */}
+        {espace !== 'congelateur' && lot.daysLeft !== null && (
+          <span
+            className={`badge-echeance badge-echeance--${espace === 'frigo' ? lot.bucket : 'neutre'}`}
+            // Deux caracteres ne se lisent pas a voix haute : le libelle long
+            // est celui de la fiche, mot pour mot.
+            aria-label={formatExpiryLabel(lot.daysLeft)}
+          >
+            {formatJours(lot.daysLeft)}
+          </span>
+        )}
+
         <span className="lot__chevron" aria-hidden="true">
           ›
         </span>

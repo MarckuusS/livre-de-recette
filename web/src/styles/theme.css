@@ -88,6 +88,20 @@
   --color-warning-ink: #5c5340;
   --color-warning-strong: #8a6a2b;
 
+  /*
+   * LE BADGE D'ECHEANCE, trois niveaux.
+   *
+   * Ils ne reprennent PAS le tricolore des macros : la framboise y veut dire
+   * "proteines", et lui faire dire aussi "perime demain" la viderait des deux
+   * sens. Trois jetons a eux, dont l'encre est mesuree sur sa propre pastille.
+   *
+   * Mesures sur fond de carte : urgent 5,21:1, bientot 4,94:1 (c'est
+   * `-strong`, deja mesure plus haut), ok 4,82:1. Les trois passent le seuil
+   * de 4,5:1 du texte.
+   */
+  --color-echeance-urgent-pale: #fbe9ef;
+  --color-echeance-urgent-ink: #b81f4d;
+
   /* `--color-success` dessus : 4,82:1. */
   --color-success-pale: #e4f0e8;
 
@@ -359,6 +373,8 @@
     --color-warning-ink: #ded6bd;
     --color-warning-strong: #f2c14e;
 
+    --color-echeance-urgent-pale: #3a1f28;
+    --color-echeance-urgent-ink: #f5a3bd;
     --color-success-pale: #1b3621;
 
     --color-zone-safe: #3f6b52;
@@ -436,6 +452,8 @@
   --color-warning-ink: #ded6bd;
   --color-warning-strong: #f2c14e;
 
+  --color-echeance-urgent-pale: #3a1f28;
+  --color-echeance-urgent-ink: #f5a3bd;
   --color-success-pale: #1b3621;
 
   --color-zone-safe: #3f6b52;

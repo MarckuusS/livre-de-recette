@@ -173,13 +173,27 @@ describe('sortLots', () => {
     )
 
   it('les CINQ tris existent, et aucun n est perdu', () => {
-    expect(SORTS.map((s) => s.value)).toEqual([
-      'urgence',
-      'nom',
-      'quantite',
-      'peremption',
-      'rayon',
-    ])
+    /*
+     * L'ENSEMBLE, pas l'ordre. C'est ce que ce test garde : le jour ou l'ecran
+     * est passe des menus deroulants aux chips, l'ordre a change pour mettre
+     * en avant les deux tris qu'on utilise debout devant le frigo. Ce test a
+     * attrape ce changement, ce qui etait son travail ; l'assertion dit
+     * desormais ce qu'elle voulait dire.
+     */
+    expect(new Set(SORTS.map((s) => s.value))).toEqual(
+      new Set(['urgence', 'nom', 'quantite', 'peremption', 'rayon']),
+    )
+    // Le premier est le defaut, et il ne doit pas bouger sans qu'on le sache.
+    expect(SORTS[0]?.value).toBe('urgence')
+  })
+
+  it('chaque tri a un libelle COURT pour la chip, et un long pour le menu', () => {
+    // Une chip fait vingt pixels de haut : "Quantité (décroissant)" y passe a
+    // la ligne. Aucun tri n'a ete retire pour tenir dans la place.
+    for (const s of SORTS) {
+      expect(s.court.length).toBeLessThanOrEqual(20)
+      expect(s.label.length).toBeGreaterThan(0)
+    }
   })
 
   it('trie par nom avec un collator francais, pas par point de code', () => {

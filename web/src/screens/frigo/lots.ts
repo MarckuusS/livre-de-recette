@@ -122,12 +122,19 @@ export function filterLots(lots: readonly Lot[], query: string): Lot[] {
   return lots.filter((lot) => normalizeName(lot.name).includes(needle))
 }
 
+/*
+ * `court` sert la CHIP, `label` sert le libelle long.
+ *
+ * Une chip fait vingt pixels de haut sur un telephone : "Quantité
+ * (décroissant)" y passe a la ligne ou se coupe. Les deux existent donc, et
+ * aucun tri n'a ete retire pour tenir dans la place.
+ */
 export const SORTS = [
-  { value: 'urgence', label: 'Urgence (péremption)' },
-  { value: 'nom', label: 'Nom (A-Z)' },
-  { value: 'quantite', label: 'Quantité (décroissant)' },
-  { value: 'peremption', label: 'Date de péremption' },
-  { value: 'rayon', label: 'Rayon' },
+  { value: 'urgence', label: 'Urgence (péremption)', court: "À consommer d'abord" },
+  { value: 'rayon', label: 'Rayon', court: 'Par rayon' },
+  { value: 'nom', label: 'Nom (A-Z)', court: 'Nom' },
+  { value: 'quantite', label: 'Quantité (décroissant)', court: 'Quantité' },
+  { value: 'peremption', label: 'Date de péremption', court: 'Date' },
 ] as const
 export type SortValue = (typeof SORTS)[number]['value']
 
@@ -304,4 +311,22 @@ export function formatExpiryDate(iso: string): string {
     month: 'long',
     year: 'numeric',
   })
+}
+
+/**
+ * L'echeance en DEUX CARACTERES, pour la pastille de droite.
+ *
+ * "J-1" tient la ou "Périme demain" prend treize caracteres et pousse le nom du
+ * produit sur deux lignes. Le texte long n'est pas perdu : il reste dans la
+ * fiche du lot, et il sert de libelle accessible a cette pastille, parce que
+ * "J-1" ne se lit pas a voix haute.
+ *
+ * Au-dela de quatre-vingt-dix-neuf jours, on bascule en mois : "J-365" est un
+ * nombre qu'on ne compare a rien.
+ */
+export function formatJours(daysLeft: number | null): string {
+  if (daysLeft === null) return ''
+  if (daysLeft < 0) return 'Périmé'
+  if (daysLeft > 99) return `${Math.round(daysLeft / 30)} mois`
+  return `J-${daysLeft}`
 }
