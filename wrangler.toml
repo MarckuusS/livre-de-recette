@@ -52,9 +52,26 @@ ENVIRONMENT = "production"
 # l'API repondait 10042 a tout le monde, wrangler comme dashboard. Active le
 # 2026-08-10, bucket cree dans la foulee.
 #
-# Zone WEUR, comme D1. R2 place les buckets en ENAM par defaut, et une zone ne
-# se change plus apres la creation : il faut passer `--location weur` a la
-# creation, sous peine de faire traverser l'Atlantique a chaque photo.
+# JURIDICTION EU, ET NON UNE SIMPLE ZONE. La difference n'est pas cosmetique.
+#
+# Le commentaire precedent annoncait "zone WEUR, comme D1" et conseillait
+# `--location weur`. C'etait faux deux fois. D'abord parce que le bucket avait
+# ete cree SANS ce drapeau et se trouvait donc en ENAM, cote est des Etats-Unis,
+# pendant que le commentaire affirmait le contraire. Ensuite parce que
+# `--location` n'est qu'un INDICE que Cloudflare est libre d'ignorer : verifie
+# le 2026-08-14, un bucket recree avec `--location weur` est ressorti en ENAM.
+#
+# `--jurisdiction eu` est d'une autre nature : la documentation le donne comme
+# une GARANTIE que les objets sont stockes et traites dans la juridiction, et
+# c'est le mecanisme prevu pour le RGPD. Le bucket vit desormais dans un espace
+# de noms separe, d'ou la ligne `jurisdiction` ci-dessous : SANS ELLE, le Worker
+# ne trouve plus le bucket du tout, il cherche dans la juridiction par defaut ou
+# il n'y a plus rien.
+#
+# La manoeuvre etait gratuite parce que le bucket etait VIDE : aucun code n'y
+# avait jamais ecrit. Elle ne le sera plus. Un bucket ne change pas de
+# juridiction apres coup, il faudrait recopier chaque objet.
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "livre-de-recettes-media"
+jurisdiction = "eu"

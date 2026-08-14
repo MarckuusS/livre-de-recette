@@ -263,14 +263,24 @@ Chantier choisi. Le socle est presque entièrement prévu, mais **le premier pas
 
 ### 2.0 Prérequis : levé le 2026-08-10
 
-> **Fait.** R2 activé sur le compte, bucket `livre-de-recettes-media` créé en zone **WEUR**,
-> binding `MEDIA` déclaré dans `wrangler.toml` et dans `Env` (`worker/src/http.ts`).
+> **Fait.** R2 activé sur le compte, bucket `livre-de-recettes-media`, binding `MEDIA` déclaré
+> dans `wrangler.toml` et dans `Env` (`worker/src/http.ts`).
 > Le repli KV du 2.0 bis n'a plus lieu d'être, il reste documenté pour mémoire.
 >
-> Piège rencontré, à ne pas refaire ailleurs : R2 crée les buckets en **ENAM** par défaut, et la
-> zone ne se change plus après coup. Le premier bucket a dû être détruit et recréé avec
-> `--location weur`, pour ne pas faire traverser l'Atlantique à chaque photo alors que D1 est en
-> Europe de l'Ouest.
+> **Correction du 2026-08-14, et le piège n'était pas celui qu'on croyait.** Ce paragraphe
+> annonçait « créé en zone WEUR ». C'était faux : vérification faite avant d'écrire la première
+> photo, le bucket était en **ENAM**, côte est des États-Unis, pendant que deux commentaires
+> affirmaient le contraire.
+>
+> Pire, le remède annoncé ne marche pas. Recréé avec `--location weur`, le bucket est **ressorti
+> en ENAM** : `--location` n'est qu'un *indice* que Cloudflare est libre d'ignorer, et il l'a
+> ignoré. Le mécanisme qui tient vraiment est `--jurisdiction eu`, que la documentation donne
+> comme une **garantie** de résidence des données, celui prévu pour le RGPD.
+>
+> Conséquence à ne pas oublier : un bucket sous juridiction vit dans un espace de noms séparé, et
+> le binding doit porter `jurisdiction = "eu"`. Sans cette ligne, le Worker cherche dans la
+> juridiction par défaut et **ne trouve plus rien**. La manœuvre était gratuite parce que le
+> bucket était vide ; elle ne le sera plus, une juridiction ne se change pas après coup.
 
 Historique du diagnostic, conservé parce qu'il a coûté un aller-retour :
 
