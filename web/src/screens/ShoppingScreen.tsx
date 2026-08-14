@@ -24,6 +24,13 @@ import { useIsoWeekParam } from '../lib/useIsoWeekParam.js'
 import { useScanParam, type ScanRequest } from '../lib/useScanParam.js'
 import { Icon, RayonIcon } from '../icons/index.js'
 import { useRayonStyle } from '../lib/useRayonStyle.js'
+import {
+  isFiltering,
+  pantryCandidates,
+  remainingItems,
+  sumCents,
+  visibleItems,
+} from './courses/derive.js'
 import { CostHistorySheet } from './courses/CostHistorySheet.js'
 import { LineDetailSheet } from './courses/LineDetailSheet.js'
 import { SessionBar } from './courses/SessionBar.js'
@@ -184,10 +191,10 @@ function ShoppingContent({
 
   // Le filtre se desarme tout seul quand il n'y a plus rien a filtrer : sinon,
   // renseigner le dernier prix manquant laisserait une liste vide et muette.
-  const filtering = onlyMissingPrice && list.missingPriceCount > 0
+  const filtering = isFiltering(onlyMissingPrice, list.missingPriceCount)
 
   const sections = useMemo(
-    () => groupByCategory(filtering ? list.items.filter((i) => i.costEur === null) : list.items),
+    () => groupByCategory(visibleItems(list.items, filtering)),
     [list.items, filtering],
   )
 
@@ -202,14 +209,12 @@ function ShoppingContent({
     toggle.mutate([...ids])
   }
 
-  const pantryCandidates = list.items.filter(
-    (i) => i.isCoveredByPantry && !checked.has(i.ingredientId),
-  )
-
-  const remaining = list.items.filter((i) => !checked.has(i.ingredientId))
-  // Somme en centimes entiers : les couts arrivent deja arrondis au centime
-  // par le serveur, et le front n'embarque pas de bibliotheque decimale.
-  const remainingCents = remaining.reduce((sum, item) => sum + cents(item.costEur), 0)
+  // Les quatre derivations vivent dans `courses/derive.ts`, testees a part :
+  // enfouies dans ce composant, elles partaient avec lui le jour ou on le
+  // remplace.
+  const candidatsFrigo = pantryCandidates(list.items, checked)
+  const remaining = remainingItems(list.items, checked)
+  const remainingCents = sumCents(remaining)
 
   return (
     <>
@@ -267,16 +272,16 @@ function ShoppingContent({
           Sur telephone, une case cochee qu'on n'a pas cochee soi-meme se lit
           comme une erreur : on propose, l'utilisateur decide, et le resultat
           est persiste comme n'importe quelle autre case. */}
-      {pantryCandidates.length > 0 && !filtering && (
+      {candidatsFrigo.length > 0 && !filtering && (
         <div className="pantry-hint">
           <p className="pantry-hint__text">
-            {pantryCandidates.length} article{pantryCandidates.length > 1 ? 's sont' : ' est'} déjà
+            {candidatsFrigo.length} article{candidatsFrigo.length > 1 ? 's sont' : ' est'} déjà
             au frigo en quantité suffisante.
           </p>
           <button
             type="button"
             className="button button--secondary pantry-hint__action"
-            onClick={() => toggle.mutate([...checked, ...pantryCandidates.map((i) => i.ingredientId)])}
+            onClick={() => toggle.mutate([...checked, ...candidatsFrigo.map((i) => i.ingredientId)])}
           >
             Cocher
           </button>
@@ -349,11 +354,11 @@ function ShoppingContent({
         <ActionsSheet
           list={list}
           checkedCount={checked.size}
-          pantryCount={pantryCandidates.length}
+          pantryCount={candidatsFrigo.length}
           onClose={() => setSheet('none')}
           onFlash={setFlash}
           onCheckPantry={() =>
-            toggle.mutate([...checked, ...pantryCandidates.map((i) => i.ingredientId)])
+            toggle.mutate([...checked, ...candidatsFrigo.map((i) => i.ingredientId)])
           }
           onUncheckAll={() => toggle.mutate([])}
           onOpenCost={() => setSheet('cost')}
@@ -687,7 +692,4 @@ function planningLink(isoWeek: string, currentWeek: string): string {
   return isoWeek === currentWeek ? '/planning' : `/planning?semaine=${isoWeek}`
 }
 
-/** Montant en centimes entiers. `null` (prix inconnu) ne compte pas pour zero euro par hasard : il ne compte pas du tout. */
-function cents(amount: string | null): number {
-  return amount === null ? 0 : Math.round(Number(amount) * 100)
-}
+
