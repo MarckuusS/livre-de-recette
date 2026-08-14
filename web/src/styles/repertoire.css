@@ -49,19 +49,49 @@
  * derniere ligne d'une liste longue. En en-tete il ne recouvre rien, et il
  * libere la reserve permanente du bas.
  */
+/*
+ * 44 px TAPABLES, 38 px DESSINES, et le rond dessine a part.
+ *
+ * IL SORTAIT EN OVALE, mesure a 26 x 36. La cause n'est pas celle qu'on croit :
+ * la boite faisait bien 44 x 44. Le montage precedent agrandissait la boite
+ * d'une bordure transparente et gardait le fond au centre par
+ * `background-clip: content-box` ; or la boite de CONTENU d'un `<button>` porte
+ * le `padding: 1px 6px` que le navigateur pose par defaut et que cette regle ne
+ * remettait pas a zero. Six pixels a gauche et a droite contre un seul en haut
+ * et en bas : le fond peint devenait deux fois plus haut que large.
+ *
+ * C'est le TROISIEME bouton du projet a tomber sur ce montage. Les deux
+ * premiers sont documentes dans recette.css, meme cause, meme remede : le rond
+ * est un pseudo-element aux dimensions ECRITES, avec un rayon de 50 %. Il ne
+ * peut alors pas etre autre chose qu'un cercle, quoi que porte le bouton.
+ */
 .repertoire-plus {
+  position: relative;
   display: grid;
   flex: none;
   place-items: center;
   width: 44px;
   height: 44px;
+  padding: 0;
   color: var(--color-on-primary);
   cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.repertoire-plus::before {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  content: '';
   background: var(--color-primary);
-  background-clip: content-box;
-  border: 3px solid transparent;
-  border-radius: var(--radius-full);
+  border-radius: 50%;
   box-shadow: var(--shadow-normal);
+}
+
+/* L'icone repasse AU-DESSUS du disque, que le pseudo-element vient de poser. */
+.repertoire-plus > * {
+  position: relative;
 }
 
 /* ---------- Filtres ---------- */

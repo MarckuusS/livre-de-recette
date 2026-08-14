@@ -102,8 +102,12 @@
  * blanc : 45 % de noir donnait 3,12:1, tout juste au-dessus du seuil de 3:1 des
  * elements graphiques, et sans aucune marge pour une photo plus claire encore.
  * 55 % donne 4,27:1.
+ *
+ * La regle vise le PSEUDO-ELEMENT et non le bouton : depuis que le disque est
+ * dessine a part, le bouton lui-meme n'a plus de fond, et repeindre le bouton
+ * ne repeindrait rien du tout.
  */
-.fiche-hero--photo .fiche-hero__action {
+.fiche-hero--photo .fiche-hero__action::before {
   background: rgb(0 0 0 / 55%);
 }
 
@@ -121,14 +125,35 @@
   right: var(--space-md);
   display: grid;
   place-items: center;
-  /* 44 px de cible tactile, pas 36 : le rond dessine reste plus petit grace au
-     fond en `background-clip`, mais la zone tapable fait la taille minimale. */
+  /*
+   * 44 px de cible tactile, 36 px dessines, et le rond dessine A PART.
+   *
+   * Il tenait par `background-clip: content-box` sur une bordure transparente.
+   * Ce montage ne rend un cercle que si les quatre cotes de la boite de contenu
+   * s'accordent au pixel pres : celui-ci s'en tirait parce qu'il habille un
+   * `<a>`, qui n'a pas de padding par defaut. Le meme montage sur un `<button>`
+   * a produit un ovale de 26 x 36 dans le repertoire de recettes. On ne laisse
+   * pas la forme d'un bouton dependre de sa balise.
+   */
   width: 44px;
   height: 44px;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.fiche-hero__action::before {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  content: '';
   background: rgb(255 255 255 / 16%);
-  background-clip: content-box;
-  border: 4px solid transparent;
-  border-radius: var(--radius-full);
+  border-radius: 50%;
+}
+
+/* L'icone repasse AU-DESSUS du disque pose par le pseudo-element. */
+.fiche-hero__action > * {
+  position: relative;
 }
 
 /*
