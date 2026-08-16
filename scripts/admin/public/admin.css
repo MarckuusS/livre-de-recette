@@ -1,0 +1,415 @@
+/*
+ * Console d'administration.
+ *
+ * Aucune couleur litterale : tout vient de theme.css, servi par le serveur
+ * local. Un jeton absent se verrait immediatement, ce qui vaut mieux qu'une
+ * teinte approchante ecrite ici et oubliee.
+ *
+ * Une exception assumee : `--admin-danger-fond`, la teinte de la production.
+ * Elle n'existe pas dans l'application, qui n'a pas de notion d'environnement.
+ */
+
+:root {
+  --admin-danger-fond: color-mix(in srgb, var(--color-error) 12%, var(--color-surface));
+  --admin-danger-bord: color-mix(in srgb, var(--color-error) 45%, transparent);
+}
+
+body {
+  margin: 0;
+  padding: var(--space-xl);
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------- en-tete */
+
+.tete {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1100px;
+  margin: 0 auto var(--space-xl);
+}
+
+.tete h1 {
+  margin: 0;
+  font-family: var(--font-family-display, var(--font-family));
+  font-size: var(--font-size-title);
+}
+
+.tete__sous {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.cible {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-surface);
+  border-radius: var(--radius-full);
+}
+
+.cible__choix {
+  padding: var(--space-sm) var(--space-lg);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cible__choix[aria-pressed='true'] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* La production choisie ne se distingue pas par une nuance : elle se lit. */
+.cible__choix[data-cible='production'][aria-pressed='true'] {
+  background: var(--color-error);
+}
+
+/* ---------------------------------------------------------------- banniere */
+
+.banniere {
+  max-width: 1100px;
+  margin: 0 auto var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--admin-danger-bord);
+  border-radius: var(--radius-lg);
+  background: var(--admin-danger-fond);
+}
+
+.banniere--erreur {
+  white-space: pre-wrap;
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-size-sm);
+}
+
+/* ------------------------------------------------------------------ carte */
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.carte {
+  padding: var(--space-xl);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+
+.carte__tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.carte__tete h2 {
+  margin: 0;
+  font-family: var(--font-family-display, var(--font-family));
+  font-size: var(--font-size-xl);
+}
+
+.etat {
+  color: var(--color-text-secondary);
+}
+
+/* ------------------------------------------------------------------ liste */
+
+.liste {
+  display: grid;
+  gap: var(--space-md);
+}
+
+/*
+ * Deux colonnes quand il y a la place, empilees sinon.
+ *
+ * En `1fr auto` inconditionnel, la colonne d'actions garde sa largeur et
+ * ecrase le reste : sous 640 px, « marius — marius n° 1 » se cassait en trois
+ * lignes pendant que les boutons occupaient la moitie de la carte. Constate
+ * dans le volet du navigateur, qui est etroit.
+ */
+.compte {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+  align-items: start;
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+@media (min-width: 640px) {
+  .compte {
+    grid-template-columns: 1fr auto;
+  }
+}
+
+.compte--inactif {
+  opacity: 0.62;
+}
+
+.compte__nom {
+  font-weight: var(--font-weight-semibold);
+}
+
+.compte__id {
+  color: var(--color-text-placeholder);
+  font-variant-numeric: tabular-nums;
+}
+
+.compte__faits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-lg);
+  margin-top: var(--space-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.compte__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.indice {
+  flex-basis: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+@media (min-width: 640px) {
+  .compte__actions {
+    justify-content: flex-end;
+    max-width: 22rem;
+  }
+
+  .indice {
+    text-align: right;
+  }
+}
+
+/* Le titre d'ecran ne se coupe pas au milieu d'un identifiant. */
+.compte__nom {
+  overflow-wrap: anywhere;
+}
+
+.etiquette {
+  display: inline-block;
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.etiquette--inactif {
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+}
+
+.etiquette--attente {
+  background: color-mix(in srgb, var(--color-secondary) 16%, var(--color-surface));
+  /* L'ENCRE, pas la teinte : `--color-secondary` est calibre pour un aplat et
+     tombe sous le seuil de lisibilite une fois ecrit. Meme distinction que
+     `--color-nutrient-X` / `-ink` dans le theme de l'application. */
+  color: var(--color-secondary-hover);
+}
+
+/* --------------------------------------------------------------- sante */
+
+.sante {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+
+.controle {
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/* Un constat grave se signale par sa bordure et son chiffre, PAS par un fond
+   rouge : sept pastilles rouges cote a cote ne se hierarchisent plus. */
+.controle--grave {
+  border-color: var(--admin-danger-bord);
+  background: var(--admin-danger-fond);
+}
+
+.controle__haut {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.controle__nom {
+  font-weight: var(--font-weight-medium);
+}
+
+.controle__valeur {
+  font-family: var(--font-family-display, var(--font-family));
+  font-size: var(--font-size-xl);
+  font-variant-numeric: tabular-nums;
+}
+
+.controle--grave .controle__valeur {
+  color: var(--color-error);
+}
+
+.controle__detail {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+/* ------------------------------------------------------------- formulaire */
+
+.formulaire {
+  display: grid;
+  gap: var(--space-lg);
+  max-width: 34rem;
+}
+
+.champ {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.champ__nom {
+  font-weight: var(--font-weight-medium);
+}
+
+.champ__saisie {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.champ__saisie:focus-visible {
+  border-color: var(--color-border-focus);
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+.champ__aide {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.bouton--primaire {
+  border-color: transparent;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  justify-self: start;
+}
+
+.bouton--primaire:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+/* ---------------------------------------------------------------- resultat */
+
+#resultat {
+  display: grid;
+  gap: var(--space-md);
+  justify-items: start;
+  margin-top: var(--space-xl);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-background);
+}
+
+#resultat h3,
+#resultat p {
+  margin: 0;
+}
+
+#resultat p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.lien {
+  width: 100%;
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-size-sm);
+}
+
+/* ------------------------------------------------------------- anomalies */
+
+.anomalie {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--admin-danger-bord);
+  border-radius: var(--radius-lg);
+  background: var(--admin-danger-fond);
+}
+
+.anomalie h3 {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--font-size-md);
+}
+
+.anomalie p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* --------------------------------------------------------------- boutons */
+
+.bouton {
+  padding: var(--space-sm) var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bouton:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.bouton:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.bouton--discret {
+  border-color: transparent;
+  color: var(--color-text-secondary);
+}
+
+.bouton--danger {
+  border-color: var(--admin-danger-bord);
+  color: var(--color-error);
+}
+
+.note {
+  margin: var(--space-xl) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.note code {
+  padding: 2px var(--space-xs);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  font-size: var(--font-size-xs);
+}

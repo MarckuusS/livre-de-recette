@@ -15,6 +15,14 @@ export interface Env {
   readonly OFF_USER_AGENT: string
   readonly ENVIRONMENT: string
   /**
+   * '1' ouvre l'application sans mot de passe. DEVELOPPEMENT LOCAL UNIQUEMENT.
+   *
+   * Optionnelle, et elle doit le rester : elle ne vient que de `.dev.vars`,
+   * absent de tout deploiement. Voir la note de `devUser()` dans auth.ts pour
+   * les deux verrous qui la rendent inatteignable en production.
+   */
+  readonly DEV_AUTOLOGIN?: string | undefined
+  /**
    * Fichiers statiques du site, fournis par Pages en mode avance.
    *
    * Des lors qu'un `_worker.js` est present, Pages ne sert plus rien tout

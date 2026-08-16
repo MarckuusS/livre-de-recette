@@ -28,13 +28,14 @@
  * et l'ecran de connexion en fait partie.
  */
 
-import { currentUser } from './auth.js'
+import { currentUser, devUser } from './auth.js'
 import { fail, HttpError, match, type Env } from './http.js'
 import { NO_HOUSEHOLD, Repositories } from './repos/index.js'
 
 // Enregistrement des routes. L'ordre n'a pas d'importance : les chemins sont
 // disjoints et la recherche compare le motif complet.
 import './routes/session.js'
+import './routes/invitation.js'
 import './routes/system.js'
 import './routes/ingredients.js'
 import './routes/rayons.js'
@@ -55,7 +56,17 @@ import './routes/courses.js'
  * Liste explicite et courte : proteger route par route serait l'inverse, et
  * laisserait tot ou tard passer un endpoint oublie.
  */
-const PUBLIC_ROUTES = new Set(['/api/login', '/api/logout', '/api/session'])
+const PUBLIC_ROUTES = new Set([
+  '/api/login',
+  '/api/logout',
+  '/api/session',
+  // Invitations : leur destinataire n'a pas encore de session, c'est tout
+  // l'objet. Chemins FIXES, le jeton voyageant dans le corps — voir l'en-tete
+  // de routes/invitation.ts, qui explique aussi pourquoi on n'assouplit pas
+  // cette comparaison exacte pour un segment variable.
+  '/api/invitation',
+  '/api/invitation/mot-de-passe',
+])
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -69,7 +80,13 @@ export default {
     }
 
     // Garde d'authentification, AVANT toute recherche de route.
-    const user = await currentUser(request, env.DB)
+    //
+    // Le cookie d'abord, toujours. `devUser` ne repond qu'en developpement
+    // local et seulement A DEFAUT de session : le chemin normal reste donc
+    // exactement celui de la production, y compris sur le poste du
+    // developpeur des qu'il s'est connecte pour de bon. Voir auth.ts pour les
+    // deux verrous qui interdisent cette porte en ligne.
+    const user = (await currentUser(request, env.DB)) ?? (await devUser(env, env.DB))
     if (!PUBLIC_ROUTES.has(url.pathname) && user === null) {
       return fail(401, 'unauthenticated', 'Session expirée. Reconnecte-toi.')
     }

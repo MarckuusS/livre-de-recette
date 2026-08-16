@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prandia — administration</title>
+    <!-- Les jetons de l'application, servis tels quels par le serveur local.
+         Les recopier ici ferait diverger deux jeux de couleurs. -->
+    <link rel="stylesheet" href="/theme.css" />
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body>
+    <header class="tete">
+      <div class="tete__titre">
+        <h1>Administration</h1>
+        <p class="tete__sous">Comptes et cuisines</p>
+      </div>
+
+      <!-- La cible est le reglage le plus dangereux de l'ecran : elle est en
+           haut, toujours visible, et la production se signale d'elle-meme. -->
+      <div class="cible" role="group" aria-label="Base visée">
+        <button type="button" class="cible__choix" data-cible="local">
+          Base de développement
+        </button>
+        <button type="button" class="cible__choix" data-cible="production">Production</button>
+      </div>
+    </header>
+
+    <p id="banniere" class="banniere" hidden></p>
+
+    <main>
+      <!-- Le contrôle de santé EN PREMIER : c'est ce qu'on veut voir avant
+           d'agir, pas ce qu'on découvre après. -->
+      <section class="carte">
+        <div class="carte__tete">
+          <h2>Contrôle de santé</h2>
+        </div>
+        <div id="sante" class="sante"></div>
+      </section>
+
+      <section class="carte">
+        <div class="carte__tete">
+          <h2>Comptes</h2>
+          <button type="button" id="rafraichir" class="bouton bouton--discret">Rafraîchir</button>
+        </div>
+
+        <p id="etat" class="etat">Chargement…</p>
+        <div id="anomalies"></div>
+        <div id="liste" class="liste"></div>
+      </section>
+
+      <section class="carte">
+        <div class="carte__tete">
+          <h2>Créer un compte</h2>
+        </div>
+
+        <form id="creation" class="formulaire">
+          <label class="champ">
+            <span class="champ__nom">Identifiant</span>
+            <input
+              name="identifiant"
+              class="champ__saisie"
+              placeholder="tom"
+              autocomplete="off"
+              autocapitalize="off"
+              autocorrect="off"
+              required
+            />
+            <span class="champ__aide">Minuscules, chiffres, tiret ou souligné. 2 à 32 caractères.</span>
+          </label>
+
+          <label class="champ">
+            <span class="champ__nom">Nom affiché</span>
+            <input name="nomAffiche" class="champ__saisie" placeholder="Tom" autocomplete="off" />
+            <span class="champ__aide">Ce qui apparaît dans le journal d'activité.</span>
+          </label>
+
+          <label class="champ">
+            <span class="champ__nom">Cuisine</span>
+            <input
+              name="cuisine"
+              class="champ__saisie"
+              placeholder="Chez Tom"
+              autocomplete="off"
+              required
+            />
+            <!-- Le champ n'est pas optionnel, et l'aide dit pourquoi : c'est la
+                 règle que l'ancien défaut du script enfreignait en silence. -->
+            <span class="champ__aide">
+              Obligatoire. Chaque compte a la sienne : ses recettes, son frigo, ses prix et son
+              planning n'appartiennent qu'à lui. Il n'existe aucun moyen de placer quelqu'un dans
+              la cuisine d'un autre.
+            </span>
+          </label>
+
+          <button type="submit" class="bouton bouton--primaire">Créer et obtenir le lien</button>
+        </form>
+
+        <div id="resultat" hidden></div>
+
+        <p class="note">
+          Le mot de passe n'est ni choisi ni vu ici : le compte naît inutilisable, et le lien
+          d'invitation permet à son propriétaire d'en poser un lui-même.
+        </p>
+      </section>
+
+      <section class="carte">
+        <div class="carte__tete">
+          <h2>Cuisines</h2>
+        </div>
+        <p id="etat-cuisines" class="etat">Chargement…</p>
+        <div id="cuisines" class="liste"></div>
+        <p class="note">
+          Supprimer une cuisine détruit ses recettes, son frigo, ses prix et son historique. Une
+          cuisine habitée ne peut pas être supprimée : son occupant se retrouverait devant une
+          application vide.
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="/admin.js"></script>
+  </body>
+</html>

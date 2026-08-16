@@ -59,6 +59,19 @@ export const MAX_PLATFORM_ITERATIONS = 100_000
 
 export const DEFAULT_ITERATIONS = MAX_PLATFORM_ITERATIONS
 
+/**
+ * Longueur minimale d'un mot de passe.
+ *
+ * C'est le SEUL facteur d'authentification, sur une application joignable
+ * publiquement, et le raisonnement du commentaire ci-dessus en depend : le
+ * hachage retenu ne tient que si le secret est long.
+ *
+ * Vit ici pour que le Worker et l'ecran d'invitation lisent le meme nombre.
+ * `scripts/add-user.mjs` porte volontairement sa propre copie : il n'importe
+ * rien de `shared`, choix assume et explique dans son en-tete.
+ */
+export const MIN_PASSWORD_LENGTH = 10
+
 export class IterationLimitError extends Error {
   constructor(iterations: number) {
     super(

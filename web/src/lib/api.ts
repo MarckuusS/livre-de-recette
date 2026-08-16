@@ -118,3 +118,34 @@ export const login = (username: string, password: string): Promise<{ user: Sessi
 
 export const logout = (): Promise<{ status: 'ok' }> =>
   apiFetch('/api/logout', { method: 'POST' })
+
+export interface InvitationInfo {
+  username: string
+  displayName: string
+  cuisine: string | null
+  genre: 'creation' | 'reinitialisation'
+}
+
+/*
+ * Le jeton part dans le CORPS, pas dans l'adresse.
+ *
+ * Il est deja dans l'URL de la page — c'est ce qu'on colle dans un message —
+ * mais l'y remettre pour l'appel le ferait entrer dans les journaux d'acces et
+ * les rapports d'erreur. Voir l'en-tete de worker/src/routes/invitation.ts.
+ */
+export const lireInvitation = (jeton: string): Promise<InvitationInfo> =>
+  apiFetch('/api/invitation', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jeton }),
+  })
+
+export const definirMotDePasse = (
+  jeton: string,
+  motDePasse: string,
+): Promise<{ user: SessionUser }> =>
+  apiFetch('/api/invitation/mot-de-passe', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jeton, motDePasse }),
+  })

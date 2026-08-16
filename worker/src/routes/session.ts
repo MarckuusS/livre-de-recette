@@ -9,7 +9,6 @@
 import {
   authenticate,
   clearSessionCookie,
-  currentUser,
   hasAnyUser,
   issueSession,
   lockoutRemaining,
@@ -93,8 +92,13 @@ route(
     }),
 )
 
-/** Permet au front de savoir s'il doit afficher l'ecran de connexion, et qui est la. */
-route('GET', '/api/session', async ({ env, request }) => {
-  const user = await currentUser(request, env.DB)
-  return json({ authenticated: user !== null, user })
-})
+/**
+ * Permet au front de savoir s'il doit afficher l'ecran de connexion, et qui est la.
+ *
+ * ON REPREND L'UTILISATEUR DU CONTEXTE, on ne le recalcule pas. Le refaire ici
+ * avec `currentUser` couterait une deuxieme fois le meme travail, et surtout
+ * manquerait la connexion automatique de developpement, qui n'est appliquee
+ * qu'en un seul endroit (index.ts) : l'ecran de connexion serait alors le seul
+ * a la contourner, donc le seul a s'afficher quand meme.
+ */
+route('GET', '/api/session', async ({ user }) => json({ authenticated: user !== null, user }))

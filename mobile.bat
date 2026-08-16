@@ -9,11 +9,27 @@ rem ouvre un navigateur reglé en iPhone avec l'ecran tactile ACTIF : le glisser
 rem le balayage et les cibles au doigt se comportent comme sur un telephone,
 rem pas seulement la mise en page.
 rem
+rem IL N'Y A PAS D'ECRAN DE CONNEXION. Un serveur local sert a regarder des
+rem ecrans, pas a garder un secret : sa base ne contient que des donnees
+rem d'essai. L'ecran de connexion n'y protegeait rien, mais il pouvait tout
+rem bloquer : un mot de passe choisi une fois puis oublie, ou dix tentatives
+rem ratees, et la maquette n'ouvrait plus. Le contournement vit dans
+rem `.dev.vars`, fichier que le deploiement ne lit jamais ; les deux verrous qui
+rem l'interdisent en ligne sont decrits au-dessus de devUser(), dans
+rem worker/src/auth.ts.
+rem
+rem    mobile.bat              -> entre directement dans l'application
+rem    mobile.bat connexion    -> garde l'ecran de connexion, pour le tester
+rem
 rem Idempotent : relancable autant de fois qu'on veut. Ctrl+C dans la fenetre du
 rem serveur arrete tout.
 rem ===========================================================================
 
 cd /d "%~dp0"
+
+rem ---- Avec ou sans ecran de connexion -----------------------------------
+set "AVEC_CONNEXION="
+if /i "%~1"=="connexion" set "AVEC_CONNEXION=1"
 
 rem ---- Les reglages, tous au meme endroit --------------------------------
 set "PORT=8788"
@@ -55,15 +71,65 @@ if not exist "%ETAT%" mkdir "%ETAT%"
 call npx wrangler d1 migrations apply livre-de-recettes --local --persist-to "%ETAT%"
 if errorlevel 1 goto err_migrate
 
-rem ---- 4 bis. Un compte, sinon l'ecran de connexion ne sert a rien -------
+rem ---- 4 bis. Le reglage local du serveur --------------------------------
 rem
-rem LE DEFAUT QUE CE BLOC REPARE : tout demarrait correctement et l'application
-rem repondait "Aucun compte n'est configuré sur ce serveur". La consigne
-rem "lance add-user.mjs" ne suffisait pas, et pire, elle etait FAUSSE : ce
-rem script ecrivait dans la base par defaut du projet, pas dans celle que le
-rem serveur lit ici. Il accepte desormais `--persist-to`.
+rem CE BLOC A REMPLACE LA CREATION D'UN COMPTE, et c'est le meme defaut qu'il
+rem repare une bonne fois. Tout demarrait correctement, puis l'application
+rem s'arretait sur son ecran de connexion : tantot "Aucun compte n'est
+rem configuré sur ce serveur", tantot un mot de passe choisi au premier
+rem lancement et oublie depuis, tantot dix tentatives ratees et un verrou de
+rem quinze minutes. Trois facons differentes de ne pas pouvoir regarder ses
+rem propres ecrans, pour proteger une base qui ne contient que des essais.
+rem
+rem Desormais le serveur local ouvre d'office, et le compte se cree tout seul
+rem s'il n'y en a aucun. Plus de question au demarrage, donc plus de lanceur
+rem fige a attendre une reponse que personne ne donne.
+if defined AVEC_CONNEXION (
+  echo [3 bis/5] Reglage local : ecran de connexion CONSERVE.
+  node scripts\dev-vars.mjs --connexion
+) else (
+  echo [3 bis/5] Reglage local : connexion automatique.
+  node scripts\dev-vars.mjs
+)
+if errorlevel 1 goto err_vars
+
+rem Un compte n'est necessaire QUE si l'on a demande l'ecran de connexion :
+rem sans lui, le serveur en cree un tout seul au premier appel.
+if not defined AVEC_CONNEXION goto serveur
 node scripts\dev-compte.mjs --persist-to="%ETAT%"
 if errorlevel 1 goto err_compte
+
+:serveur
+rem ---- 4 ter. LE PORT, LIBERE AVANT TOUT ---------------------------------
+rem
+rem LE DEFAUT LE PLUS COUTEUX DE CE LANCEUR, parce qu'il ne ressemblait pas a
+rem une panne. Un serveur d'un lancement precedent garde le port ; le nouveau
+rem n'arrive pas a s'y attacher, mais l'ANCIEN, lui, repond parfaitement. La
+rem sonde ci-dessous le voyait repondre, declarait le demarrage reussi, et le
+rem navigateur s'ouvrait sur le site tel qu'il etait une heure plus tot.
+rem
+rem On corrigeait alors un ecran, on relancait, et rien ne changeait, sans le
+rem moindre message d'erreur pour dire pourquoi. Mesure faite : deux serveurs
+rem vivants en meme temps, celui de 15h26 servant encore la page pendant que
+rem celui de 15h39 tournait a cote, inutile.
+set "LIBERE="
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr /c:"LISTENING" ^| findstr /c:":%PORT% "') do (
+  echo       Un serveur tenait deja le port %PORT% ^(PID %%p^) : arret.
+  taskkill /PID %%p /T /F >nul 2>nul
+  set "LIBERE=1"
+)
+if defined LIBERE "%SystemRoot%\System32\ping.exe" -n 3 127.0.0.1 >nul
+
+rem ---- 4 quater. Les bundles temporaires de wrangler ---------------------
+rem
+rem Wrangler ecrit un dossier `.wrangler\tmp\bundle-*` a chaque demarrage et ne
+rem le reprend jamais. L'etat de la base vit ailleurs (voir ETAT plus haut),
+rem donc ce dossier ne contient RIEN qui doive survivre : mesure faite, 255
+rem bundles pour 68 Mo, et `.wrangler\state` entierement vide a cote.
+rem
+rem APRES l'arret du serveur, jamais avant : celui qui tourne encore tient son
+rem propre bundle ouvert.
+if exist ".wrangler\tmp\" rd /s /q ".wrangler\tmp" 2>nul
 
 rem ---- 5. Le serveur, dans sa propre fenetre -----------------------------
 rem Une fenetre a lui pour que ses journaux restent lisibles et qu'un Ctrl+C
@@ -111,6 +177,17 @@ rem silence. Et cela evite d'ouvrir une session de test au milieu de ses
 rem propres onglets.
 set "PROFIL=%LOCALAPPDATA%\Prandia\mobile-profile"
 
+rem LES FENETRES DU LANCEMENT PRECEDENT, FERMEES D'ABORD. Meme histoire que le
+rem port quelques lignes plus haut : Chromium ne demarre qu'une instance par
+rem profil, donc si une fenetre de test traine, la commande ci-dessous ne cree
+rem aucun navigateur, elle demande a l'ancien d'ouvrir un onglet. Or la prise de
+rem debogage appartient au navigateur, pas a l'onglet, et l'ancienne instance ne
+rem l'a pas ouverte : l'emulation echouait alors sur "Not attached to an active
+rem page". `mobile-view.mjs` savait deja nommer cette cause et demandait de
+rem fermer les fenetres a la main ; c'est un geste que le lanceur peut faire.
+rem Seul le profil de test est vise, jamais la navigation ordinaire.
+node scripts\fermer-navigateur-test.mjs "%PROFIL%"
+
 echo [5/5] Ouverture du navigateur en mode telephone...
 start "" "%NAVIGATEUR%" ^
   --remote-debugging-port=%CDP_PORT% ^
@@ -136,8 +213,13 @@ echo.
 echo  La fenetre ouverte se comporte comme un iPhone : glisser, balayer, et les
 echo  cibles au doigt. Le survol n'existe pas, comme sur un vrai telephone.
 echo.
-echo  Le compte a ete verifie a l'etape precedente : l'ecran de connexion a de
-echo  quoi repondre.
+if defined AVEC_CONNEXION (
+  echo  L'ecran de connexion est actif, et le compte a ete verifie a l'etape
+  echo  precedente : il a de quoi repondre.
+) else (
+  echo  Il n'y a pas d'ecran de connexion : le serveur local ouvre d'office.
+  echo  Pour le tester quand meme, relance avec : mobile.bat connexion
+)
 echo ==========================================================================
 echo.
 
@@ -168,6 +250,14 @@ echo [erreur] Les migrations de la base locale ont echoue.
 echo          Etat local : %ETAT%
 echo          Si la base est abimee, supprime ce dossier et relance : il se
 echo          recree vide, tu perds seulement les donnees de developpement.
+goto fail
+
+:err_vars
+echo.
+echo [erreur] Le fichier .dev.vars n'a pas pu etre ecrit a la racine du projet.
+echo          Sans lui, le serveur local garde l'ecran de connexion et exige un
+echo          compte. Verifie les droits d'ecriture sur :
+echo             %CD%
 goto fail
 
 :err_compte

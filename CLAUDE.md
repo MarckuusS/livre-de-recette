@@ -188,6 +188,138 @@ ou "Annuler" est reste inatteignable un moment.
 - `QuantityField` accepte deja `unit` et `onUnitChange` : toute nouvelle surface de saisie doit
   brancher les deux, sinon le choix se perd en silence.
 
+## Comptes et cuisines — `scripts/add-user.mjs`
+
+**UNE CUISINE PAR COMPTE. Il n'existe aucun moyen d'en partager une.** Règle posée le
+2026-08-16, après incident. Ce qui ne se devine pas :
+
+- **Le partage ne reviendra que par INVITATION consentie** : le propriétaire émet, l'invité
+  accepte. Tant que ce chemin n'existe pas, il n'y en a aucun — ni option, ni défaut, ni
+  raccourci. Ajouter un drapeau « rejoindre la cuisine de X » est explicitement hors sujet.
+- **`--cuisine="Nom"` est OBLIGATOIRE à la création.** Le script plaçait avant tout compte sans
+  cette option dans la cuisine n° 1. L'intention était le cas du conjoint ; le défaut était le
+  mauvais, l'option dangereuse étant celle qu'on obtient sans rien taper. Ce qu'il a coûté : un
+  compte créé en une commande a ouvert à un tiers les recettes, le frigo, les prix et le planning
+  du foyer 1.
+- **Plus d'`ON CONFLICT(username) DO UPDATE`.** Il excluait `household_id` — correct pour un
+  changement de mot de passe, désastreux avec `--cuisine` : la séquence créait la cuisine, y
+  copiait les 3 484 lignes du catalogue, puis tombait dans le `ON CONFLICT` et laissait le compte
+  dans sa cuisine d'origine. Le script affichait « données entièrement séparées » sans avoir rien
+  déplacé, et abandonnait un foyer sans habitant. **La commande censée réparer le problème
+  affichait le succès sans le réparer.** Création et changement de mot de passe sont désormais
+  deux instructions distinctes (`INSERT` nu, `UPDATE` nu) et deux modes explicites.
+- **L'existence du compte est vérifiée AVANT d'écrire**, parce que `wrangler d1 execute` n'est pas
+  transactionnel : rien ne défait la création de cuisine si l'`INSERT` du compte échoue ensuite.
+- **Ce contrôle doit passer par `--command`, jamais `--file`.** Avec `--file`, wrangler répond par
+  un résumé (« Total queries executed », « Rows read ») et non par les colonnes : un
+  `SELECT COUNT(*)` y est introuvable, et le contrôle rendait silencieusement « le compte
+  n'existe pas ». Une réponse sans la colonne attendue rend `null`, jamais zéro.
+- **Trois tables sont cloisonnées par PERSONNE et non par foyer** : `user_profile`,
+  `hydration_day`, `weight_log`. Poids, taille, objectifs, pesées et hydratation restent donc
+  invisibles aux autres comptes, **y compris dans une même cuisine**. Tout le reste — recettes,
+  ingrédients, frigo, prix, tickets et **planning de repas** — appartient au foyer.
+
+## Console d'administration — `admin.bat`, `scripts/admin/`
+
+Gestion des comptes, **hors de l'application**. Ce qui ne se devine pas :
+
+- **Elle n'est JAMAIS déployée, et c'est tout le principe.** Administrer, c'est voir tous les
+  foyers ; or le serveur entier est bâti sur `Repositories(db, householdId)`, qui rend l'oubli du
+  foyer impossible. Un écran d'admin dans la PWA aurait exigé d'ouvrir une échappatoire à cette
+  règle dans le Worker déployé, plus un rôle privilégié en base. **Ce qui n'existe pas ne se
+  contourne pas** : le site en ligne ne gagne aucune route, et il n'y a pas de compte admin.
+- **« Le serveur refuse sauf en local » a été écarté** : le Worker déployé tourne sur le réseau de
+  Cloudflare, il n'y a pas de « local » chez lui. On ne pourrait filtrer que sur
+  `cf-connecting-ip`, une IP domestique change, et se fier à un en-tête est fragile.
+- **Elle emprunte l'authentification de `wrangler`**, elle n'a aucun secret à elle. Qui peut la
+  lancer pouvait déjà lancer `wrangler d1 execute` : elle n'ouvre aucun pouvoir nouveau, elle rend
+  lisible ce qui se faisait en SQL. Conséquence assumée : **on n'administre pas depuis le
+  téléphone**.
+- **`127.0.0.1` explicitement, jamais `0.0.0.0`** : sinon une console capable de supprimer des
+  comptes en production serait joignable par tout le réseau local.
+- **Aucun passe-plat SQL.** Chaque geste est une route nommée dont la requête est écrite dans
+  `serveur.mjs`. Les identifiants de chemin sont validés comme **entiers** avant interpolation,
+  parce que `wrangler d1 execute --command` ne prend pas de paramètres liés.
+- **`--command` pour lire, `--file` pour écrire, et ce n'est pas interchangeable.** Avec `--file`,
+  wrangler répond par un résumé (« Total queries executed ») au lieu des colonnes : un `SELECT
+  COUNT(*)` y est introuvable et vaut toujours zéro. Le défaut est silencieux.
+- **La base de développement est la cible par défaut.** S'ouvrir sur la production inviterait à
+  cliquer avant d'avoir regardé où l'on est.
+- **La console signale les cuisines habitées par plus d'un compte.** C'est exactement ce qui est
+  passé inaperçu le 2026-08-16 ; la règle du projet est une cuisine par compte.
+- **Supprimer exige un compte déjà désactivé, puis l'identifiant recopié.** La désactivation coupe
+  l'accès immédiatement (le compte est relu à chaque requête) et se défait ; la destruction ne
+  s'offre qu'ensuite. Elle ne touche **que** le compte : sa cuisine et son contenu restent, sans
+  quoi « supprimer un compte » ferait disparaître une cuisine entière.
+- **Les deux cibles ne rendent pas `NULL` pareil** : la production rend un `null` JSON, miniflare
+  rend la chaîne `"null"`. Sans ce cas, tout compte jamais connecté affichait « null ».
+
+### Créer un compte : le lien d'invitation
+
+- **L'administrateur ne choisit pas le mot de passe d'autrui.** Le compte naît avec une empreinte
+  **tirée au hasard**, qu'aucune saisie ne peut satisfaire : il est inutilisable jusqu'à ce que son
+  propriétaire suive le lien. Le mot de passe ne transite ni par le réseau de l'administrateur ni
+  par son écran.
+- **SHA-256 pour le jeton, PBKDF2 pour un mot de passe**, et ce n'est pas une inconséquence : le
+  hachage lent protège un secret **choisi par un humain**, donc devinable. Un jeton fait 256 bits
+  tirés au hasard — il n'y a rien à deviner. Seule l'empreinte est stockée, une fuite de la table
+  ne doit pas permettre de réclamer les invitations en attente.
+- **`/api/invitation` et `/api/invitation/mot-de-passe` sont les SEULES choses que la console
+  ajoute au serveur déployé**, et les seules routes publiques en écriture du projet.
+- **Le jeton voyage dans le CORPS, jamais dans l'URL de l'appel.** Il est forcément dans l'adresse
+  de la page — c'est ce qu'on colle dans un message — mais une chaîne de requête finit dans les
+  journaux d'accès et les rapports d'erreur. Chemins **fixes** aussi parce que `PUBLIC_ROUTES`
+  compare des chemins exacts : un segment variable aurait obligé à y ouvrir une correspondance
+  approximative.
+- **`used_at` est marqué AVANT que le mot de passe ne soit posé.** Le `WHERE used_at IS NULL` est
+  une prise de verrou : de deux requêtes simultanées, une seule voit `changes = 1`. L'ordre inverse
+  laisserait les deux aboutir, et un lien intercepté suffirait à reprendre un compte déjà réclamé.
+  `worker/src/invitation.test.ts` vérifie cet ordre dans le source, et le test a été **vu échouer**
+  avant d'être gardé.
+- **Un seul message pour « inconnu », « déjà utilisé » et « périmé »** : les distinguer apprendrait
+  à un curieux qu'un jeton a existé.
+- **L'écran d'invitation passe AVANT la garde d'authentification** (`AuthGate`), et la vérification
+  de session y est désactivée : son destinataire n'a pas de session, l'envoyer sur l'écran de
+  connexion lui demanderait le mot de passe qu'il est justement invité à choisir.
+- **La session s'ouvre dans la foulée.** La personne vient de prouver qu'elle détient le jeton et
+  de choisir le mot de passe : le lui redemander n'apporte aucune garantie.
+- **Le lien n'est affiché qu'une fois**, et la console le dit. Elle ne peut pas le retrouver :
+  perdu, il faut supprimer le compte et recommencer.
+- **`scripts/lib/cuisine-sql.mjs` porte le SQL de création de cuisine, écrit une seule fois.** La
+  ligne de commande et la console le produisent toutes deux ; deux copies auraient divergé, et la
+  règle « une cuisine par compte » ne vaut que si les deux chemins l'appliquent à l'identique.
+
+### Cuisines, réinitialisation, contrôle de santé
+
+- **`meta.changes` N'EXISTE PAS sur la cible locale.** La production le renseigne, miniflare ne
+  rend qu'une `duration`. Lu `?? 0`, un renommage parfaitement appliqué se lisait « aucune ligne
+  modifiée » et l'écran annonçait une erreur sur une opération réussie. `requete()` rend donc
+  **`null`** pour « on ne sait pas », et **tout appelant relit la donnée** au lieu de compter les
+  lignes. Troisième piège du même genre après `--file` qui ne rend pas les colonnes : sur cette
+  console, ne jamais croire un compteur, toujours relire.
+- **`scripts/lib/tables-foyer.mjs` liste les tables à vider avant de retirer une cuisine, DANS
+  L'ORDRE.** `REFERENCES household (id)` est posé sans `ON DELETE` (0005) : rien ne part tout seul.
+  La liste est **écrite et non déduite**, parce qu'une déduction ne connaîtrait pas le bon ordre —
+  et `worker/src/administration.test.ts` la compare aux migrations, en suivant les renommages
+  `x_new → x` du motif de reconstruction SQLite. Sans ce suivi, l'analyse croit `app_setting` non
+  cloisonnée, soit l'inverse de la vérité sur la table qui porte le secret de session.
+- **`app_setting` foyer 0 n'est pas une cuisine** : il porte le secret de signature et le compteur
+  d'échecs. La suppression ne vise qu'un identifiant réel, mais toute évolution doit garder la
+  distinction — effacer le foyer 0 déconnecterait tout le monde.
+- **Une cuisine habitée ne se supprime pas.** La retirer sous un compte le laisserait devant une
+  application vide, sans rien pour lui dire ce qui s'est passé. Le refus est côté serveur ; le
+  bouton grisé ne fait que le refléter.
+- **Réinitialiser n'invalide pas l'ancien mot de passe.** Il reste valable jusqu'à ce que le lien
+  soit suivi : le révoquer aussitôt couperait quelqu'un qui n'a rien demandé, sur la foi d'un clic.
+  Pour couper immédiatement, il y a « Désactiver ». Les invitations précédentes du compte sont en
+  revanche **effacées** — deux liens vivants, c'est un lien de trop à intercepter.
+- **`user_invite.kind` distingue création et réinitialisation.** Stocké plutôt que déduit de
+  `last_login_at IS NULL` : la déduction serait juste presque toujours, et fausse précisément dans
+  le cas qu'on regarde — un compte créé, jamais utilisé, dont on réinitialise le mot de passe.
+- **Le contrôle de santé porte les vérifications faites à la main le 2026-08-16**, et chacune
+  correspond à un désordre **constaté**. Seuls « cuisines partagées », « comptes sans cuisine » et
+  l'écart d'index FTS sont marqués graves : un tableau où tout est rouge ne se hiérarchise plus.
+
 ## Profil et objectifs (web) — `shared/src/profile.ts`
 
 Cible journalière en kcal et macros, par Mifflin-St Jeor. Le calcul est un module **pur**, testé
@@ -432,6 +564,46 @@ acides gras saturés) et un plancher (fibres). Ce qui ne se devine pas :
   avec leur matrice. `dailyLimits` n'accepte donc que la cible énergétique, et un test vérifie
   sa signature pour qu'une future "amélioration" casse là plutôt qu'en silence.
 - Les mots **compensé, neutralisé, rattrapé** n'ont pas leur place sur cet écran.
+
+## Serveur local et ecran de connexion (web) : `mobile.bat`
+
+`mobile.bat` construit le site, migre la base locale, demarre le serveur et ouvre un Chromium
+emule en iPhone 14 Pro. **Il n'y a pas d'ecran de connexion en local**, et c'est une decision.
+Ce qui ne se devine pas :
+
+- **La porte est `devUser()` dans `worker/src/auth.ts`, et elle a DEUX verrous** : `DEV_AUTOLOGIN`
+  vaut `'1'` **et** `ENVIRONMENT` ne vaut pas `'production'`. Les deux ne peuvent etre reunis que
+  par `.dev.vars`, fichier que `wrangler dev` seul lit, qu'aucun deploiement ne televerse et que
+  `.gitignore` couvre depuis l'origine du portage. Le second verrou n'est pas redondant : il tient
+  seul si quelqu'un ajoute la variable dans le tableau de bord Cloudflare. Dix tests gardent
+  l'ensemble (`worker/src/auth.dev.test.ts`), dont un qui verifie que `DEV_AUTOLOGIN` n'apparait
+  **pas** dans `wrangler.toml`, seule voie vers le deploiement.
+- **Le cookie passe TOUJOURS en premier.** `devUser()` n'est consulte qu'a defaut de session : le
+  chemin normal reste celui de la production, meme sur le poste du developpeur.
+- **La connexion auto est appliquee en UN SEUL endroit**, la garde de `index.ts`. C'est pourquoi
+  `/api/session` lit `user` du contexte au lieu de rappeler `currentUser` : en le recalculant, il
+  serait le seul a manquer le contournement, donc le seul a afficher quand meme l'ecran de
+  connexion.
+- **Le compte se cree tout seul** si la base locale n'en a aucun, avec une empreinte **aleatoire**
+  qu'aucun mot de passe ne peut satisfaire. On reprend sinon le **premier compte actif** : entrer
+  sous une autre identite montrerait une cuisine vide alors que les donnees d'essai sont la.
+- `mobile.bat connexion` garde l'ecran de connexion pour le tester, et redemande alors un compte
+  via `dev-compte.mjs`. `scripts/dev-vars.mjs` ecrit `.dev.vars` en **fusionnant** : un jeton d'API
+  deja present y survit.
+- **Le lanceur tue ce qui tient le port AVANT de demarrer.** Sans cela, un serveur d'un lancement
+  precedent repondait a la sonde d'attente : le demarrage etait declare reussi et le navigateur
+  s'ouvrait sur le site d'une heure plus tot. On corrigeait un ecran, on relancait, rien ne
+  changeait, et aucun message ne disait pourquoi. Constate avec deux serveurs vivants a la fois.
+- **`wrangler pages dev` sert `web/dist`, il ne compile rien.** Toute modification demande un
+  `npm --workspace web run build`, que le lanceur fait a chaque fois.
+- **`.wrangler/tmp` ne contient rien qui doive survivre, et grossit indefiniment.** Wrangler y
+  ecrit un dossier `bundle-*` par demarrage sans jamais le reprendre : 255 bundles pour 68 Mo au
+  moment ou le lanceur a commence a les balayer, avec `.wrangler/state` entierement vide a cote.
+  L'etat de la base vit sous `%LOCALAPPDATA%\Prandia\dev-state`, pas la. Le balayage vient
+  **apres** l'arret du serveur, celui qui tourne tenant son propre bundle ouvert.
+- L'etat local (D1 et R2 simules) vit dans `%LOCALAPPDATA%\Prandia\dev-state`, **hors du projet** :
+  le chemin du depot contient une espace et un signe plus, sur lesquels miniflare echoue en
+  `SQLITE_CANTOPEN` sans rien expliquer.
 
 ## Common commands
 

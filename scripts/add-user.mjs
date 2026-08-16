@@ -23,6 +23,8 @@ import { stdin, stdout } from 'node:process'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { sqlCreationCuisine, sqlString } from './lib/cuisine-sql.mjs'
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 // Plafond impose par Cloudflare Workers : au-dela de 100 000, PBKDF2 leve
@@ -142,8 +144,6 @@ const quit = (message) => {
   process.exit(1)
 }
 
-const sqlString = (v) => `'${String(v).replace(/'/g, "''")}'`
-
 /**
  * Execute la commande wrangler directement.
  *
@@ -155,14 +155,27 @@ const sqlString = (v) => `'${String(v).replace(/'/g, "''")}'`
  * Le mot de passe ne part toujours pas sur le reseau : wrangler ne transmet
  * que l'empreinte, deja calculee ici.
  */
-async function runWrangler(sql, target, persistTo) {
-  // Le SQL passe par un FICHIER, jamais par la ligne de commande.
-  //
-  // Un argument contenant apostrophes, espaces et parentheses se fait
-  // reinterpreter par le shell — c'est precisement ce qui cassait le
-  // copier-coller manuel, et `shell: true` reproduisait le probleme.
-  const file = join(tmpdir(), `livre-user-${Date.now()}.sql`)
-  await writeFile(file, sql, 'utf8')
+async function runWrangler(sql, target, persistTo, { json = false, viaCommand = false } = {}) {
+  /*
+   * LE FICHIER POUR ECRIRE, `--command` POUR LIRE, et ce n'est pas un gout.
+   *
+   * Le SQL d'ecriture passe par un FICHIER : un argument contenant
+   * apostrophes, espaces et parentheses se fait reinterpreter par le shell,
+   * ce qui cassait le copier-coller manuel, et `shell: true` reproduisait le
+   * probleme.
+   *
+   * Mais `--file` ne rend PAS les lignes lues : wrangler repond alors par un
+   * resume (« Total queries executed », « Rows read »), et un `SELECT
+   * COUNT(*)` y devient introuvable. Lu ainsi, un compte existant passait pour
+   * absent — le controle prealable rendait toujours « non ». Il faut
+   * `--command`, dont la sortie porte vraiment les colonnes demandees.
+   *
+   * L'interpolation reste sure : les seules lectures faites ici portent sur un
+   * identifiant deja valide contre /^[a-z0-9_-]{2,32}$/, et `spawn` ne passe
+   * par aucun shell.
+   */
+  const file = viaCommand ? null : join(tmpdir(), `livre-user-${Date.now()}.sql`)
+  if (file !== null) await writeFile(file, sql, 'utf8')
 
   // On appelle l'entree JavaScript de wrangler avec le Node courant, plutot
   // que `npx`. Sur Windows npx est un script .cmd, que Node refuse de lancer
@@ -196,8 +209,8 @@ async function runWrangler(sql, target, persistTo) {
           // signe plus que miniflare ne sait pas ouvrir, et un compte cree
           // sans cette option n'apparaissait nulle part.
           ...(persistTo ? ['--persist-to', persistTo] : []),
-          '--file',
-          file,
+          ...(json ? ['--json'] : []),
+          ...(viaCommand ? ['--command', sql] : ['--file', file]),
         ],
         { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] },
       )
@@ -210,8 +223,61 @@ async function runWrangler(sql, target, persistTo) {
   } finally {
     // Le fichier ne contient que l'empreinte, jamais le mot de passe — mais
     // il n'a aucune raison de trainer.
-    await rm(file, { force: true })
+    if (file !== null) await rm(file, { force: true })
   }
+}
+
+/**
+ * Le compte existe-t-il deja ? `null` si on n'a pas pu le savoir.
+ *
+ * ON LE DEMANDE A LA BASE AVANT D'ECRIRE, parce que la suite n'est pas
+ * transactionnelle : `wrangler d1 execute` enchaine les instructions et rien
+ * ne defait les precedentes si la derniere echoue.
+ *
+ * LE DEFAUT QUE CE CONTROLE REPARE, constate en production le 16 aout 2026.
+ * Le script posait un `ON CONFLICT(username) DO UPDATE` qui excluait
+ * volontairement `household_id` — ce qu'il faut pour un changement de mot de
+ * passe. Mais relance avec `--cuisine` sur un identifiant deja pris, la
+ * sequence creait la cuisine, y copiait les 3 484 lignes du catalogue, puis
+ * tombait dans le ON CONFLICT et laissait le compte dans sa cuisine d'origine.
+ * Le script affichait « Nouvelle cuisine, donnees entierement separees » sans
+ * avoir rien deplace, et abandonnait derriere lui un foyer sans habitant.
+ *
+ * C'est la pire forme d'echec : celle qui annonce le succes de l'operation
+ * qu'on venait justement corriger.
+ */
+async function accountExists(username, target, persistTo) {
+  const { code, output } = await runWrangler(
+    `SELECT COUNT(*) AS n FROM user WHERE username = ${sqlString(username)}`,
+    target,
+    persistTo,
+    { json: true, viaCommand: true },
+  )
+  if (code !== 0) return null
+
+  /*
+   * On CHERCHE le tableau JSON au lieu de supposer qu'il commence au premier
+   * crochet. Wrangler prefixe sa sortie de lignes d'avancement, dont
+   * certaines portent des crochets : partir du premier donnerait un JSON
+   * invalide, donc un `null`, donc la perte silencieuse du controle.
+   */
+  const fin = output.lastIndexOf(']')
+  if (fin === -1) return null
+
+  for (let debut = output.indexOf('['); debut !== -1 && debut < fin; debut = output.indexOf('[', debut + 1)) {
+    try {
+      const parsed = JSON.parse(output.slice(debut, fin + 1))
+      const n = parsed?.[0]?.results?.[0]?.n
+      // Une reponse sans colonne `n` n'est pas un « zero » : c'est une sortie
+      // qu'on n'a pas comprise. La confondre avec « le compte n'existe pas »
+      // est exactement le defaut que ce bloc repare.
+      if (n === undefined) return null
+      return Number(n) > 0
+    } catch {
+      /* pas le bon crochet : on essaie le suivant */
+    }
+  }
+  return null
 }
 
 const args = process.argv.slice(2)
@@ -227,16 +293,23 @@ const options = new Map(
 const [usernameRaw, displayNameRaw] = args.filter((a) => !a.startsWith('--'))
 
 if (!usernameRaw) {
-  quit(`Usage : node scripts/add-user.mjs <identifiant> ["Nom affiché"] [options]
+  quit(`Usage : node scripts/add-user.mjs <identifiant> "Nom affiché" --cuisine="Nom"
 
   identifiant        ce qu'on tape pour se connecter (minuscules, sans espace)
   Nom affiché        ce qui apparaît dans le journal d'activité
 
-  --cuisine="Nom"    CREE une nouvelle cuisine et y place ce compte.
-                     Sans cette option, le compte rejoint la cuisine n° 1 —
-                     donc voit les mêmes recettes, le même frigo, les mêmes
-                     prix. C'est ce qu'on veut pour un conjoint, jamais pour
-                     un ami.
+  --cuisine="Nom"    OBLIGATOIRE. Crée la cuisine de ce compte. Chaque compte
+                     a la sienne : recettes, frigo, prix et planning lui
+                     appartiennent et ne sont visibles de personne d'autre.
+                     Il n'existe AUCUNE option pour placer un compte dans la
+                     cuisine de quelqu'un d'autre — voir la note en tête de ce
+                     fichier.
+
+  --changer-mot-de-passe
+                     Change le mot de passe d'un compte EXISTANT. Ne touche ni
+                     à sa cuisine ni à ses données. Incompatible avec
+                     --cuisine.
+
   --local            applique sur la base de développement
   --persist-to=CHEMIN  où vit cette base de développement. À passer dès que le
                      serveur local en utilise une autre que celle par défaut,
@@ -247,11 +320,11 @@ if (!usernameRaw) {
   --print            affiche seulement le SQL, sans rien appliquer
 
 Exemples :
-  node scripts/add-user.mjs marius "Marius"
-      → rejoint la cuisine existante
-
   node scripts/add-user.mjs paul "Paul" --cuisine="Chez Paul"
-      → nouvelle cuisine, données entièrement séparées`)
+      → nouveau compte, cuisine à lui, données entièrement séparées
+
+  node scripts/add-user.mjs paul --changer-mot-de-passe
+      → nouveau mot de passe, rien d'autre ne bouge`)
 }
 
 const newKitchen = options.get('cuisine')?.trim() ?? null
@@ -259,11 +332,91 @@ if (newKitchen !== null && newKitchen === '') {
   quit('--cuisine attend un nom : --cuisine="Chez Paul"')
 }
 
+/*
+ * UNE CUISINE PAR COMPTE, ET AUCUN MOYEN DE L'ENFREINDRE.
+ *
+ * Ce script a d'abord place tout compte sans `--cuisine` dans la cuisine n° 1.
+ * L'intention etait le cas du conjoint, ou partager est le but. Le defaut
+ * etait le mauvais : l'option dangereuse etait celle qu'on obtenait sans rien
+ * taper, et le partage etait silencieux.
+ *
+ * CE QUE CELA A COUTE, le 16 aout 2026 : un compte cree en une commande a
+ * ouvert a un tiers les recettes, le frigo, les prix et le planning de repas
+ * du foyer 1. Rien de tout cela n'avait ete consenti.
+ *
+ * Partager une cuisine redeviendra possible, mais par une INVITATION que le
+ * proprietaire emet et que l'invite accepte. Tant que ce chemin n'existe pas,
+ * il n'y en a aucun : ni option, ni defaut, ni raccourci.
+ */
+const changePassword = flags.has('--changer-mot-de-passe')
+
+if (changePassword && newKitchen !== null) {
+  quit(
+    '--changer-mot-de-passe et --cuisine ne vont pas ensemble.\n\n' +
+      "Changer un mot de passe ne deplace personne, et ne cree aucune cuisine.",
+  )
+}
+
+if (!changePassword && newKitchen === null) {
+  quit(
+    `Il manque --cuisine="Nom".\n\n` +
+      `Chaque compte a sa propre cuisine : ses recettes, son frigo, ses prix et\n` +
+      `son planning n'appartiennent qu'a lui. Il n'existe pas d'option pour\n` +
+      `placer un compte dans la cuisine de quelqu'un d'autre.\n\n` +
+      `    node scripts/add-user.mjs ${usernameRaw} "${displayNameRaw ?? usernameRaw}" --cuisine="Chez ${displayNameRaw ?? usernameRaw}"\n\n` +
+      `Pour changer le mot de passe d'un compte existant :\n` +
+      `    node scripts/add-user.mjs ${usernameRaw} --changer-mot-de-passe`,
+  )
+}
+
 const username = usernameRaw.trim().toLowerCase()
 if (!/^[a-z0-9_-]{2,32}$/.test(username)) {
   quit("L'identifiant doit faire 2 à 32 caractères : lettres, chiffres, tiret, souligné.")
 }
 const displayName = (displayNameRaw ?? usernameRaw).trim()
+
+const target = flags.has('--local') ? '--local' : '--remote'
+const where = target === '--local' ? 'la base de développement' : 'la production'
+const persistTo = options.get('persist-to') ?? null
+
+/*
+ * On interroge la base AVANT de demander le mot de passe.
+ *
+ * Echouer apres deux saisies masquees pour un identifiant deja pris serait
+ * une perte de temps gratuite, et surtout : la creation de cuisine part sur
+ * la meme lancee. Mieux vaut refuser ici que laisser un foyer orphelin.
+ */
+if (!flags.has('--print')) {
+  const existe = await accountExists(username, target, persistTo)
+
+  if (existe === true && !changePassword) {
+    quit(
+      `L'identifiant « ${username} » est deja pris sur ${where}.\n\n` +
+        `Creer un compte ne peut pas ecraser un compte existant, et ne peut pas\n` +
+        `le deplacer de cuisine.\n\n` +
+        `Pour changer son mot de passe :\n` +
+        `    node scripts/add-user.mjs ${username} --changer-mot-de-passe` +
+        (target === '--local' ? ' --local' : ''),
+    )
+  }
+
+  if (existe === false && changePassword) {
+    quit(
+      `Aucun compte « ${username} » sur ${where}.\n\n` +
+        `Pour le creer, avec sa propre cuisine :\n` +
+        `    node scripts/add-user.mjs ${username} "${displayName}" --cuisine="Chez ${displayName}"` +
+        (target === '--local' ? ' --local' : ''),
+    )
+  }
+
+  if (existe === null) {
+    stdout.write(
+      `\n[!] Impossible de verifier si « ${username} » existe deja sur ${where}.\n` +
+        `    La commande continue, mais relis le resultat : en cas de doublon,\n` +
+        `    rien ne sera cree.\n`,
+    )
+  }
+}
 
 if (stdin.isTTY) {
   stdout.write("\nLa saisie est masquée : rien ne s'affiche pendant que tu tapes, c'est normal.\n\n")
@@ -284,72 +437,40 @@ if (password !== confirmation) {
 
 const { hash, salt, iterations } = await hashPassword(password)
 
+// Le SQL de creation vit dans scripts/lib/cuisine-sql.mjs : la console
+// d'administration cree des cuisines elle aussi, et deux copies de cette
+// requete finiraient par diverger.
+const kitchenSql = newKitchen === null ? '' : sqlCreationCuisine(newKitchen)
+
 /*
- * Une nouvelle cuisine part avec une copie du catalogue CIQUAL, et de LUI SEUL.
+ * DEUX INTENTIONS, DEUX INSTRUCTIONS, ET PLUS DE ON CONFLICT.
  *
- * Sans catalogue, le nouveau venu ouvre une application vide : plus aucun
- * aliment a chercher, et « Importer » ne servirait a rien. CIQUAL est la table
- * de composition de l'ANSES — une reference publique, identique pour tout le
- * monde : la copier ne raconte rien de personne.
+ * L'ancienne version faisait les deux d'un coup : un INSERT qui, en cas de
+ * doublon, se muait en UPDATE. Pratique, et c'est ce qui a coute cher — la
+ * bascule etait invisible, et la creation d'une cuisine qui la precedait ne
+ * l'etait pas moins. Un `INSERT` nu echoue franchement sur l'unicite de
+ * `username` ; un `UPDATE` nu ne cree rien s'il ne trouve personne.
  *
- * Les lignes OpenFoodFacts sont EXCLUES, et c'est le point important. Elles
- * n'ont rien d'une reference : ce sont les produits que le foyer d'origine a
- * scannes en magasin. Les recopier ferait apparaitre chez le nouveau venu la
- * marque de creme, le fromage et la moutarde exacts qu'achete quelqu'un
- * d'autre. Aucune recette ni aucun prix ne fuiterait, mais ses courses, si.
- *
- * Il constituera les siennes en scannant. C'est deja le chemin le plus rapide.
- *
- * Le sous-SELECT `MIN(id)` par source_ref evite de dupliquer une fiche presente
- * en plusieurs exemplaires, ce qui violerait l'unicite (household_id, source,
- * source_ref).
+ * Aucune des deux ne touche a `household_id` : la creation le fixe une fois,
+ * le changement de mot de passe n'y touche pas. Deplacer quelqu'un de cuisine
+ * n'est le travail d'aucune des deux, et ne le sera que le jour ou une
+ * invitation acceptee existera.
  */
-const kitchenSql =
-  newKitchen === null
-    ? ''
-    : `INSERT INTO household (name) VALUES (${sqlString(newKitchen)});
-` +
-      `INSERT INTO ingredient (household_id, name, name_normalized, source, source_ref, brand,
-` +
-      `  kcal_per_100g, proteins_g, carbs_g, sugars_g, fats_g, saturated_fats_g, fiber_g, salt_g,
-` +
-      `  piece_weight_g, cooked_weight_per_100g_raw, in_personal_library, category_l1, category_l2,
-` +
-      `  season_months)
-` +
-      `SELECT (SELECT MAX(id) FROM household), name, name_normalized, source, source_ref, brand,
-` +
-      `  kcal_per_100g, proteins_g, carbs_g, sugars_g, fats_g, saturated_fats_g, fiber_g, salt_g,
-` +
-      `  piece_weight_g, cooked_weight_per_100g_raw, 0, category_l1, category_l2, season_months
-` +
-      `FROM ingredient WHERE source = 'ciqual'
-` +
-      `  AND id IN (SELECT MIN(id) FROM ingredient WHERE source = 'ciqual' GROUP BY source_ref);
-`
-
-// `household_id` n'est PAS dans le ON CONFLICT : changer le mot de passe d'un
-// compte existant ne doit jamais le deplacer de cuisine.
-const household = newKitchen === null ? '1' : '(SELECT MAX(id) FROM household)'
-
-const sql =
-  kitchenSql +
-  `INSERT INTO user (username, display_name, household_id, password_hash, password_salt, iterations) ` +
-  `VALUES (${sqlString(username)}, ${sqlString(displayName)}, ${household}, ${sqlString(hash)}, ${sqlString(salt)}, ${iterations}) ` +
-  `ON CONFLICT(username) DO UPDATE SET ` +
-  `display_name = excluded.display_name, password_hash = excluded.password_hash, ` +
-  `password_salt = excluded.password_salt, iterations = excluded.iterations, is_active = 1;`
+const sql = changePassword
+  ? `UPDATE user SET password_hash = ${sqlString(hash)}, password_salt = ${sqlString(salt)}, ` +
+    `iterations = ${iterations}, is_active = 1 WHERE username = ${sqlString(username)};`
+  : kitchenSql +
+    `INSERT INTO user (username, display_name, household_id, password_hash, password_salt, iterations) ` +
+    `VALUES (${sqlString(username)}, ${sqlString(displayName)}, (SELECT MAX(id) FROM household), ` +
+    `${sqlString(hash)}, ${sqlString(salt)}, ${iterations});`
 
 if (flags.has('--print')) {
   stdout.write(`\n${sql}\n`)
   process.exit(0)
 }
 
-const target = flags.has('--local') ? '--local' : '--remote'
-const where = target === '--local' ? 'la base de développement' : 'la production'
-
 stdout.write(`\nApplication sur ${where}…\n`)
-const { code, output } = await runWrangler(sql, target, options.get('persist-to') ?? null)
+const { code, output } = await runWrangler(sql, target, persistTo)
 
 if (code !== 0) {
   const migrate = `npm run db:migrate:${target === '--local' ? 'local' : 'remote'}`
@@ -372,6 +493,24 @@ if (code !== 0) {
     )
   }
 
+  // Le controle prealable a laisse passer un doublon : deux lancements en
+  // parallele, ou une base modifiee entretemps. L'INSERT nu a fait son
+  // travail — il a refuse — mais la cuisine, elle, vient d'etre creee.
+  if (/UNIQUE constraint failed: user\.username/i.test(output)) {
+    quit(
+      `L'identifiant « ${username} » existe déjà : rien n'a été créé pour ce compte.\n\n` +
+        (newKitchen === null
+          ? ''
+          : `En revanche la cuisine « ${newKitchen} » vient d'être créée et n'a aucun\n` +
+            `habitant. Supprime-la :\n` +
+            `    DELETE FROM ingredient WHERE household_id = (SELECT MAX(id) FROM household);\n` +
+            `    DELETE FROM household WHERE id = (SELECT MAX(id) FROM household);\n\n`) +
+        `Pour changer le mot de passe du compte existant :\n` +
+        `    node scripts/add-user.mjs ${username} --changer-mot-de-passe` +
+        (target === '--local' ? ' --local' : ''),
+    )
+  }
+
   stdout.write(`\n${output}\n`)
   quit(
     `Échec. Si c'est un problème d'authentification, lance « npx wrangler login ».\n` +
@@ -379,13 +518,23 @@ if (code !== 0) {
   )
 }
 
-stdout.write(`
-Compte « ${username} » (${displayName}) créé sur ${where}.${
-  newKitchen === null
-    ? '\nIl rejoint la cuisine existante : mêmes recettes, même frigo, mêmes prix.'
-    : `\nNouvelle cuisine « ${newKitchen} », avec sa copie du catalogue. Données entièrement séparées.`
-}
+if (changePassword) {
+  stdout.write(`
+Mot de passe de « ${username} » changé sur ${where}.
+Sa cuisine et ses données n'ont pas bougé.
+
+Le mot de passe n'est stocké nulle part : seule son empreinte l'est.
+`)
+} else {
+  stdout.write(`
+Compte « ${username} » (${displayName}) créé sur ${where}.
+Cuisine « ${newKitchen} », avec sa copie du catalogue CIQUAL.
+
+Il ne voit les données d'aucun autre compte, et aucun autre compte ne voit les
+siennes. C'est la seule configuration que ce script sait produire.
+
 Le mot de passe n'est stocké nulle part : seule son empreinte l'est.
 
 Tu peux maintenant te connecter avec l'identifiant « ${username} ».
 `)
+}

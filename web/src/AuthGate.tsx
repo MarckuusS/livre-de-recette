@@ -1,8 +1,10 @@
 import { createContext, useContext } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMatch, useNavigate } from 'react-router'
 
 import { App } from './App.js'
 import { ApiError, checkSession, type SessionUser } from './lib/api.js'
+import { InvitationScreen } from './screens/InvitationScreen.js'
 import { LoginScreen } from './screens/LoginScreen.js'
 
 const UserContext = createContext<SessionUser | null>(null)
@@ -24,15 +26,43 @@ export const useCurrentUser = (): SessionUser => {
  */
 export function AuthGate() {
   const client = useQueryClient()
+  const navigate = useNavigate()
+
+  /*
+   * L'INVITATION PASSE AVANT LA GARDE, et ne peut pas passer apres.
+   *
+   * Son destinataire n'a pas encore de session : l'envoyer sur l'ecran de
+   * connexion lui demanderait le mot de passe qu'il vient justement d'etre
+   * invite a choisir. La verification de session est donc desactivee ici —
+   * sans quoi elle partirait pour un 401 previsible a chaque ouverture du
+   * lien.
+   */
+  const invitation = useMatch('/invitation/:jeton')
 
   const session = useQuery({
     queryKey: ['session'],
     queryFn: checkSession,
     retry: false,
+    enabled: invitation === null,
     // La session dure trois mois : inutile de la reverifier a chaque retour
     // sur l'onglet. Un 401 sur une vraie requete la remettra a jour.
     staleTime: Infinity,
   })
+
+  if (invitation !== null) {
+    return (
+      <InvitationScreen
+        jeton={invitation.params.jeton ?? ''}
+        onSuccess={(nouveau) => {
+          // Le serveur a pose le cookie de session : on renseigne le cache et
+          // on quitte l'adresse d'invitation, dont le jeton est desormais
+          // consomme. `replace` pour que le geste retour n'y revienne pas.
+          client.setQueryData(['session'], { authenticated: true, user: nouveau })
+          void navigate('/accueil', { replace: true })
+        }}
+      />
+    )
+  }
 
   if (session.isPending) {
     return (
