@@ -72,6 +72,57 @@ async function attendreNavigateur(essais = 60) {
   return null
 }
 
+/**
+ * Interroge LA PAGE, seule a pouvoir dire si elle se croit sur un telephone.
+ *
+ * `Runtime.evaluate` sur la session d'un onglet, et huit criteres. Ils ne se
+ * recouvrent pas : la taille peut etre bonne sans le tactile, le tactile peut
+ * etre la sans que `ontouchstart` existe, et c'est justement ce dernier
+ * qu'emploient les bibliotheques de geste pour choisir leur mode.
+ */
+async function verifier(ws, envoyer) {
+  const sessionId = [...ws.__sessionsPage].at(-1)
+  if (sessionId === undefined) {
+    return { tout: false, criteres: [['un onglet à équiper', false]] }
+  }
+
+  const expression = `JSON.stringify({
+    largeur: innerWidth, hauteur: innerHeight,
+    densite: Math.round(devicePixelRatio * 100) / 100,
+    points: navigator.maxTouchPoints,
+    ontouchstart: 'ontouchstart' in window,
+    survol: matchMedia('(hover: hover)').matches,
+    grossier: matchMedia('(pointer: coarse)').matches,
+    iphone: /iPhone/.test(navigator.userAgent),
+  })`
+
+  const reponse = await new Promise((resoudre) => {
+    const idAttendu = envoyer(
+      'Runtime.evaluate',
+      { expression, returnByValue: true },
+      sessionId,
+    )
+    ws.__attentes.set(idAttendu, resoudre)
+    setTimeout(() => resoudre(null), 5000)
+  })
+
+  const v = reponse?.result?.result?.value
+  if (v === undefined) return { tout: false, criteres: [['la page a répondu', false]] }
+
+  const p = JSON.parse(v)
+  const criteres = [
+    [`largeur ${APPAREIL.width} px`, p.largeur === APPAREIL.width],
+    [`hauteur ${APPAREIL.height} px`, p.hauteur === APPAREIL.height],
+    [`densité ${APPAREIL.deviceScaleFactor}`, p.densite === APPAREIL.deviceScaleFactor],
+    ['écran tactile (5 doigts)', p.points === 5],
+    ['ontouchstart existe', p.ontouchstart === true],
+    ['aucun survol possible', p.survol === false],
+    ['pointeur grossier (doigt)', p.grossier === true],
+    ['identité iPhone', p.iphone === true],
+  ]
+  return { tout: criteres.every(([, ok]) => ok), criteres }
+}
+
 async function main() {
   const navigateur = await attendreNavigateur()
   if (navigateur === null) {
@@ -87,6 +138,14 @@ async function main() {
       once: true,
     })
   })
+
+  /*
+   * Deux registres poses sur la connexion elle-meme, pour que `verifier` les
+   * atteigne sans qu'on lui passe trois arguments de plus : les sessions de
+   * page equipees, et les reponses qu'on attend.
+   */
+  ws.__sessionsPage = new Set()
+  ws.__attentes = new Map()
 
   let id = 0
   const envoyer = (method, params, sessionId) => {
@@ -105,6 +164,7 @@ async function main() {
   const equiper = (sessionId, url) => {
     if (equipes.has(sessionId)) return
     equipes.add(sessionId)
+    ws.__sessionsPage.add(sessionId)
     envoyer('Emulation.setDeviceMetricsOverride', APPAREIL, sessionId)
     envoyer('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }, sessionId)
     envoyer(
@@ -142,6 +202,14 @@ async function main() {
   ws.addEventListener('message', (ev) => {
     const msg = JSON.parse(ev.data)
 
+    // Une reponse attendue par `verifier`.
+    const attendue = ws.__attentes.get(msg.id)
+    if (attendue !== undefined) {
+      ws.__attentes.delete(msg.id)
+      attendue(msg)
+      return
+    }
+
     // Un onglet apparait : on s'y attache. `flatten` fait passer ses reponses
     // par cette meme connexion, ce qui evite d'en ouvrir une par onglet.
     if (msg.method === 'Target.targetCreated' && msg.params?.targetInfo?.type === 'page') {
@@ -152,7 +220,10 @@ async function main() {
       equiper(msg.params.sessionId, msg.params.targetInfo.url)
     }
 
-    if (msg.method === 'Target.detachedFromTarget') equipes.delete(msg.params?.sessionId)
+    if (msg.method === 'Target.detachedFromTarget') {
+      equipes.delete(msg.params?.sessionId)
+      ws.__sessionsPage.delete(msg.params?.sessionId)
+    }
 
     if (msg.error !== undefined) {
       console.error(`[mobile] Le navigateur a refusé une commande : ${msg.error.message}`)
@@ -164,6 +235,35 @@ async function main() {
   // ordinateur.
   envoyer('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true })
   envoyer('Target.setDiscoverTargets', { discover: true })
+
+  /*
+   * IL VERIFIE SON PROPRE TRAVAIL, et ce n'est pas de la coquetterie.
+   *
+   * Une version precedente annoncait un succes et ne changeait rien : les
+   * commandes etaient acceptees, puis annulees des la deconnexion. Rien dans
+   * la sortie ne le disait, et l'ecran s'ouvrait en mode ordinateur sans un
+   * mot. C'est le pire des defauts : celui qui se tait.
+   *
+   * On interroge donc LA PAGE, seule a pouvoir juger. Elle doit se croire sur
+   * un telephone ; ce que le navigateur repond aux commandes ne prouve rien.
+   */
+  await dors(1500)
+  const verdict = await verifier(ws, envoyer)
+
+  console.log('')
+  for (const [nom, ok] of verdict.criteres) console.log(`  ${ok ? '[ok] ' : '[NON]'} ${nom}`)
+  console.log('')
+
+  if (!verdict.tout) {
+    console.error('[mobile] LE MODE TÉLÉPHONE N EST PAS ACTIF.')
+    console.error('[mobile] La fenêtre ouverte se comporte comme un ordinateur.')
+    console.error('')
+    console.error('[mobile] Cause la plus fréquente : une fenêtre de ce même profil de test')
+    console.error('[mobile] était déjà ouverte, et le navigateur a rendu la main à celle-là')
+    console.error("[mobile] au lieu d'en créer une nouvelle. Ferme toutes les fenêtres du")
+    console.error('[mobile] navigateur de test, puis relance mobile.bat.')
+    process.exit(1)
+  }
 
   console.log(`[mobile] ${NOM} : ${APPAREIL.width} x ${APPAREIL.height}, densité ${APPAREIL.deviceScaleFactor}.`)
   console.log('[mobile] Écran tactile actif : la souris produit de vrais événements de doigt.')

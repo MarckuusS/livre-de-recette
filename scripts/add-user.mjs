@@ -20,7 +20,8 @@ import { rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { stdin, stdout } from 'node:process'
-import { fileURLToPath } from 'node:url'
+import { createRequire } from 'node:module'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -154,7 +155,7 @@ const sqlString = (v) => `'${String(v).replace(/'/g, "''")}'`
  * Le mot de passe ne part toujours pas sur le reseau : wrangler ne transmet
  * que l'empreinte, deja calculee ici.
  */
-async function runWrangler(sql, target) {
+async function runWrangler(sql, target, persistTo) {
   // Le SQL passe par un FICHIER, jamais par la ligne de commande.
   //
   // Un argument contenant apostrophes, espaces et parentheses se fait
@@ -166,13 +167,38 @@ async function runWrangler(sql, target) {
   // On appelle l'entree JavaScript de wrangler avec le Node courant, plutot
   // que `npx`. Sur Windows npx est un script .cmd, que Node refuse de lancer
   // sans shell — et le shell est justement ce qu'on veut eviter.
-  const wrangler = join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
+  //
+  // ON LA RESOUT AU LIEU DE LA DEVINER. Le chemin etait ecrit en dur sous la
+  // racine du depot ; dans un arbre de travail git, les dependances vivent
+  // souvent dans le depot PARENT, et la commande echouait alors sur un
+  // « Cannot find module » que rien n'expliquait. `createRequire` remonte les
+  // dossiers exactement comme le ferait un `import`.
+  const wrangler = fileURLToPath(
+    new URL(
+      './bin/wrangler.js',
+      pathToFileURL(createRequire(import.meta.url).resolve('wrangler/package.json')),
+    ),
+  )
 
   try {
     return await new Promise((resolve) => {
       const child = spawn(
         process.execPath,
-        [wrangler, 'd1', 'execute', 'livre-de-recettes', target, '--file', file],
+        [
+          wrangler,
+          'd1',
+          'execute',
+          'livre-de-recettes',
+          target,
+          // LE MEME EMPLACEMENT QUE LE SERVEUR, sinon on ecrit dans une base
+          // que personne ne lit. Le defaut s'est produit : `mobile.bat` place
+          // son etat hors du projet, dont le chemin contient une espace et un
+          // signe plus que miniflare ne sait pas ouvrir, et un compte cree
+          // sans cette option n'apparaissait nulle part.
+          ...(persistTo ? ['--persist-to', persistTo] : []),
+          '--file',
+          file,
+        ],
         { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] },
       )
       let output = ''
@@ -212,6 +238,12 @@ if (!usernameRaw) {
                      prix. C'est ce qu'on veut pour un conjoint, jamais pour
                      un ami.
   --local            applique sur la base de développement
+  --persist-to=CHEMIN  où vit cette base de développement. À passer dès que le
+                     serveur local en utilise une autre que celle par défaut,
+                     ce qui est le cas de mobile.bat : sans cette option, le
+                     compte est créé dans une base que personne ne lit, et
+                     l'écran de connexion répond "aucun compte configuré"
+                     alors qu'on vient d'en créer un.
   --print            affiche seulement le SQL, sans rien appliquer
 
 Exemples :
@@ -317,7 +349,7 @@ const target = flags.has('--local') ? '--local' : '--remote'
 const where = target === '--local' ? 'la base de développement' : 'la production'
 
 stdout.write(`\nApplication sur ${where}…\n`)
-const { code, output } = await runWrangler(sql, target)
+const { code, output } = await runWrangler(sql, target, options.get('persist-to') ?? null)
 
 if (code !== 0) {
   const migrate = `npm run db:migrate:${target === '--local' ? 'local' : 'remote'}`

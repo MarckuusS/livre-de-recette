@@ -55,6 +55,16 @@ if not exist "%ETAT%" mkdir "%ETAT%"
 call npx wrangler d1 migrations apply livre-de-recettes --local --persist-to "%ETAT%"
 if errorlevel 1 goto err_migrate
 
+rem ---- 4 bis. Un compte, sinon l'ecran de connexion ne sert a rien -------
+rem
+rem LE DEFAUT QUE CE BLOC REPARE : tout demarrait correctement et l'application
+rem repondait "Aucun compte n'est configuré sur ce serveur". La consigne
+rem "lance add-user.mjs" ne suffisait pas, et pire, elle etait FAUSSE : ce
+rem script ecrivait dans la base par defaut du projet, pas dans celle que le
+rem serveur lit ici. Il accepte desormais `--persist-to`.
+node scripts\dev-compte.mjs --persist-to="%ETAT%"
+if errorlevel 1 goto err_compte
+
 rem ---- 5. Le serveur, dans sa propre fenetre -----------------------------
 rem Une fenetre a lui pour que ses journaux restent lisibles et qu'un Ctrl+C
 rem l'arrete sans fermer celle-ci.
@@ -126,9 +136,8 @@ echo.
 echo  La fenetre ouverte se comporte comme un iPhone : glisser, balayer, et les
 echo  cibles au doigt. Le survol n'existe pas, comme sur un vrai telephone.
 echo.
-echo  Si l'ecran de connexion demande un compte et que tu n'en as pas encore en
-echo  local, cree-le dans une autre fenetre avec :
-echo     node scripts\add-user.mjs
+echo  Le compte a ete verifie a l'etape precedente : l'ecran de connexion a de
+echo  quoi repondre.
 echo ==========================================================================
 echo.
 
@@ -159,6 +168,15 @@ echo [erreur] Les migrations de la base locale ont echoue.
 echo          Etat local : %ETAT%
 echo          Si la base est abimee, supprime ce dossier et relance : il se
 echo          recree vide, tu perds seulement les donnees de developpement.
+goto fail
+
+:err_compte
+echo.
+echo [erreur] Aucun compte n'a pu etre cree sur la base locale.
+echo          Sans compte, l'ecran de connexion ne sert a rien : l'application
+echo          repond "Aucun compte n'est configure sur ce serveur".
+echo          Tu peux reessayer a la main :
+echo             node scripts\dev-compte.mjs --persist-to="%ETAT%"
 goto fail
 
 :err_serveur
