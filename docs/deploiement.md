@@ -143,12 +143,29 @@ tourne, et il ne contient pas encore la surveillance. Une fois, à la main :
 ## 4. Vérifier
 
 ```bash
-curl https://livre-de-recette.pages.dev/api/health
+curl -i https://livre-de-recette.pages.dev/api/session
 ```
 
-Ou, depuis l'application, l'écran **Diagnostic** (bouton `⋯` en haut à droite) :
-il affiche la version déployée, la joignabilité de l'API, l'état de la base et
-le nombre d'ingrédients.
+Attendu : `200` avec un **`content-type: application/json`** et
+`{"authenticated":false,"user":null}`.
+
+**Regarder le `content-type`, pas seulement le code.** C'est là qu'est le
+piège : si `_worker.js` n'a pas été déployé, `/api/*` retombe sur la règle SPA
+de `_redirects` et renvoie `index.html` avec un **code 200**. Un contrôle qui
+ne regarde que le code déclare donc l'API en bonne santé alors qu'elle n'est
+pas là du tout. Du JSON prouve que le Worker s'exécute bien devant les
+fichiers statiques.
+
+`/api/session` est utilisée ici parce qu'elle fait partie des rares routes
+publiques (avec `/api/login`, `/api/logout` et les deux d'invitation). **Ne pas
+utiliser `/api/health` en `curl` : elle exige une session** et répond `401`
+sans cookie. Elle sert au diagnostic *depuis l'application*, pas depuis un
+terminal.
+
+Depuis l'application, l'onglet **Profil** affiche la version déployée, la
+joignabilité de l'API, l'état de la base et le nombre d'ingrédients — c'est lui
+qui appelle `/api/health`, avec la session de l'utilisateur. L'ancienne adresse
+`/diagnostic` y redirige, l'écran ayant rejoint Profil.
 
 ---
 
@@ -225,7 +242,7 @@ est en tête de [`shared/src/password.ts`](../shared/src/password.ts) et de
 ### Journal d'activité
 
 Chaque ajout, modification et suppression est enregistré avec son auteur,
-consultable dans l'application via le bouton `⋯`.
+consultable dans l'application depuis l'onglet **Profil**.
 
 Une table dédiée plutôt que des colonnes `created_by` / `updated_by` : celles-ci
 disparaissent avec la ligne qu'elles décrivent, or c'est précisément la
